@@ -3,6 +3,7 @@
 
 !/.gitignore
 !/.gitmodules
+!/CHANGELOG.org
 !/LICENSE
 !/README.org
 !/flake.lock
@@ -11,6 +12,9 @@
 !/.github/
 !/.github/**/
 !/.github/**/*.yaml
+
+!/CHANGELOGS/
+!/CHANGELOGS/*.org
 
 !/cabal/
 !/cabal/**/
