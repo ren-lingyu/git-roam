@@ -1,2 +1,2 @@
-#+TITLE: Git Roam
-#+AUTHOR: Lingyu Ren
+#+title: Git Roam
+#+author: Lingyu Ren
