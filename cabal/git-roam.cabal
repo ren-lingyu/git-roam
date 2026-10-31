@@ -1,0 +1,13 @@
+cabal-version: 3.0
+name:          git-roam
+version:       0.1.0
+synopsis:      Git Roam
+license:       MIT
+build-type:    Simple
+
+executable git-roam
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  build-depends:    base >=4.16 && <5
+  default-language: Haskell2010
+  ghc-options:      -Wall
