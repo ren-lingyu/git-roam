@@ -1,0 +1,198 @@
+--- a/builtin/worktree.c
++++ b/builtin/worktree.c
+@@ -24,6 +24,7 @@
+ #include "hook.h"
+ #include "sigchain.h"
+ #include "submodule.h"
++#include "strmap.h"
+ #include "utf8.h"
+ #include "worktree.h"
+ #include "quote.h"
+@@ -458,6 +459,50 @@
+ 	strbuf_release(&sb);
+ }
+ 
++/* Experimental Git-roam prototype, not a production/public Git interface. */
++struct worktree_batch_state {
++	struct strmap paths;
++	struct strmap branches;
++};
++
++static struct worktree_batch_state *active_worktree_batch;
++
++static void batch_check_candidate_path(const char *path)
++{
++	char *canonical;
++
++	if (file_exists(path) && !is_empty_dir(path))
++		die("batch worktree destination is not empty: '%s'", path);
++	canonical = real_pathdup(path, 0);
++	if (!canonical)
++		die("cannot resolve batch worktree path: '%s'", path);
++	if (strmap_contains(&active_worktree_batch->paths, canonical))
++		die("batch worktree path already registered: '%s'", path);
++	free(canonical);
++}
++
++static void batch_check_branch(const char *branch)
++{
++	const char *other = branch_checked_out(branch);
++
++	if (!other)
++		other = strmap_get(&active_worktree_batch->branches, branch);
++	if (other)
++		die("batch worktree branch '%s' already used at '%s'",
++		    branch, other);
++}
++
++static void batch_record_created(const char *path, const char *branch)
++{
++	char *canonical = real_pathdup(path, 0);
++
++	if (!canonical)
++		BUG("cannot resolve newly created worktree path");
++	strmap_put(&active_worktree_batch->paths, canonical, xstrdup(path));
++	strmap_put(&active_worktree_batch->branches, branch, xstrdup(path));
++	free(canonical);
++}
++
+ static int add_worktree(const char *path, const char *refname,
+ 			const struct add_opts *opts)
+ {
+@@ -471,22 +516,31 @@
+ 	struct commit *commit = NULL;
+ 	int is_branch = 0;
+ 	struct strbuf sb_name = STRBUF_INIT;
+-	struct worktree **worktrees, *wt = NULL;
++	struct worktree **worktrees = NULL, *wt = NULL;
+ 	struct ref_store *wt_refs;
+ 	struct repo_config_values *cfg = repo_config_values(the_repository);
+ 
+-	worktrees = get_worktrees(the_repository);
+-	check_candidate_path(path, opts->force, worktrees, "add");
++	if (active_worktree_batch) {
++		batch_check_candidate_path(path);
++	} else {
++		worktrees = get_worktrees(the_repository);
++		check_candidate_path(path, opts->force, worktrees, "add");
++	}
+ 
+ 	/* is 'refname' a branch or commit? */
+ 	if (!opts->detach && !check_branch_ref(the_repository, &symref, refname) &&
+ 	    refs_ref_exists(get_main_ref_store(the_repository), symref.buf)) {
+ 		is_branch = 1;
+-		if (!opts->force)
+-			die_if_checked_out_in_worktrees(symref.buf, 0,
+-							worktrees);
+-	}
+-	free_worktrees(worktrees);
++		if (!opts->force) {
++			if (active_worktree_batch)
++				batch_check_branch(symref.buf);
++			else
++				die_if_checked_out_in_worktrees(symref.buf, 0,
++								worktrees);
++		}
++	}
++	if (worktrees)
++		free_worktrees(worktrees);
+ 	worktrees = NULL;
+ 	commit = lookup_commit_reference_by_name(refname);
+ 	if (!commit && !opts->orphan)
+@@ -609,6 +663,9 @@
+ 	 * Hook failure does not warrant worktree deletion, so run hook after
+ 	 * is_junk is cleared, but do return appropriate code when hook fails.
+ 	 */
++	if (!ret && active_worktree_batch && is_branch)
++		batch_record_created(path, symref.buf);
++
+ 	if (!ret && opts->checkout && !opts->orphan) {
+ 		struct run_hooks_opt opt = RUN_HOOKS_OPT_INIT;
+ 
+@@ -788,6 +845,55 @@
+ 	return NULL;
+ }
+ 
++/* Read absolute-path<TAB>existing-branch lines from stdin. */
++static int add_batch_worktrees(const struct add_opts *opts)
++{
++	struct worktree_batch_state state = {
++		.paths = STRMAP_INIT,
++		.branches = STRMAP_INIT,
++	};
++	struct worktree **existing = get_worktrees(the_repository);
++	struct strbuf line = STRBUF_INIT;
++	struct strbuf ref = STRBUF_INIT;
++	int ret = 0;
++
++	for (int i = 0; existing[i]; i++) {
++		char *canonical = real_pathdup(existing[i]->path, 0);
++		if (canonical) {
++			strmap_put(&state.paths, canonical,
++				   xstrdup(existing[i]->path));
++			free(canonical);
++		}
++	}
++	active_worktree_batch = &state;
++	while (strbuf_getline(&line, stdin) != EOF) {
++		char *sep = strchr(line.buf, '\t');
++		const char *branch;
++
++		if (!sep || !sep[1])
++			die("batch input must be absolute-path<TAB>branch");
++		*sep = 0;
++		branch = sep + 1;
++		if (!is_absolute_path(line.buf))
++			die("batch worktree path must be absolute");
++		if (check_branch_ref(the_repository, &ref, branch) ||
++		    !refs_ref_exists(get_main_ref_store(the_repository), ref.buf))
++			die("batch branch does not exist or is invalid: '%s'", branch);
++		if (add_worktree(line.buf, branch, opts)) {
++			ret = 1;
++			break;
++		}
++		strbuf_reset(&ref);
++	}
++	active_worktree_batch = NULL;
++	strbuf_release(&line);
++	strbuf_release(&ref);
++	strmap_clear(&state.paths, 1);
++	strmap_clear(&state.branches, 1);
++	free_worktrees(existing);
++	return ret;
++}
++
+ static int add(int ac, const char **av, const char *prefix,
+ 	       struct repository *repo UNUSED)
+ {
+@@ -801,6 +907,7 @@
+ 	char *opt_track = NULL;
+ 	const char *lock_reason = NULL;
+ 	int keep_locked = 0;
++	int batch = 0;
+ 	int used_new_branch_options;
+ 	struct option options[] = {
+ 		OPT__FORCE(&opts.force,
+@@ -824,6 +931,8 @@
+ 			 N_("try to match the new branch name with a remote-tracking branch")),
+ 		OPT_BOOL(0, "relative-paths", &opts.relative_paths,
+ 			 N_("use relative paths for worktrees")),
++		OPT_BOOL(0, "batch", &batch,
++			 N_("experimental: register existing branches from stdin")),
+ 		OPT_END()
+ 	};
+ 	int ret;
+@@ -832,6 +941,13 @@
+ 	opts.checkout = 1;
+ 	opts.relative_paths = use_relative_paths;
+ 	ac = parse_options(ac, av, prefix, options, git_worktree_add_usage, 0);
++	if (batch) {
++		if (ac || opts.checkout || opts.detach || opts.force || opts.orphan ||
++		    new_branch || new_branch_force || opt_track || guess_remote ||
++		    opts.keep_locked)
++			die("experimental batch supports only --no-checkout and existing branches");
++		return add_batch_worktrees(&opts);
++	}
+ 	if (!!opts.detach + !!new_branch + !!new_branch_force > 1)
+ 		die(_("options '%s', '%s', and '%s' cannot be used together"), "-b", "-B", "--detach");
+ 	if (opts.detach && opts.orphan)

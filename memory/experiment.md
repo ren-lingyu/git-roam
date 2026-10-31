@@ -114,3 +114,38 @@ used the supplied ZIP and isolated Nix derivations, not an application snapshot
 modified or tested during this task. Existing bootstrap/changelog associations
 remain in first-parent GAW ancestry. Input pins/hashes above identify external
 experimental sources without importing their Git history.
+
+## Independent local experiment archive
+
+The user requested archiving this as an independent experiment record, limited
+to the two stages actually executed locally. Capture is complete at
+`archive/2026-10-31T06-58-49Z--worktree-batch-experiment/MANIFEST.md` (relative to the GAW worktree root).
+
+The snapshot contains 23 byte-exact originals and six labelled log-excerpt
+derivatives, plus its MANIFEST.md. The payload totals 113879 bytes.
+It preserves both locked flake environments, cumulative patch variants,
+method/safety/benchmark scripts, 60 raw timed samples, local reports, and
+selected failure/test/measurement evidence. Original paths are retained under
+`files/tmp/worktree-batch-reproduction/`; the archived root is the no-src-override
+2.56.0 experiment and phase1-fixed-source/ contains the original-source run.
+
+Assessment confirmed independent reproduction/audit value beyond current
+memory. Selection excludes the supplied ZIP/design history, earlier unexecuted
+experimental claims, complete build logs, Nix closures, porting source copies,
+and unrelated temporary files. ZIP identity in the manifest is provenance only
+for original patch bytes actually applied during the local experiment.
+
+Sources matched the previously reviewed inventory before capture and were
+unchanged afterward. Every faithful copy matched original bytes, excerpts
+matched declared source ranges/transformation, and the snapshot contained
+exactly its manifest and 29 declared payloads. Sources were screened before
+persistence. Source MANIFEST.json is the original experiment inventory, not
+the archive inventory; omitted references in source reports are explained by
+the new capture manifest. No new experiment/build/network execution occurred.
+
+No additional project parent is justified for the archive checkpoint: these
+are standalone local experiments, not validation of an application snapshot.
+The memory linkage and archive form one coherent recoverable state. Archive
+content is historical evidence, not automatically current agent instructions.
+Keep a checkpointed snapshot immutable; changed evidence needs a new snapshot.
+The temporary directory remains a convenience copy, not the sole evidence.

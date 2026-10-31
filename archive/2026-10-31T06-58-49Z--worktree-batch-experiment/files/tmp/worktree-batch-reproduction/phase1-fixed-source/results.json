@@ -1,0 +1,289 @@
+{
+  "system": "Linux",
+  "machine": "x86_64",
+  "git_binaries": {
+    "baseline-sequential": "/nix/store/apc2lgbkl1sqv3k06cd43ny8psvd1k7v-git-minimal-2.54.0-baseline/bin/git",
+    "reuse-sequential": "/nix/store/siv91r8jm96nsgs1szfk30f0g9likq3s-git-minimal-2.54.0-reuse/bin/git",
+    "final-batch": "/nix/store/47hlvh9cbk9s3ywq2ac841ks5h6fnicf-git-minimal-2.54.0-git-roam-experiment/bin/git"
+  },
+  "git_versions": {
+    "baseline-sequential": "git version 2.54.0",
+    "reuse-sequential": "git version 2.54.0",
+    "final-batch": "git version 2.54.0"
+  },
+  "method": "fresh empty repository per sample; setup, validation and cleanup excluded; no checkout; three repetitions; warm shared source/object environment; not a cold-cache benchmark",
+  "samples": [
+    {
+      "backend": "files",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "repeat": 1,
+      "seconds": 11.575078428984853
+    },
+    {
+      "backend": "files",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "repeat": 2,
+      "seconds": 11.607942611997714
+    },
+    {
+      "backend": "files",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "repeat": 3,
+      "seconds": 11.876071981998393
+    },
+    {
+      "backend": "files",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "repeat": 1,
+      "seconds": 9.404874614003347
+    },
+    {
+      "backend": "files",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "repeat": 2,
+      "seconds": 9.634504029992968
+    },
+    {
+      "backend": "files",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "repeat": 3,
+      "seconds": 9.456971113017062
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "repeat": 1,
+      "seconds": 0.09078852800303139
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "repeat": 2,
+      "seconds": 0.09246414600056596
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "repeat": 3,
+      "seconds": 0.0928137080045417
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "repeat": 1,
+      "seconds": 0.17597971399663948
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "repeat": 2,
+      "seconds": 0.1868378260114696
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "repeat": 3,
+      "seconds": 0.18692606000695378
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "repeat": 1,
+      "seconds": 0.5971267790009733
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "repeat": 2,
+      "seconds": 0.6368235920090228
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "repeat": 3,
+      "seconds": 0.6309214209904894
+    },
+    {
+      "backend": "reftable",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "repeat": 1,
+      "seconds": 16.189014937990578
+    },
+    {
+      "backend": "reftable",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "repeat": 2,
+      "seconds": 16.545742177026113
+    },
+    {
+      "backend": "reftable",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "repeat": 3,
+      "seconds": 16.029862087016227
+    },
+    {
+      "backend": "reftable",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "repeat": 1,
+      "seconds": 14.417781333002495
+    },
+    {
+      "backend": "reftable",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "repeat": 2,
+      "seconds": 14.339478243986377
+    },
+    {
+      "backend": "reftable",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "repeat": 3,
+      "seconds": 14.230394085985608
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "repeat": 1,
+      "seconds": 0.12962516499101184
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "repeat": 2,
+      "seconds": 0.12290317498263903
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "repeat": 3,
+      "seconds": 0.12540764900040813
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "repeat": 1,
+      "seconds": 0.24897519298247062
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "repeat": 2,
+      "seconds": 0.23530202699475922
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "repeat": 3,
+      "seconds": 0.24725756401312537
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "repeat": 1,
+      "seconds": 0.7913149619998876
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "repeat": 2,
+      "seconds": 0.8737229529942852
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "repeat": 3,
+      "seconds": 0.8028339849843178
+    }
+  ],
+  "summaries": [
+    {
+      "backend": "files",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "median_seconds": 11.607942611997714
+    },
+    {
+      "backend": "files",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "median_seconds": 9.456971113017062
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "median_seconds": 0.09246414600056596
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "median_seconds": 0.1868378260114696
+    },
+    {
+      "backend": "files",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "median_seconds": 0.6309214209904894
+    },
+    {
+      "backend": "reftable",
+      "variant": "baseline-sequential",
+      "worktrees": 700,
+      "median_seconds": 16.189014937990578
+    },
+    {
+      "backend": "reftable",
+      "variant": "reuse-sequential",
+      "worktrees": 700,
+      "median_seconds": 14.339478243986377
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 700,
+      "median_seconds": 0.12540764900040813
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 1500,
+      "median_seconds": 0.24725756401312537
+    },
+    {
+      "backend": "reftable",
+      "variant": "final-batch",
+      "worktrees": 5000,
+      "median_seconds": 0.8028339849843178
+    }
+  ]
+}

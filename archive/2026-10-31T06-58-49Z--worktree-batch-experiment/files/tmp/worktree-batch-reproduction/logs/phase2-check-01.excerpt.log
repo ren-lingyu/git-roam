@@ -1,0 +1,92 @@
+# EXCERPT DERIVATIVE — local experiment observation
+# Source (project-root-relative): tmp/worktree-batch-reproduction/logs/phase2-check-01.log
+# Source bytes: 158645
+# Source SHA-256: 37c82dce7cd5ebd60aaaaf75236e546d0cc3646dfb1ad5560bfa3b1a26e13f4f
+# Retained original line ranges (1-based, inclusive): 16-41, 60-62, 70-72, 74-76, 2366-2370, 2379-2411
+# Unlisted lines are omitted. Selected line bytes are unchanged.
+# This is not the complete original log or executable instructions.
+
+# Source lines 16-41
+git-minimal> structuredAttrs is enabled
+git-roam-worktree-batch-smoke> error: injected failure after 1 registrations
+git-roam-worktree-batch-smoke> OK (files): batch registration and injected rollback
+git-minimal> Running phase: unamePreHook
+git-roam-worktree-batch-smoke> error: injected failure after 1 registrations
+git-roam-worktree-batch-smoke> OK (reftable): batch registration and injected rollback
+git-minimal> Running phase: unpackPhase
+git-minimal> unpacking source archive /nix/store/454fdxl1kl3cslpdmxai3n927xm9m55q-git-2.56.0.tar.xz
+git-roam-worktree-safety> OK (files): invalid-last-branch
+git-roam-worktree-safety> OK (files): duplicate-path
+git-roam-worktree-safety> OK (files): duplicate-branch
+git-roam-worktree-safety> OK (files): nested-paths
+git-roam-worktree-safety> OK (files): existing-user-directory
+git-roam-worktree-safety> OK (files): during-registration
+git-roam-worktree-safety> OK (files): after-registration
+git-minimal> source root is git-2.56.0
+git-minimal> separate-debug-info: recording checksum of source files for debug support...
+git-roam-worktree-safety> OK (files): occupied-branch
+git-roam-worktree-safety> OK (files): force-rejected
+git-roam-worktree-safety> OK (reftable): invalid-last-branch
+git-roam-worktree-safety> OK (reftable): duplicate-path
+git-roam-worktree-safety> OK (reftable): duplicate-branch
+git-roam-worktree-safety> OK (reftable): nested-paths
+git-roam-worktree-safety> OK (reftable): existing-user-directory
+git-roam-worktree-safety> OK (reftable): during-registration
+git-minimal> setting SOURCE_DATE_EPOCH to timestamp 1790569855 of file "git-2.56.0/xdiff/xutils.h"
+
+# Source lines 60-62
+git-minimal> applying patch /nix/store/8724rp5353xwgw5kwq18i4vp81089pm8-0001-reuse-worktree-list.patch
+git-roam-worktree-safety> OK (reftable): after-registration
+git-minimal> patching file branch.h
+
+# Source lines 70-72
+git-minimal> Running phase: configurePhase
+git-roam-worktree-safety> OK (reftable): occupied-branch
+git-minimal> patching script interpreter paths in ./configure
+
+# Source lines 74-76
+git-minimal> configure flags: --prefix=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0 --bindir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/bin --sbindir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/sbin --includedir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/include --mandir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/share/man --infodir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/share/info --docdir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/share/doc/git --libdir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/lib --libexecdir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/libexec --localedir=/nix/store/7y617azwpfah1sci2df6mfkkl2l04di4-git-minimal-2.56.0/share/locale ac_cv_prog_CURL_CONFIG=/nix/store/zxvysjs44vl0hh0iqmh1s9jfjv9725x9-curl-8.22.0-dev/bin/curl-config
+git-roam-worktree-safety> OK (reftable): force-rejected
+git-minimal> configure: Setting lib to 'lib' (the default)
+
+# Source lines 2366-2370
+git-minimal> t7610-mergetool.sh ................................. ok
+git-minimal> All tests successful.
+git-minimal> Files=1043, Tests=29449, 72 wallclock secs ( 7.07 usr  1.85 sys + 271.02 cusr 550.83 csys = 830.77 CPU)
+git-minimal> Result: PASS
+git-minimal> make clean-except-prove-cache
+
+# Source lines 2379-2411
+building '/nix/store/v1wzrf2xx5rvxvxyg12ralyf943qxjrf-git-roam-worktree-benchmark.drv'...
+git-roam-worktree-benchmark> backend    variant worktrees       repeat  seconds
+git-roam-worktree-benchmark> files      baseline-sequential     700     1       11.856499
+git-roam-worktree-benchmark> files      baseline-sequential     700     2       11.733160
+git-roam-worktree-benchmark> files      baseline-sequential     700     3       11.786607
+git-roam-worktree-benchmark> files      reuse-sequential        700     1       9.583929
+git-roam-worktree-benchmark> files      reuse-sequential        700     2       9.306987
+git-roam-worktree-benchmark> files      reuse-sequential        700     3       9.124566
+git-roam-worktree-benchmark> files      final-batch     700     1       0.091998
+git-roam-worktree-benchmark> files      final-batch     700     2       0.096966
+git-roam-worktree-benchmark> files      final-batch     700     3       0.095162
+git-roam-worktree-benchmark> files      final-batch     1500    1       0.181236
+git-roam-worktree-benchmark> files      final-batch     1500    2       0.191353
+git-roam-worktree-benchmark> files      final-batch     1500    3       0.181149
+git-roam-worktree-benchmark> files      final-batch     5000    1       0.586662
+git-roam-worktree-benchmark> files      final-batch     5000    2       0.577271
+git-roam-worktree-benchmark> files      final-batch     5000    3       0.575015
+git-roam-worktree-benchmark> reftable   baseline-sequential     700     1       15.927818
+git-roam-worktree-benchmark> reftable   baseline-sequential     700     2       16.182027
+git-roam-worktree-benchmark> reftable   baseline-sequential     700     3       16.188389
+git-roam-worktree-benchmark> reftable   reuse-sequential        700     1       13.902755
+git-roam-worktree-benchmark> reftable   reuse-sequential        700     2       13.865408
+git-roam-worktree-benchmark> reftable   reuse-sequential        700     3       14.439074
+git-roam-worktree-benchmark> reftable   final-batch     700     1       0.128674
+git-roam-worktree-benchmark> reftable   final-batch     700     2       0.121433
+git-roam-worktree-benchmark> reftable   final-batch     700     3       0.131881
+git-roam-worktree-benchmark> reftable   final-batch     1500    1       0.239822
+git-roam-worktree-benchmark> reftable   final-batch     1500    2       0.248414
+git-roam-worktree-benchmark> reftable   final-batch     1500    3       0.269828
+git-roam-worktree-benchmark> reftable   final-batch     5000    1       0.773390
+git-roam-worktree-benchmark> reftable   final-batch     5000    2       0.766302
+git-roam-worktree-benchmark> reftable   final-batch     5000    3       0.776046
+all checks passed!

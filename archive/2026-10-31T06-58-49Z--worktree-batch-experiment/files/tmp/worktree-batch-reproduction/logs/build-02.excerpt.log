@@ -1,0 +1,33 @@
+# EXCERPT DERIVATIVE — local experiment observation
+# Source (project-root-relative): tmp/worktree-batch-reproduction/logs/build-02.log
+# Source bytes: 144339
+# Source SHA-256: 540fe2ed4e5c7976f71a2292290577087732083fa614dc1b71e8fbc802a75b57
+# Retained original line ranges (1-based, inclusive): 10-12, 14-18, 20-24, 2161-2165
+# Unlisted lines are omitted. Selected line bytes are unchanged.
+# This is not the complete original log or executable instructions.
+
+# Source lines 10-12
+git-minimal> Running phase: patchPhase
+git-minimal> applying patch /nix/store/xp6895sy2y7x6scl9fhpxxjg5snbsvcm-0001-reuse-worktree-list.patch
+git-minimal> patching file branch.h
+
+# Source lines 14-18
+git-minimal> patching file builtin/worktree.c
+git-minimal> applying patch /nix/store/8y6jvgw9c3l8kc3qp6dsdf84rzc9k57y-0002-experimental-batch-add.patch
+git-minimal> patching file builtin/worktree.c
+git-minimal> applying patch /nix/store/3bich9mjd1lizzgrma706rdwbr2fvzsp-0003-safe-batch-validation-and-rollback.patch
+git-minimal> patching file builtin/worktree.c
+
+# Source lines 20-24
+git-minimal> Running phase: configurePhase
+git-minimal> no configure script, doing nothing
+git-minimal> Running phase: buildPhase
+git-minimal> build flags: -j16 SHELL=/nix/store/nnm9gdr70ihc6zc9298mzz8jpcgaciql-bash-5.3p20/bin/bash prefix=\$\{out\} ZLIB_NG=1 SHELL_PATH=/nix/store/nnm9gdr70ihc6zc9298mzz8jpcgaciql-bash-5.3p20/bin/sh NO_PERL=1 NO_PYTHON=1 sysconfdir=/etc NO_RUST=YesPlease NO_CURL=1 perllibdir=/nix/store/47hlvh9cbk9s3ywq2ac841ks5h6fnicf-git-minimal-2.54.0-git-roam-experiment/lib/perl5/site_perl/5.42.3
+git-minimal> GIT_VERSION=2.54.0
+
+# Source lines 2161-2165
+git-minimal> t7610-mergetool.sh ................................. ok
+git-minimal> All tests successful.
+git-minimal> Files=1026, Tests=28587, 66 wallclock secs ( 6.06 usr  1.61 sys + 258.29 cusr 516.73 csys = 782.69 CPU)
+git-minimal> Result: PASS
+git-minimal> make clean-except-prove-cache

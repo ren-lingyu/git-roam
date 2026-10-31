@@ -1,0 +1,56 @@
+# EXCERPT DERIVATIVE — local experiment observation
+# Source (project-root-relative): tmp/worktree-batch-reproduction/logs/check-02-benchmark.log
+# Source bytes: 288626
+# Source SHA-256: d6cce427b66728ad836890d70d915bb7624f907fb50b1936b0e88e319db36f78
+# Retained original line ranges (1-based, inclusive): 4330-4334, 4342-4346, 4354-4386
+# Unlisted lines are omitted. Selected line bytes are unchanged.
+# This is not the complete original log or executable instructions.
+
+# Source lines 4330-4334
+git-minimal> t7610-mergetool.sh ................................. ok
+git-minimal> All tests successful.
+git-minimal> Files=1026, Tests=28587, 133 wallclock secs ( 7.01 usr  1.84 sys + 286.39 cusr 575.19 csys = 870.43 CPU)
+git-minimal> Result: PASS
+git-minimal> make clean-except-prove-cache
+
+# Source lines 4342-4346
+git-minimal> t7610-mergetool.sh ................................. ok
+git-minimal> All tests successful.
+git-minimal> Files=1026, Tests=28587, 132 wallclock secs ( 7.03 usr  1.88 sys + 287.13 cusr 575.54 csys = 871.58 CPU)
+git-minimal> Result: PASS
+git-minimal> make clean-except-prove-cache
+
+# Source lines 4354-4386
+building '/nix/store/x8kkv0z3lgmbcw5q6v8hx03zw88pcvfc-git-roam-worktree-benchmark.drv'...
+git-roam-worktree-benchmark> backend    variant worktrees       repeat  seconds
+git-roam-worktree-benchmark> files      baseline-sequential     700     1       11.575078
+git-roam-worktree-benchmark> files      baseline-sequential     700     2       11.607943
+git-roam-worktree-benchmark> files      baseline-sequential     700     3       11.876072
+git-roam-worktree-benchmark> files      reuse-sequential        700     1       9.404875
+git-roam-worktree-benchmark> files      reuse-sequential        700     2       9.634504
+git-roam-worktree-benchmark> files      reuse-sequential        700     3       9.456971
+git-roam-worktree-benchmark> files      final-batch     700     1       0.090789
+git-roam-worktree-benchmark> files      final-batch     700     2       0.092464
+git-roam-worktree-benchmark> files      final-batch     700     3       0.092814
+git-roam-worktree-benchmark> files      final-batch     1500    1       0.175980
+git-roam-worktree-benchmark> files      final-batch     1500    2       0.186838
+git-roam-worktree-benchmark> files      final-batch     1500    3       0.186926
+git-roam-worktree-benchmark> files      final-batch     5000    1       0.597127
+git-roam-worktree-benchmark> files      final-batch     5000    2       0.636824
+git-roam-worktree-benchmark> files      final-batch     5000    3       0.630921
+git-roam-worktree-benchmark> reftable   baseline-sequential     700     1       16.189015
+git-roam-worktree-benchmark> reftable   baseline-sequential     700     2       16.545742
+git-roam-worktree-benchmark> reftable   baseline-sequential     700     3       16.029862
+git-roam-worktree-benchmark> reftable   reuse-sequential        700     1       14.417781
+git-roam-worktree-benchmark> reftable   reuse-sequential        700     2       14.339478
+git-roam-worktree-benchmark> reftable   reuse-sequential        700     3       14.230394
+git-roam-worktree-benchmark> reftable   final-batch     700     1       0.129625
+git-roam-worktree-benchmark> reftable   final-batch     700     2       0.122903
+git-roam-worktree-benchmark> reftable   final-batch     700     3       0.125408
+git-roam-worktree-benchmark> reftable   final-batch     1500    1       0.248975
+git-roam-worktree-benchmark> reftable   final-batch     1500    2       0.235302
+git-roam-worktree-benchmark> reftable   final-batch     1500    3       0.247258
+git-roam-worktree-benchmark> reftable   final-batch     5000    1       0.791315
+git-roam-worktree-benchmark> reftable   final-batch     5000    2       0.873723
+git-roam-worktree-benchmark> reftable   final-batch     5000    3       0.802834
+all checks passed!

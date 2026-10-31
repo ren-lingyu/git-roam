@@ -1,0 +1,34 @@
+# EXCERPT DERIVATIVE — local experiment observation
+# Source (project-root-relative): tmp/worktree-batch-reproduction/logs/phase2-build-02.log
+# Source bytes: 154797
+# Source SHA-256: 6ce0e4ec3ac01c7f7ea6831ab5b880f2061084b3d8dabf1b6b044c00c1771eb2
+# Retained original line ranges (1-based, inclusive): 28-30, 36-38, 45-47, 56-58, 2348-2352
+# Unlisted lines are omitted. Selected line bytes are unchanged.
+# This is not the complete original log or executable instructions.
+
+# Source lines 28-30
+git-minimal> patching file t/t7703-repack-geometric.sh
+git-minimal> applying patch /nix/store/8724rp5353xwgw5kwq18i4vp81089pm8-0001-reuse-worktree-list.patch
+git-minimal> patching file branch.h
+
+# Source lines 36-38
+git-minimal> Hunk #1 succeeded at 475 (offset -2 lines).
+git-minimal> applying patch /nix/store/045a4fwj13x9rca54512fn3h37ssxflh-0002-experimental-batch-add.patch
+git-minimal> patching file builtin/worktree.c
+
+# Source lines 45-47
+git-minimal> Hunk #8 succeeded at 972 (offset 31 lines).
+git-minimal> applying patch /nix/store/6riipzmgjqcqrhpqbad32nd5343n958b-0003-safe-batch-validation-and-rollback.patch
+git-minimal> patching file builtin/worktree.c
+
+# Source lines 56-58
+git-minimal> ./configure: interpreter directive changed from "#! /bin/sh" to "/nix/store/nnm9gdr70ihc6zc9298mzz8jpcgaciql-bash-5.3p20/bin/sh"
+git-minimal> configure flags: --prefix=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0 --bindir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/bin --sbindir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/sbin --includedir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/include --mandir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/share/man --infodir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/share/info --docdir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/share/doc/git --libdir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/lib --libexecdir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/libexec --localedir=/nix/store/alf21ak8vqxknb386dfr116srrjdncfv-git-minimal-2.56.0/share/locale ac_cv_prog_CURL_CONFIG=/nix/store/zxvysjs44vl0hh0iqmh1s9jfjv9725x9-curl-8.22.0-dev/bin/curl-config
+git-minimal> configure: Setting lib to 'lib' (the default)
+
+# Source lines 2348-2352
+git-minimal> t7610-mergetool.sh ................................. ok
+git-minimal> All tests successful.
+git-minimal> Files=1043, Tests=29449, 66 wallclock secs ( 6.87 usr  1.69 sys + 260.24 cusr 519.07 csys = 787.87 CPU)
+git-minimal> Result: PASS
+git-minimal> make clean-except-prove-cache

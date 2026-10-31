@@ -1,0 +1,375 @@
+--- a/builtin/worktree.c
++++ b/builtin/worktree.c
+@@ -21,10 +21,13 @@
+ #include "refs.h"
+ #include "remote.h"
+ #include "run-command.h"
++#include "setup.h"
+ #include "hook.h"
++#include "lockfile.h"
+ #include "sigchain.h"
+ #include "submodule.h"
+ #include "strmap.h"
++#include "string-list.h"
+ #include "utf8.h"
+ #include "worktree.h"
+ #include "quote.h"
+@@ -459,21 +462,125 @@
+ 	strbuf_release(&sb);
+ }
+ 
+-/* Experimental Git-roam prototype, not a production/public Git interface. */
++/* Experimental batch mode. Unlike Git refs, worktree registration is not
++ * transactional. The batch lock only serializes other cooperative batches;
++ * ordinary `git worktree add` does not observe it. */
++struct batch_entry {
++	char *path;
++	char *canonical;
++	char *branch;
++};
++
++struct batch_created {
++	char *path;
++	char *id;
++};
++
+ struct worktree_batch_state {
+ 	struct strmap paths;
+ 	struct strmap branches;
++	struct batch_entry *entries;
++	size_t nr, alloc;
++	struct batch_created *created;
++	size_t created_nr, created_alloc;
++	struct lock_file lock;
++	int rollback_needed;
+ };
+ 
+ static struct worktree_batch_state *active_worktree_batch;
+ 
++static char *batch_canonical_path(const char *path)
++{
++	struct strbuf resolved = STRBUF_INIT;
++
++	if (!strbuf_realpath_forgiving(&resolved, path, 0)) {
++		strbuf_release(&resolved);
++		return NULL;
++	}
++	return strbuf_detach(&resolved, NULL);
++}
++
++/* Only remove a new, empty, unmodified worktree. Never remove user files. */
++static int batch_remove_new_worktree(struct batch_created *item)
++{
++	struct strbuf dotgit = STRBUF_INIT;
++	struct strbuf admin = STRBUF_INIT;
++	const char *gitdir;
++	char *canonical_admin;
++	int read_error;
++	struct stat dotgit_stat;
++	DIR *dir;
++	struct dirent *d;
++	int safe = 1;
++	int ret = -1;
++
++	strbuf_addf(&dotgit, "%s/.git", item->path);
++	dir = opendir(item->path);
++	if (!dir)
++		goto done;
++	while ((d = readdir_skip_dot_and_dotdot(dir)) != NULL) {
++		if (strcmp(d->d_name, ".git")) {
++			safe = 0;
++			break;
++		}
++	}
++	closedir(dir);
++	if (!safe || lstat(dotgit.buf, &dotgit_stat) ||
++	    !S_ISREG(dotgit_stat.st_mode))
++		goto done;
++	repo_common_path_append(the_repository, &admin, "worktrees/%s", item->id);
++	/* Git resolves both absolute and relative gitfile links. Do not remove
++	 * anything if the link no longer points to our own worktree. */
++	gitdir = read_gitfile_gently(dotgit.buf, &read_error);
++	canonical_admin = real_pathdup(admin.buf, 0);
++	if (!gitdir || !canonical_admin || fspathcmp(gitdir, canonical_admin)) {
++		free(canonical_admin);
++		goto done;
++	}
++	free(canonical_admin);
++	if (unlink(dotgit.buf) || rmdir(item->path))
++		goto done;
++	ret = delete_git_dir(item->id);
++done:
++	if (ret)
++		warning("could not safely roll back worktree at '%s'; manual recovery needed",
++			item->path);
++	strbuf_release(&dotgit);
++	strbuf_release(&admin);
++	return ret;
++}
++
++static void batch_rollback(void)
++{
++	struct worktree_batch_state *state = active_worktree_batch;
++
++	if (!state || !state->rollback_needed)
++		return;
++	for (size_t i = state->created_nr; i > 0; i--)
++		batch_remove_new_worktree(&state->created[i - 1]);
++	state->rollback_needed = 0;
++}
++
++static void batch_rollback_on_signal(int signo)
++{
++	batch_rollback();
++	sigchain_pop(signo);
++	raise(signo);
++}
++
+ static void batch_check_candidate_path(const char *path)
+ {
+ 	char *canonical;
+ 
+-	if (file_exists(path) && !is_empty_dir(path))
+-		die("batch worktree destination is not empty: '%s'", path);
+-	canonical = real_pathdup(path, 0);
++	/* Require a fresh path; never take ownership of a pre-existing directory. */
++	{
++		struct stat st;
++		if (!lstat(path, &st))
++			die("batch worktree destination already exists: '%s'", path);
++		if (errno != ENOENT)
++			die_errno("cannot inspect batch worktree destination '%s'", path);
++	}
++	canonical = batch_canonical_path(path);
+ 	if (!canonical)
+ 		die("cannot resolve batch worktree path: '%s'", path);
+ 	if (strmap_contains(&active_worktree_batch->paths, canonical))
+@@ -492,14 +599,21 @@
+ 		    branch, other);
+ }
+ 
+-static void batch_record_created(const char *path, const char *branch)
+-{
+-	char *canonical = real_pathdup(path, 0);
++static void batch_record_created(const char *path, const char *branch,
++				 const char *id)
++{
++	struct worktree_batch_state *state = active_worktree_batch;
++	char *canonical = batch_canonical_path(path);
++	struct batch_created *item;
+ 
+ 	if (!canonical)
+ 		BUG("cannot resolve newly created worktree path");
+-	strmap_put(&active_worktree_batch->paths, canonical, xstrdup(path));
+-	strmap_put(&active_worktree_batch->branches, branch, xstrdup(path));
++	strmap_put(&state->paths, canonical, xstrdup(path));
++	strmap_put(&state->branches, branch, xstrdup(path));
++	ALLOC_GROW(state->created, state->created_nr + 1, state->created_alloc);
++	item = &state->created[state->created_nr++];
++	item->path = xstrdup(path);
++	item->id = xstrdup(id);
+ 	free(canonical);
+ }
+ 
+@@ -640,6 +754,13 @@
+ 	strvec_pushf(&child_env, "%s=%s", GIT_DIR_ENVIRONMENT, sb_git.buf);
+ 	strvec_pushf(&child_env, "%s=%s", GIT_WORK_TREE_ENVIRONMENT, path);
+ 
++	/* Test-only: exercise die() after native worktree metadata creation. */
++	if (active_worktree_batch) {
++		const char *fail_branch = getenv("GIT_TEST_WORKTREE_BATCH_FAIL_DURING");
++		if (fail_branch && !strcmp(fail_branch, refname))
++			die("injected error during worktree registration for '%s'", refname);
++	}
++
+ 	if (opts->orphan &&
+ 	    (ret = make_worktree_orphan(refname, opts, &child_env)))
+ 		goto done;
+@@ -664,7 +785,7 @@
+ 	 * is_junk is cleared, but do return appropriate code when hook fails.
+ 	 */
+ 	if (!ret && active_worktree_batch && is_branch)
+-		batch_record_created(path, symref.buf);
++		batch_record_created(path, symref.buf, name);
+ 
+ 	if (!ret && opts->checkout && !opts->orphan) {
+ 		struct run_hooks_opt opt = RUN_HOOKS_OPT_INIT;
+@@ -845,49 +966,170 @@
+ 	return NULL;
+ }
+ 
+-/* Read absolute-path<TAB>existing-branch lines from stdin. */
++/* Read and validate the complete batch before creating any worktrees. */
+ static int add_batch_worktrees(const struct add_opts *opts)
+ {
+ 	struct worktree_batch_state state = {
+ 		.paths = STRMAP_INIT,
+ 		.branches = STRMAP_INIT,
++		.lock = LOCK_INIT,
+ 	};
+-	struct worktree **existing = get_worktrees(the_repository);
++	struct worktree **existing;
+ 	struct strbuf line = STRBUF_INIT;
+ 	struct strbuf ref = STRBUF_INIT;
++	struct strbuf lockpath = STRBUF_INIT;
++	struct add_opts locked_opts = *opts;
++	const char *fail_after = getenv("GIT_TEST_WORKTREE_BATCH_FAIL_AFTER");
+ 	int ret = 0;
+ 
++	/* Excludes other patched batch invocations, not ordinary Git writers. */
++	repo_common_path_append(the_repository, &lockpath, "worktree-batch");
++	if (hold_lock_file_for_update(&state.lock, lockpath.buf,
++				      LOCK_DIE_ON_ERROR) < 0)
++		die("cannot acquire Git-roam worktree batch lock");
++	existing = get_worktrees(the_repository);
+ 	for (int i = 0; existing[i]; i++) {
+-		char *canonical = real_pathdup(existing[i]->path, 0);
++		char *canonical = batch_canonical_path(existing[i]->path);
+ 		if (canonical) {
+ 			strmap_put(&state.paths, canonical,
+ 				   xstrdup(existing[i]->path));
+ 			free(canonical);
+ 		}
+ 	}
+-	active_worktree_batch = &state;
++
+ 	while (strbuf_getline(&line, stdin) != EOF) {
++		struct batch_entry *entry;
+ 		char *sep = strchr(line.buf, '\t');
++		char *canonical;
+ 		const char *branch;
+ 
+-		if (!sep || !sep[1])
++		if (!sep || !sep[1] || strchr(sep + 1, '\t'))
+ 			die("batch input must be absolute-path<TAB>branch");
+ 		*sep = 0;
+ 		branch = sep + 1;
+ 		if (!is_absolute_path(line.buf))
+ 			die("batch worktree path must be absolute");
++		{
++			struct stat st;
++			if (!lstat(line.buf, &st))
++				die("batch path exists: '%s'", line.buf);
++			if (errno != ENOENT)
++				die_errno("cannot inspect batch path '%s'", line.buf);
++		}
++		canonical = batch_canonical_path(line.buf);
++		if (!canonical)
++			die("cannot resolve batch path: '%s'", line.buf);
++		if (strmap_contains(&state.paths, canonical))
++			die("duplicate or already registered batch path: '%s'", line.buf);
++		strbuf_reset(&ref);
+ 		if (check_branch_ref(the_repository, &ref, branch) ||
+ 		    !refs_ref_exists(get_main_ref_store(the_repository), ref.buf))
+ 			die("batch branch does not exist or is invalid: '%s'", branch);
+-		if (add_worktree(line.buf, branch, opts)) {
++		/* Check pre-existing worktrees, including rebase/bisect reservations. */
++		if (branch_checked_out(ref.buf) ||
++		    strmap_contains(&state.branches, ref.buf))
++			die("duplicate or already checked-out batch branch: '%s'", branch);
++		ALLOC_GROW(state.entries, state.nr + 1, state.alloc);
++		entry = &state.entries[state.nr++];
++		entry->path = xstrdup(line.buf);
++		entry->canonical = canonical;
++		entry->branch = xstrdup(branch);
++		strmap_put(&state.paths, canonical, xstrdup(line.buf));
++		strmap_put(&state.branches, ref.buf, xstrdup(line.buf));
++	}
++	if (ferror(stdin))
++		die("error reading batch input");
++
++	/* Detect nested paths using ancestor lookups rather than adjacency after
++	 * sorting (e.g. /a, /a-, /a/child do not sort adjacently). */
++	{
++		struct strmap planned = STRMAP_INIT;
++		for (size_t i = 0; i < state.nr; i++)
++			strmap_put(&planned, state.entries[i].canonical, NULL);
++		for (size_t i = 0; i < state.nr; i++) {
++			char *path = xstrdup(state.entries[i].canonical);
++			char *slash = path;
++			while ((slash = strrchr(path, '/')) != NULL && slash != path) {
++				*slash = 0;
++				if (strmap_contains(&planned, path))
++					die("nested batch worktree paths: '%s' and '%s'",
++					    path, state.entries[i].canonical);
++			}
++			free(path);
++		}
++		strmap_clear(&planned, 0);
++	}
++
++	/* Preflight reservations belong to this batch; the registration phase
++	 * checks only previously existing and successfully created worktrees. */
++	strmap_clear(&state.paths, 1);
++	strmap_clear(&state.branches, 1);
++	for (int i = 0; existing[i]; i++) {
++		char *canonical = batch_canonical_path(existing[i]->path);
++		if (canonical) {
++			strmap_put(&state.paths, canonical,
++				   xstrdup(existing[i]->path));
++			free(canonical);
++		}
++	}
++	/* Registration revalidates each destination and tracks new occupancy.
++	 * Never use --force in batch mode. Keep every new worktree locked until
++	 * all members are successfully created. */
++	locked_opts.keep_locked = "initializing git worktree batch";
++	active_worktree_batch = &state;
++	state.rollback_needed = 1;
++	atexit(batch_rollback);
++	sigchain_push_common(batch_rollback_on_signal);
++	for (size_t i = 0; i < state.nr; i++) {
++		struct batch_entry *entry = &state.entries[i];
++		if (add_worktree(entry->path, entry->branch, &locked_opts)) {
+ 			ret = 1;
+ 			break;
+ 		}
+-		strbuf_reset(&ref);
+-	}
++		/* Test-only fault injection for transactional rollback coverage. */
++		if (fail_after && atoi(fail_after) > 0 &&
++		    state.created_nr == (size_t)atoi(fail_after)) {
++			error("injected failure after %s registrations", fail_after);
++			ret = 1;
++			break;
++		}
++	}
++	if (!ret) {
++		for (size_t i = 0; i < state.created_nr; i++) {
++			struct strbuf lock = STRBUF_INIT;
++			repo_common_path_append(the_repository, &lock, "worktrees/%s/locked",
++						state.created[i].id);
++			if (unlink(lock.buf)) {
++				error_errno("failed to unlock batch-created worktree '%s'",
++					    state.created[i].path);
++				ret = 1;
++			}
++			strbuf_release(&lock);
++			if (ret)
++				break;
++		}
++	}
++	if (ret)
++		batch_rollback();
++	else
++		state.rollback_needed = 0;
+ 	active_worktree_batch = NULL;
++	sigchain_pop_common();
++	rollback_lock_file(&state.lock);
++	for (size_t i = 0; i < state.nr; i++) {
++		free(state.entries[i].path);
++		free(state.entries[i].canonical);
++		free(state.entries[i].branch);
++	}
++	for (size_t i = 0; i < state.created_nr; i++) {
++		free(state.created[i].path);
++		free(state.created[i].id);
++	}
++	free(state.entries);
++	free(state.created);
+ 	strbuf_release(&line);
+ 	strbuf_release(&ref);
++	strbuf_release(&lockpath);
+ 	strmap_clear(&state.paths, 1);
+ 	strmap_clear(&state.branches, 1);
+ 	free_worktrees(existing);

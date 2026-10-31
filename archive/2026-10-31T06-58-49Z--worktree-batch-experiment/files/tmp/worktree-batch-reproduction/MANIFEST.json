@@ -1,0 +1,126 @@
+{
+  "README.md": {
+    "bytes": 2542,
+    "sha256": "315479bd07f02dc63954f14a3015f8fdaf250052571c1c2e486c57279f0138a3"
+  },
+  "REPRODUCTION.md": {
+    "bytes": 6946,
+    "sha256": "c61238c4554ccb8d2c6b8acdc9405e15d651fcbb4ce8a9cc13606b2892e3b4bd"
+  },
+  "benchmark.py": {
+    "bytes": 4394,
+    "sha256": "7f20023eb71c75fcda082b51f07e459079f6e1aae740144acf5358bc58fd4c62"
+  },
+  "flake.lock": {
+    "bytes": 593,
+    "sha256": "5ca70162b37bdcdae81fcf61322501214c43e48b576889e7be403be69c15c824"
+  },
+  "flake.nix": {
+    "bytes": 2001,
+    "sha256": "c216d92afc8f30b4fee0a0ed1d3652459b961a7cdccf54b32c8d273edebdcbda"
+  },
+  "logs/build-01.log": {
+    "bytes": 95798,
+    "sha256": "5dff67a33d17e62d7d433af1e5cc3a85d8d91e33a43be0f3886393778510352d"
+  },
+  "logs/build-02.log": {
+    "bytes": 144339,
+    "sha256": "540fe2ed4e5c7976f71a2292290577087732083fa614dc1b71e8fbc802a75b57"
+  },
+  "logs/check-01.log": {
+    "bytes": 871,
+    "sha256": "367dba6019310a6585095e61ab6f4ec8975a3df7fc54af545e58b45a0312154f"
+  },
+  "logs/check-02-benchmark.log": {
+    "bytes": 288626,
+    "sha256": "d6cce427b66728ad836890d70d915bb7624f907fb50b1936b0e88e319db36f78"
+  },
+  "logs/check-03-safety.log": {
+    "bytes": 2645,
+    "sha256": "cc90488451f0eed9554ad116722ba91cdb69fb88ed18fa89f644118e0728f89a"
+  },
+  "logs/lock.log": {
+    "bytes": 628,
+    "sha256": "4001af3b64775e12ebf7825a9a2b346c83a261f2083a93e9870b51b5361d187a"
+  },
+  "logs/phase2-build-01.log": {
+    "bytes": 4676,
+    "sha256": "f26894a925347197693217009d69c77186135687af2155ef1289ab7e25cc3199"
+  },
+  "logs/phase2-build-02.log": {
+    "bytes": 154797,
+    "sha256": "6ce0e4ec3ac01c7f7ea6831ab5b880f2061084b3d8dabf1b6b044c00c1771eb2"
+  },
+  "logs/phase2-check-01.log": {
+    "bytes": 158645,
+    "sha256": "37c82dce7cd5ebd60aaaaf75236e546d0cc3646dfb1ad5560bfa3b1a26e13f4f"
+  },
+  "logs/phase2-lock.log": {
+    "bytes": 135,
+    "sha256": "8d3c996f0505d8ab3774a7231b3d5e278140df50c97ac48d8cdb4b95aa9e7f2d"
+  },
+  "patches/0001-reuse-worktree-list.patch": {
+    "bytes": 2062,
+    "sha256": "e8e9ad4a27d487870522e73d50e47caae8e0b002690bff5a5c16c9bbacb489e8"
+  },
+  "patches/0002-experimental-batch-add.patch": {
+    "bytes": 6106,
+    "sha256": "c64e804e90c35d98061ff954ee2e2d27ce83167e692f22dc9481dbdf7e78b7cc"
+  },
+  "patches/0003-safe-batch-validation-and-rollback.patch": {
+    "bytes": 12011,
+    "sha256": "b4bc35e0f5331841f292ef6174eebbdfdca688649999ddd4b9bb6ac69bb0afc5"
+  },
+  "phase1-fixed-source/README.md": {
+    "bytes": 2745,
+    "sha256": "a0849fd4e336a6597ca2be370fbf42c5de17ff995e5b619c786ec366917f756d"
+  },
+  "phase1-fixed-source/benchmark.py": {
+    "bytes": 4394,
+    "sha256": "7f20023eb71c75fcda082b51f07e459079f6e1aae740144acf5358bc58fd4c62"
+  },
+  "phase1-fixed-source/flake.lock": {
+    "bytes": 1102,
+    "sha256": "00dc8af77febef1e4513d78dcd11d6fc542eda9849a745f3f175352d96353c01"
+  },
+  "phase1-fixed-source/flake.nix": {
+    "bytes": 2470,
+    "sha256": "e0e81c90bc573d60d2a199a5c4c46034a0e3196c058a448512f4f73c5da10014"
+  },
+  "phase1-fixed-source/patches/0001-reuse-worktree-list.patch": {
+    "bytes": 2004,
+    "sha256": "0153ce562ed759fac0d5ce67939535f2654db414d6fba5c64f22a47ed12e38d4"
+  },
+  "phase1-fixed-source/patches/0002-experimental-batch-add.patch": {
+    "bytes": 6032,
+    "sha256": "c0a69822417b33c8db956b325efca480945c49a11701bd52910880bb3d9df833"
+  },
+  "phase1-fixed-source/patches/0003-safe-batch-validation-and-rollback.patch": {
+    "bytes": 11967,
+    "sha256": "d043fa040a0fe10f26cc5abca356cdf0f56d1d19ae12200b1f4ab195ecdf3f6b"
+  },
+  "phase1-fixed-source/results.json": {
+    "bytes": 6855,
+    "sha256": "cfbeb88d5245f4cc7f4bb505205e4f6cbb7f89b59e73a81fbdcd8ca47ed80b83"
+  },
+  "phase1-fixed-source/safety.py": {
+    "bytes": 3690,
+    "sha256": "a351461c0ac8cc626332e4bb91966d77b0eada71d9ae0fe7d5a10f4c8b189654"
+  },
+  "phase1-fixed-source/smoke.sh": {
+    "bytes": 1303,
+    "sha256": "815e826ae7515ca9ca1df9607c4e386cb00a1ea5999e71f2022443afdbc470df"
+  },
+  "results.json": {
+    "bytes": 6813,
+    "sha256": "9423a26d23e32fd7d9a6662ae90175e43038d976e056be6095ea2a32e139f48d"
+  },
+  "safety.py": {
+    "bytes": 3690,
+    "sha256": "a351461c0ac8cc626332e4bb91966d77b0eada71d9ae0fe7d5a10f4c8b189654"
+  },
+  "smoke.sh": {
+    "bytes": 1303,
+    "sha256": "815e826ae7515ca9ca1df9607c4e386cb00a1ea5999e71f2022443afdbc470df"
+  }
+}

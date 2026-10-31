@@ -1,0 +1,76 @@
+--- a/branch.h
++++ b/branch.h
+@@ -3,6 +3,7 @@
+ 
+ struct repository;
+ struct strbuf;
++struct worktree;
+ 
+ enum branch_track {
+ 	BRANCH_TRACK_UNSPECIFIED = -1,
+@@ -151,6 +152,9 @@
+  * worktree and die (with a message describing its checkout location) if
+  * it is.
+  */
++void die_if_checked_out_in_worktrees(const char *branch,
++				     int ignore_current_worktree,
++				     struct worktree **worktrees);
+ void die_if_checked_out(const char *branch, int ignore_current_worktree);
+ 
+ #endif
+--- a/branch.c
++++ b/branch.c
+@@ -844,10 +844,10 @@
+ 	remove_merge_branch_state(r);
+ }
+ 
+-void die_if_checked_out(const char *branch, int ignore_current_worktree)
+-{
+-	struct worktree **worktrees = get_worktrees();
+-
++void die_if_checked_out_in_worktrees(const char *branch,
++				     int ignore_current_worktree,
++				     struct worktree **worktrees)
++{
+ 	for (int i = 0; worktrees[i]; i++) {
+ 		if (worktrees[i]->is_current && ignore_current_worktree)
+ 			continue;
+@@ -858,6 +858,13 @@
+ 				branch, worktrees[i]->path);
+ 		}
+ 	}
+-
++}
++
++void die_if_checked_out(const char *branch, int ignore_current_worktree)
++{
++	struct worktree **worktrees = get_worktrees();
++
++	die_if_checked_out_in_worktrees(branch, ignore_current_worktree,
++					worktrees);
+ 	free_worktrees(worktrees);
+ }
+--- a/builtin/worktree.c
++++ b/builtin/worktree.c
+@@ -477,16 +477,17 @@
+ 
+ 	worktrees = get_worktrees();
+ 	check_candidate_path(path, opts->force, worktrees, "add");
+-	free_worktrees(worktrees);
+-	worktrees = NULL;
+ 
+ 	/* is 'refname' a branch or commit? */
+ 	if (!opts->detach && !check_branch_ref(&symref, refname) &&
+ 	    refs_ref_exists(get_main_ref_store(the_repository), symref.buf)) {
+ 		is_branch = 1;
+ 		if (!opts->force)
+-			die_if_checked_out(symref.buf, 0);
+-	}
++			die_if_checked_out_in_worktrees(symref.buf, 0,
++							worktrees);
++	}
++	free_worktrees(worktrees);
++	worktrees = NULL;
+ 	commit = lookup_commit_reference_by_name(refname);
+ 	if (!commit && !opts->orphan)
+ 		die(_("invalid reference: %s"), refname);

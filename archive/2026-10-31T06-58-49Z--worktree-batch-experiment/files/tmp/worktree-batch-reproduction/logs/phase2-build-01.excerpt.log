@@ -1,0 +1,29 @@
+# EXCERPT DERIVATIVE — local experiment observation
+# Source (project-root-relative): tmp/worktree-batch-reproduction/logs/phase2-build-01.log
+# Source bytes: 4676
+# Source SHA-256: f26894a925347197693217009d69c77186135687af2155ef1289ab7e25cc3199
+# Retained original line ranges (1-based, inclusive): 33-35, 37-39, 41-45, 68-70
+# Unlisted lines are omitted. Selected line bytes are unchanged.
+# This is not the complete original log or executable instructions.
+
+# Source lines 33-35
+git-minimal> patching file t/t7703-repack-geometric.sh
+git-minimal> applying patch /nix/store/xp6895sy2y7x6scl9fhpxxjg5snbsvcm-0001-reuse-worktree-list.patch
+git-minimal> patching file branch.h
+
+# Source lines 37-39
+git-minimal> patching file branch.c
+git-minimal> Hunk #1 FAILED at 844.
+git-minimal> Hunk #2 succeeded at 892 (offset 34 lines).
+
+# Source lines 41-45
+git-minimal> patching file builtin/worktree.c
+git-minimal> Hunk #1 FAILED at 477.
+git-minimal> 1 out of 1 hunk FAILED -- saving rejects to file builtin/worktree.c.rej
+error: Cannot build '/nix/store/0alkdvjp4i9vg4lv19crnhqhwlfzirga-git-minimal-2.56.0.drv'.
+       Reason: builder failed with exit code 1.
+
+# Source lines 68-70
+       > patching file branch.c
+       > Hunk #1 FAILED at 844.
+       > Hunk #2 succeeded at 892 (offset 34 lines).

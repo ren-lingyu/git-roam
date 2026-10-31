@@ -1,0 +1,22 @@
+# EXCERPT DERIVATIVE — local experiment observation
+# Source (project-root-relative): tmp/worktree-batch-reproduction/logs/build-01.log
+# Source bytes: 95798
+# Source SHA-256: 5dff67a33d17e62d7d433af1e5cc3a85d8d91e33a43be0f3886393778510352d
+# Retained original line ranges (1-based, inclusive): 44-46, 521-523, 1049-1051
+# Unlisted lines are omitted. Selected line bytes are unchanged.
+# This is not the complete original log or executable instructions.
+
+# Source lines 44-46
+git-minimal> GIT_VERSION=2.54.0
+git-minimal> /nix/store/nnm9gdr70ihc6zc9298mzz8jpcgaciql-bash-5.3p20/bin/bash: line 1: curl-config: command not found
+git-minimal>     * new build flags
+
+# Source lines 521-523
+git-minimal> /nix/store/y6ri2r743ckh5kk160r461czl9n2f2wf-binutils-2.46/bin/ld.bfd: http.o: in function `process_curl_messages':
+git-minimal> /build/source/http.c:368:(.text+0x61): undefined reference to `curl_multi_info_read'
+git-minimal> /nix/store/y6ri2r743ckh5kk160r461czl9n2f2wf-binutils-2.46/bin/ld.bfd: /build/source/http.c:388:(.text+0xa9): undefined reference to `curl_multi_info_read'
+
+# Source lines 1049-1051
+git-minimal> make: *** [Makefile:3020: git-remote-http] Error 1
+error: Cannot build '/nix/store/1yz8rh6br22jlq00c2gbwq3wb4cpyybl-git-minimal-2.54.0-git-roam-experiment.drv'.
+       Reason: builder failed with exit code 2.

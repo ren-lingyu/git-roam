@@ -1,0 +1,46 @@
+evaluating flake...
+checking flake output 'packages'...
+checking derivation packages.x86_64-linux.patched-git...
+derivation evaluated to /nix/store/3nip9cj2rmr3x9fx9qfy59kyf5xrhq5m-git-minimal-2.54.0-git-roam-experiment.drv
+checking flake output 'checks'...
+checking derivation checks.x86_64-linux.smoke...
+derivation evaluated to /nix/store/y95dxl3p5kkvkxx3gpb2yzh8qf652hpv-git-roam-worktree-batch-smoke.drv
+checking derivation checks.x86_64-linux.benchmark...
+evaluation warning: git-minimal-2.54.0-baseline was overridden with `version` but not `src` at /nix/store/ww99rkx1c35z2scvj1rfw0kda2iw8agj-source/flake.nix:23:9.
+
+                    This is most likely not what you want. In order to properly change the version of a package, override
+                    both the `version` and `src` attributes:
+
+                    hello.overrideAttrs (oldAttrs: rec {
+                      version = "1.0.0";
+                      src = pkgs.fetchurl {
+                        url = "mirror://gnu/hello/hello-${version}.tar.gz";
+                        hash = "...";
+                      };
+                    })
+
+                    (To silence this warning, set `__intentionallyOverridingVersion = true` in your `overrideAttrs` call.)
+derivation evaluated to /nix/store/x8kkv0z3lgmbcw5q6v8hx03zw88pcvfc-git-roam-worktree-benchmark.drv
+checking derivation checks.x86_64-linux.safety...
+derivation evaluated to /nix/store/xd1x877s868gwfcygkv7pig5m6ig5s51-git-roam-worktree-safety.drv
+running 1 flake checks...
+building '/nix/store/xd1x877s868gwfcygkv7pig5m6ig5s51-git-roam-worktree-safety.drv'...
+git-roam-worktree-safety> OK (files): invalid-last-branch
+git-roam-worktree-safety> OK (files): duplicate-path
+git-roam-worktree-safety> OK (files): duplicate-branch
+git-roam-worktree-safety> OK (files): nested-paths
+git-roam-worktree-safety> OK (files): existing-user-directory
+git-roam-worktree-safety> OK (files): during-registration
+git-roam-worktree-safety> OK (files): after-registration
+git-roam-worktree-safety> OK (files): occupied-branch
+git-roam-worktree-safety> OK (files): force-rejected
+git-roam-worktree-safety> OK (reftable): invalid-last-branch
+git-roam-worktree-safety> OK (reftable): duplicate-path
+git-roam-worktree-safety> OK (reftable): duplicate-branch
+git-roam-worktree-safety> OK (reftable): nested-paths
+git-roam-worktree-safety> OK (reftable): existing-user-directory
+git-roam-worktree-safety> OK (reftable): during-registration
+git-roam-worktree-safety> OK (reftable): after-registration
+git-roam-worktree-safety> OK (reftable): occupied-branch
+git-roam-worktree-safety> OK (reftable): force-rejected
+all checks passed!
