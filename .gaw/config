@@ -1,0 +1,4 @@
+(:version 1
+ :workspace ((:archive ((:directory "archive")))
+             (:memory ((:directory "memory")))
+             (:skills ((:directory "skills")))))
