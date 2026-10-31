@@ -5,7 +5,9 @@
 The user requested a buildable, checkable empty Haskell project, using the
 neighboring git-agent-workflow repository as a reference. The bootstrap is
 complete and committed on the project branch. No application features or
-external issue/PR were identified. Await the user's next project objective.
+external issue/PR were identified. Isolated reproduction of the supplied worktree batch experiment is now complete.
+See `memory/experiment.md` in this GAW worktree for the two verified phases,
+packaging decision, evidence limits, and next action.
 
 ## Project baseline
 
