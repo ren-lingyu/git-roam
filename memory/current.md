@@ -15,8 +15,12 @@ The independent standard-Git experiment is complete: final unpatched Git 2.56.0
 fixtures passed 66/66 on x86_64-linux, including files/reftable and SHA-256 smoke.
 Findings and execution consequences are reviewed; the node-1 experimental gate
 is satisfied for this pinned Git. No minimum-2.54 or broader safety claim follows.
-The project remains an empty executable; next implement node 1, then wait for the
-user's project commit before advancing. Its files have not yet been changed.
+Project node 1 is now implemented and verified in the worktree: CLI help/version, library, binary
+Git transport, opaque SHA-1/SHA-256 OIDs, repository discovery, two test suites,
+Nix Git selection and README. Formatting, build, all 12 unit and nine integration
+cases, and flake check passed on x86_64-linux. Changes are not staged or committed.
+Wait for the user's project commit before node 2; no Node lifecycle command is
+publicly advertised by this foundation.
 
 ## Navigation and authority
 
@@ -64,15 +68,18 @@ from the original design ZIP. Current memory is not a reconstruction of proposal
 
 ## Actual repository baseline
 
-The project remains the empty Haskell executable: cabal/app/Main.hs is main =
-pure (); cabal/git-roam.cabal is version 0.1.0 with base and no library/tests.
-The Cabal/Nix layout and locked inputs already exist. Package checks are enabled;
-declared platforms are x86_64-linux, aarch64-linux and aarch64-darwin.
-No experimental or patched Git is wired into the application.
+The committed project remains the empty executable plus the roadmap. The node-1
+worktree implementation adds GitRoam.Cli/Git/ObjectId/Repository and private BuildInfo, using
+async/process byte pipes, text, transformers and build-time Git executable lookup.
+The executable prints help/version or usage errors. Cabal declares 12 unit cases
+and nine Git/CLI integration cases, all passed. Nix selects ordinary git using
+GIT_ROAM_GIT at compile time and keeps doCheck enabled. Version is still 0.1.0;
+locked inputs and declared x86_64-linux/aarch64-linux/aarch64-darwin are unchanged.
+No patched Git is integrated.
 
-README.org still contains only the user's title/author. The new task authorizes
-README growth alongside verified implementation; preserve the user's existing
-text rather than restoring old agent prose. The committed CHANGELOG.org roadmap
+README.org retains the user's title/author and now documents the implementation's actual
+help/version interface, build/check commands, native Git selection and tests.
+The committed CHANGELOG.org roadmap
 preserves its canonical Org header and TODO 0.1.0, and adds unchecked planned
 user-facing features under Added. It explicitly separates optional naming and
 acceleration candidates from the current batch, and makes no no-op/scaffolding
@@ -113,13 +120,40 @@ ran against that clean committed snapshot; the native experiment still uses
 independent fixtures and does not validate application code. Keep these distinct
 when selecting project parents for the combined verification state.
 
+## Node-1 verification and handoff
+
+The user authorized on-demand repetition of the root formatter and the following
+clean-snapshot build/check for this node. All completed with exit 0:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone1-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone1-source
+
+GHC 9.10.3 built the implementation. Both test suites passed (12 unit and nine
+integration cases). The fresh treefmt check reported zero changes; other declared
+platforms were omitted. The initial build exposed only a test executable lookup
+problem: Nix did not place the just-built CLI on PATH. The fixture now accepts
+GIT_ROAM_TEST_EXECUTABLE, set by preCheck to the built binary, retaining actual
+CLI execution tests. The same authorized commands passed after that correction.
+
+The clean snapshot contains 20 explicitly enumerated files, including eight new
+untracked Haskell files, and excludes .git/.agents/unrelated ignored content.
+Final read-only comparison confirmed every project and copied file matches the
+tested manifest. Manifest SHA-256:
+a2751d3c741a97d6e60a10bbe1b6ceab6f4ff836e2ac3702341f6803028886aa.
+Git diff --check passes and the project index is empty. CHANGELOG and lock inputs
+are unchanged. The successful package derivation is
+/nix/store/9l4lj7yndcl4k82bxlwb77h2dii2q871-git-roam-0.1.0.drv.
+These results describe an uncommitted worktree snapshot, not project HEAD 8f1fed2;
+they do not justify a new project parent for this GAW checkpoint.
+
 ## Next action and authorization
 
-Continue with node 1: CLI/help/version, library, Git runner, OID/repository
-foundation, tests and README. Do not implement Node lifecycle commands early.
-Obtain applicable formatter/build/check authorization for that product node; the
-previous root check and lock commands were one-shot, and experiment repetition
-does not authorize product checks. Preserve the old and new archive snapshots.
+Present node 1 for user review and staging. Once staged, review the actual index
+and prepare its commit message, then wait for the user's commit. Confirm that
+commit and its relationship to the tested source before advancing to node 2.
+Do not stage or commit project files automatically. Preserve both independent
+archive snapshots. No additional build/check repetition is needed absent changes.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

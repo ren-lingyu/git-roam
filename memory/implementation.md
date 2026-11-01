@@ -6,7 +6,9 @@ The user requested implementation of the formal plan on 2026-11-01 after
 concluding the design discussion. [design.md](design.md) is the effective product
 model; [current.md](current.md) distinguishes actual work from intended features.
 This file retains the accepted plan so recovery does not depend on a chat or
-ignored temporary file. The executable is still a no-op and has no tests.
+ignored temporary file. The committed executable is still a no-op; node 1 is now
+implemented and verified in the worktree, awaiting user staging/commit as
+described in current.md. Do not start node 2 before that commit is confirmed.
 
 Use serial milestones, not parallel agents. Each project commit must independently
 build and pass its relevant tests/checks. Update README with implemented behavior
@@ -46,8 +48,16 @@ for actual observations, reviewed execution choices and the independent archive.
 It covers 31 detailed SHA-1 scenarios per files/reftable backend plus four
 SHA-1/SHA-256 object/ref/Hook/worktree smoke cases. Logging/rejection/pair-presence
 hooks are fixtures, not the product validator. Git 2.54 and other platforms remain
-unverified. The experiment gate is satisfied for starting node 1; obtain separate
-product build/check authorization rather than reusing experiment approvals.
+unverified. The experiment gate is satisfied. Node 1 passed its build, 12 unit and
+nine integration cases, and flake check on x86_64-linux. It exposes only help/version,
+keeps Git configuration intact in production while isolating test configuration,
+uses direct argv/binary stdio and typed Git failures, preserves raw output path
+boundaries, and distinguishes SHA-1/SHA-256. Nix selects standard Git at build time.
+The user separately authorized its formatter and clean-snapshot build/check;
+experiment approvals were not reused. The tested clean snapshot includes all
+eight new untracked Haskell files; all 20 copied files still match the worktree
+and manifest. No project staging was performed. Await the user's node-1 commit,
+then verify provenance before proceeding. Refresh snapshots after source changes.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.
