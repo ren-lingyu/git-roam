@@ -8,7 +8,7 @@ model; [current.md](current.md) distinguishes actual work from intended features
 This file retains the accepted plan so recovery does not depend on a chat or
 ignored temporary file. Node 1 is committed and its exact source was compared
 with the verified GHC 9.12 snapshot. Node 2 is implemented and verified in the
-worktree, awaiting user staging/commit before node 3; see current.md for evidence,
+project history, confirmed equal to its tested snapshot; node 3 is active. See current.md for evidence,
 actual progress and authorization boundaries.
 
 Use serial milestones, not parallel agents. Each project commit must independently
@@ -68,7 +68,8 @@ were confirmed equal to that tested snapshot. Node 2 subsequently passed 36
 protocol cases, the existing 21 cases, build and flake check under separate
 node-2 command authorization. The 48 generated graph fixtures cover both object
 formats and distinguish H-only ancestry from combined H/D Git ancestry. Shared
-subtrees across Nodes are cached once. Await its user commit before node 3.
+subtrees across Nodes are cached once. The user committed node 2 and its 24
+committed source files were confirmed equal to the tested snapshot before node 3.
 Refresh snapshots after source changes; approvals remain scoped to their node.
 
 After commit 0, use a new isolated directory such as

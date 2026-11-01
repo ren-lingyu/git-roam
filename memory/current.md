@@ -21,11 +21,14 @@ Nix Git selection and README. Formatting, build, all 12 unit and nine integratio
 cases, and flake check passed on x86_64-linux. The user committed node 1 as
 feat(git-roam): add CLI and native Git foundations. Read-only comparison confirmed
 all 20 committed source files match the verified GHC 9.12 snapshot, and the project
-worktree was clean at transition. Node 2 is now implemented and verified, awaiting
-user review/staging/commit: pure permanent history protocol and projection, with
+worktree was clean at transition. Node 2 is now committed: pure permanent history
+protocol and projection, with
 corresponding tests and README. Its final build passed 36 protocol cases and the
 existing 21 cases, with no compiler warnings, and flake check passed. No new CLI
-command is advertised; do not start node 3 before the user's node-2 commit.
+command was advertised by node 2. Its user commit was confirmed against all 24
+files in the tested snapshot. Node 3 is drafted in the worktree. Its initial
+build passed all 77 cases; final diagnostic/observation refinements are being
+verified under the separately granted node-3 command authorization.
 
 ## Navigation and authority
 
@@ -217,18 +220,29 @@ containers is declared in Cabal for maps/sets. The final package derivation is
 All 24 source files match the tested clean snapshot. Its manifest SHA-256 is
 996a9b883a838002f2f68b99906173a61ed374fd2610ae8ad5489759816b0463.
 The bounded helper and snapshot are tmp/prepare-milestone2-source.py and
-tmp/git-roam-milestone2-source/, separate from node 1. Project index is empty;
-diff --check passes. Results describe uncommitted node-2 source and do not
-justify a new project parent for this handoff checkpoint.
+tmp/git-roam-milestone2-source/, separate from node 1. The user staged and committed
+node 2. All 24 committed files match the tested snapshot; the worktree is clean.
+The pre-commit tests were not rerun merely to create provenance. This direct
+committed-source comparison grounds the node-3 transition in the actual baseline.
 
 ## Next action and authorization
 
-Present node 2 for user review and staging. After staging, review the actual index
-and prepare the commit message; wait for the user's commit before node 3. Then
-confirm exact committed provenance. Do not stage or commit project files.
-No additional verification repetition is needed absent changes or new concerns.
-Preserve both independent archives and earlier source snapshots. Node 3 implements
-repository object loading, shared managed-state validation, check and status.
+The user confirmed node 2 committed and requested continuation under the standing
+serial plan. Implement node 3: stored object decoding and missing-evidence checks,
+shared current/candidate managed-state validation, check/status, explicit --node
+or current Node worktree selection with repository fallback, and actual worktree
+locations. Distinguish protocol violations, incomplete management, unavailable
+evidence and changing observations. Read-only commands require no protection.
+The user separately authorized on-demand repetition, in order, of root formatting
+and build/check against path:./tmp/git-roam-milestone3-source, each timeout 120s.
+The bounded source copy helper is tmp/prepare-milestone3-source.py and preserves
+earlier snapshots. Current draft adds native stored-object decoding, pure managed
+state/ordinary-transition validation, read-only check/status and integration cases.
+An initial build passed 20 new inspection cases and the existing 57 cases;
+one unused-import warning was fixed, then symbolic-ref snapshot handling and
+actual CLI failure diagnostics were strengthened. Final verification is pending.
+Do not stage or commit project
+files. Preserve both independent archives and earlier source snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
