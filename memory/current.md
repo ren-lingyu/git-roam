@@ -892,8 +892,30 @@ needed for ordinary source implementation/testing.
 
 ## Next action and authorization
 
-The user subsequently requested an isolated flake-managed raw-object performance
-measurement for potential 10,000-Node use. Follow
+The user now explicitly requested production integration of the persistent raw
+reader, preserving all protocol semantics and requiring lifecycle/error tests
+plus performance revalidation. Follow
+[raw-reader-implementation.md](raw-reader-implementation.md) for current code,
+test design and remaining verification. Session/adapter/shared-validator code,
+tests and documentation are written; the corrected 50-file build passed all
+274 cases / 13 suites and flake/format checks. Actual production performance
+revalidation completed all 24 measurements in a new isolated experiment, with
+matching result digests and original fixture hashes. At 10,000 Nodes the formal
+implementation medians are 109.6696s one-shot versus 2.7429s production (~40x),
+60,011 versus 11 Git launches, and 345.7 versus 243.6 MiB maximum RSS. Every
+production run uses exactly one raw batch process. Longer dependency-history
+measurements also passed. The Changed checkbox is checked; final formatting,
+build and flake check passed, and all 50 current files match the final verified
+snapshot. Await user review/staging/commit; project index remains empty. The user preauthorized
+repeated Nix build/check/run/fmt for this round;
+retain single-job/core resource bounds, source snapshots and normal project Git
+boundaries. The production changes remain uncommitted. This adopted task
+supersedes the preceding experiment-only boundary; it does not change the DAG
+or authorize unrelated deployment optimizations or a release.
+
+The preceding independent experiment (before production authorization) was an
+isolated flake-managed raw-object performance measurement for potential
+10,000-Node use. Follow
 [object-reader-performance.md](object-reader-performance.md) for the confirmed
 per-object process behavior, experiment design, actual command authorizations,
 results and limits. The user authorized commands 1–4 and requested bounded parallelism.
@@ -912,11 +934,11 @@ for baseline and 1.7260s / 11 for the persistent prototype (~70.3x). Median max
 RSS is ~346.8 MiB / ~185.2 MiB. Pilot and both scale budgets are preserved; no
 further measurements or cap changes are needed. The completed report and 14
 byte-verified small evidence files are preserved in
-archive/2026-11-01T18-39-43Z--raw-object-reader-performance/. Report the measured
-scalability problem, budget distinction and prototype limits, then wait for the
-user's next decision. Project status remains clean and no product change follows.
-This task does not authorize a production reader change, DAG change or permanent
-cache. Prior implementation command approvals do not transfer to the experiment.
+archive/2026-11-01T18-39-43Z--raw-object-reader-performance/. That experiment-only
+task left project source clean and did not authorize a
+production reader change, DAG change or permanent cache. The current explicit
+production implementation task above supersedes that completed task boundary;
+keep the prototype and production measurements distinct.
 
 The user's node-11 commit was confirmed against all 45 verified source files;
 the project was clean at transition. Node 12 implements non-cascading Node
