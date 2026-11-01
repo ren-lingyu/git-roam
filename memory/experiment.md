@@ -85,9 +85,10 @@ The user authorized selective reading/copying of branch.c, branch.h, and
 builtin/worktree.c from Nix's already downloaded Git 2.56.0 archive for porting;
 copies are under porting/. No additional independent Git source fetch is needed.
 
-## Execution and next action
+## Historical execution authorization and completion boundary
 
-For this task, the user authorized repeated executions from the experiment root:
+For that completed reproduction, the user authorized repeated executions from
+the experiment root:
 - timeout 120s nix flake lock path:.
 - timeout 600s nix build --no-link --no-write-lock-file -L path:.#patched-git
 - timeout 600s nix flake check --no-write-lock-file -L path:.
@@ -98,10 +99,13 @@ escalation. Preserve logs and the phase-1 snapshot. The root smoke script uses
 a dedicated experiment_root rather than repurposing HOME. No main-project
 staging, commit, dependency changes, or test execution was authorized.
 
-The requested two-phase reproduction is complete. Await the user's next task;
-do not integrate into the application or claim a production-ready Git extension
-without further work. Both locked environments, exact patch variants, logs, and
-60 raw timed samples are retained in the ignored experiment directory.
+The requested two-phase reproduction is complete. These historical execution
+approvals do not authorize commands in the current development task. Use
+[current.md](current.md) for the current objective and next action. The accepted
+v0.1.0 plan uses standard Git; this experiment does not establish a
+production-ready extension. Both locked environments, exact patch variants,
+logs, and 60 raw timed samples remain in the ignored experiment directory and
+the selected independent archive described below.
 
 Current evidence covers local no-checkout registration through 5000 worktrees,
 preflight failures, and injected registration failures. It does not reproduce

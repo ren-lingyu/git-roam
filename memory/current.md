@@ -1,80 +1,102 @@
 # Git Roam current state
 
-## Objective and implementation status
+## Objective and actual progress
 
-The current effective design is adopted from the supplied design document with
-the user's explicit confirmation. It defines the intended v0.1.0 product;
-the application still consists only of a buildable Haskell skeleton.
-The independent local worktree experiment is complete and archived. Current
-design knowledge is maintained directly, without replaying past design stages.
+The user accepted the revised v0.1.0 plan and requested implementation on
+2026-11-01. Execute serially, one independently reviewable/buildable/testable
+project commit at a time, with user-performed project staging and commits.
 
-## Reading navigation
+Current work is the mandatory GAW design consolidation/checkpoint, followed by
+project commit 0 (CHANGELOG feature roadmap only). No application implementation,
+new native-Git experiment, build, formatter, or test run has occurred in this
+phase. Do not skip ahead to milestone 1 before the user commits node 0.
 
-The project skill starts here. All memory/archive references belong to this
-formal GAW worktree; Markdown links below resolve relative to this file.
+## Navigation and authority
 
-- [design.md](design.md): current product goals, permanent Git protocol,
-  operational constraints, and the reasons needed to apply them.
-- [implementation.md](implementation.md): intended v0.1.0 loop, implementation
-  guidance, open interface decisions, acceptance scenarios, and exclusions.
-- [experiment.md](experiment.md): actual local worktree results, packaging
-  preference, limitations, and independent archive provenance.
+- [design.md](design.md): effective standard knowledge model, Content/Checkpoint
+  encoding/projection, managed closure, lifecycle, deployment, discard and delete.
+- [implementation.md](implementation.md): accepted plan, experiment gate, serial
+  project commits, execution defaults, validation and authorization boundaries.
+- [experiment.md](experiment.md): completed independent batch-patch experiment,
+  evidence limits and historical approvals, not the current task's instructions.
 - [Independent experiment manifest](../archive/2026-10-31T06-58-49Z--worktree-batch-experiment/MANIFEST.md):
-  the selected original experiment inputs/results and labelled log excerpts.
+  immutable selected local experiment inputs/results.
 
-The product's Root/Content/Checkpoint terminology does not redefine GAW's
-workflow. Adopted design does not mean implemented behavior or execution
-authorization. The project skill remains a navigation entry point; concrete
-facts and requirements belong in memory.
+The project skill routes here. GAW's own workflow and product Checkpoints are
+different concepts. The final user decisions supersede conflicting assumptions
+from the original design ZIP. Current memory is not a reconstruction of proposals.
 
-## Actual project baseline
+## Adopted design changes needed for recovery
 
-Project paths in this section are relative to the ordinary project worktree.
+- Formal versions have complete direct dependencies and possibly multiple
+  same-Node formal predecessors. Content does not have a formal dependency set.
+- Extra same-UUID Checkpoint parents retain formal history; external UUID parents
+  encode exact dependencies. Protect all existing formal Checkpoints by default,
+  not just externally referenced ones or a first-parent anchor.
+- Native legal progression may add Checkpoints. Explicit discard removes
+  exactly the minimal formal successor closure, subject to one-branch
+  representability; affected tips become the unique remaining maximum or Root.
+- Normal dependency closure requires persistent local Node branches retaining
+  the required formal versions. Object reachability alone is insufficient.
+- Enable/disable control protection independently of worktrees. Enable accepts
+  any knowledge-history state; disable requires full linked-worktree undeploy.
+- Node create --path creates both identity/branch and worktree. Full deploy may
+  create missing local tracking branches from fetched canonical remote candidates
+  but never advances existing local branches. There is no independent adopt.
+- Full undeploy covers all Node linked worktrees, including user-created/moved
+  ones. Main and detached worktrees have the separate boundaries in design.md.
+- No CSV, directory-classification registry, remembered deployment root, partial
+  deploy or historical checkout. The eight-character UUID hash naming is fixed.
+- When tip is a Checkpoint, create a new same-tree Content before a new Checkpoint;
+  do not reuse the old second parent. Complete dependency inheritance is only a
+  construction convenience.
+- Execution mechanisms, Git compatibility and concurrency remain to be tested.
+  Validated Haskell plans do not freeze external Git state or prove isolation.
 
-- `cabal/cabal.project` selects the local package. `cabal/git-roam.cabal`
-  defines version 0.1.0 and an executable using Haskell2010, `-Wall`, and
-  `base >=4.16 && <5`.
-- `cabal/app/Main.hs` is `main = pure ()`: no output or application actions.
-  There is no library or test suite, and no implemented Node, Checkpoint,
-  Hook, history validator, or deployment feature.
-- `flake.nix` uses locked nixpkgs/personal-nixpkgs and `pkgs/` packaging to
-  expose a default package, package check, and treefmt check. Systems declared
-  are x86_64-linux, aarch64-linux, and aarch64-darwin. Packaging enables checks
-  and disables Haddock. No experimental Git is wired into the application.
-- The user deliberately kept `README.org` as title/author only. Preserve it;
-  do not restore the earlier agent-written instructions.
-- `CHANGELOG.org` uses the canonical Org header, `TODO 0.1.0`, and an empty
-  `Added` category by explicit user choice because no substantive feature
-  exists yet. Do not restore no-op-executable or Nix-scaffolding descriptions,
-  add release dates, or infer release finalization.
+## Actual repository baseline
 
-## Verification boundaries
+The project remains the empty Haskell executable: cabal/app/Main.hs is main =
+pure (); cabal/git-roam.cabal is version 0.1.0 with base and no library/tests.
+The Cabal/Nix layout and locked inputs already exist. Package checks are enabled;
+declared platforms are x86_64-linux, aarch64-linux and aarch64-darwin.
+No experimental or patched Git is wired into the application.
 
-The earlier skeleton build and flake check succeeded on x86_64-linux, using
-GHC 9.10.3. Agent runs used the uncommitted skeleton and a longer README; the
-user supplied a successful flake check after their README edit and before
-CHANGELOG initialization. Those observations are not a fresh validation of
-every later committed tree. Other declared architectures were omitted, and
-no product test suite exists.
+README.org still contains only the user's title/author. The new task authorizes
+README growth alongside verified implementation; preserve the user's existing
+text rather than restoring old agent prose. CHANGELOG.org currently has its
+canonical Org header, TODO 0.1.0 and empty Added. Commit 0 will add explicitly
+planned real user-facing features, not no-op/scaffolding claims.
 
-Local worktree reproduction has its own inputs, checks, and archived evidence;
-its successful outcomes do not validate the proposed application protocol,
-Hook behavior, or the entire first-version test matrix. See the dedicated
-memory files rather than treating document-supplied historical experiment
-claims as locally reproduced facts.
+## Verification and provenance limits
 
-The design baseline is reviewed against the source text and current project
-files. No fresh application build/test, formatter run, or new experiment
-validation accompanies this knowledge update. The ZIP is a knowledge source,
-not newly archived raw evidence. Existing archive snapshots remain immutable.
+Earlier skeleton build/flake checks passed on x86_64-linux with GHC 9.10.3, before
+or around the user's README correction; those are not fresh checks of every
+later tree. Other declared platforms were not thereby validated. The formal
+design consolidation is supported by user decisions and current small-file
+inspection, not by a new protocol implementation or native-Git experiment.
 
-## Next action and operating boundary
+The completed independent reproduction remains separately archived. Its source-
+pinned 2.54 and nixpkgs-patched 2.56 no-checkout results do not establish product
+protocol, Hook, real checkout or minimum-Git support. The new plan requires a
+separate flake-managed standard-Git experiment after project commit 0.
 
-Use the adopted design and implementation boundaries to prepare a separately
-scoped implementation plan, resolving the relevant open choices before coding.
-No application implementation is implied by this memory update.
+No additional project parent is selected for this design/planning checkpoint:
+these semantic decisions and the execution plan were not derived from testing
+a new committed application implementation. Existing first-parent memory retains
+the original bootstrap/changelog provenance. Do not guess a project parent from
+current HEAD or a future commit.
 
-Future project edits, builds/checks/formatting, dependency/network operations,
-and project Git mutations require their applicable authorization. Previous
-experiment command approvals belonged to that completed task. Continue normal
-GAW memory maintenance through its public interfaces and the active user policy.
+## Next action and authorization
+
+Finish reviewing/staging/checkpointing the coherent declared GAW workspace through
+public interfaces. Then change only root CHANGELOG.org for project commit 0;
+verify its diff and obtain any required formatter/check command authorization.
+Present the reviewable result and suggested commit intent, await the user's
+project staging/commit, and read-only confirm it before new experiments.
+
+The request to implement covers the plan's project edits. Respect AGENTS.md for
+build/test/format/network command authorization and project Git boundaries.
+Ordinary GAW memory maintenance is preauthorized through its public loop; lifecycle
+changes or native project commits are not implied. Preserve the existing archive,
+user edits and unrelated temporary work. No new command approval is inherited
+from the completed reproduction.

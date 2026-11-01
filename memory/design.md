@@ -1,246 +1,334 @@
 # Git Roam current design
 
-## Status and purpose
+## Authority and scope
 
-The user adopts the settled decisions in the supplied design document as the
-current effective design for subsequent implementation. This is a current
-knowledge baseline, not a reconstruction of design history. Reasons below
-explain constraints that still matter. Implementation status and unresolved
-interfaces are separate in [implementation.md](implementation.md); actual
-repository state and navigation are in [current.md](current.md).
+This is the effective v0.1.0 design adopted through the user's final decisions
+and accepted implementation plan on 2026-11-01. The earlier supplied design
+document was the initial knowledge source; the final decisions supersede its
+conflicting assumptions. This is current memory, not a replay of design history.
+See [implementation.md](implementation.md) for the accepted execution sequence
+and technical validation gates, and [current.md](current.md) for actual progress.
 
-A Node represents an independent knowledge bundle with its own traceable Git
-history. A formal knowledge state records the exact versions of other Nodes
-needed to interpret it, while ordinary editing continues through files,
-editors, and native Git. Org-roam motivates this use case but does not define
-the core format. These product rules do not replace GAW's own protocol or the
-user's execution/authorization policy.
+Git Roam represents independent knowledge bundles and their exact dependencies.
+Knowledge construction, dependency changes, integration, and discard are local
+Git repository operations. Clone/fetch/push transmit existing objects and refs;
+synchronization does not automatically construct, merge, or rewrite knowledge.
+No product behavior in this file is already implemented by the empty executable.
+The product protocol does not redefine GAW or extend execution authorization.
 
-## Identity and Git object model
+## Standard knowledge model
 
-Let `P(x)` be the ordered Git parents of commit `x`, `T(x)` its tree OID,
-`R_u` the Root of UUID `u`, `W` a Content commit, and `K` a Checkpoint.
+The fully non-sparse local model is the semantic reference model. A formal
+knowledge version C has UUID uuid(C), complete content tree T(C), same-Node
+direct formal predecessors H(C), and complete direct external dependencies D(C).
 
-Each Node has one authoritative active local branch, conventionally
-`refs/heads/<uuid>`. Branch spelling, note titles, classification, and deployment
-paths are not proof of identity: validate the Root, UUID subtree, and history.
-Keeping one branch avoids two independently managed authoritative histories.
+Every formal version explicitly declares all direct dependencies, including an
+empty set. Dependencies identify exact formal versions of other Nodes; each
+external UUID has at most one direct version. Transitive contexts may contain
+different versions of the same Node: there is no global version-unification rule.
+H(C) may contain multiple same-Node predecessors, permitting formal convergence.
+Formal predecessors and external dependencies have distinct meanings.
 
-Create UUIDv4 identities and check known active identities and relevant
-reachable history for conflicts. The same UUID must not identify incompatible
-Roots in the retained knowledge. This is a local, visible-history guarantee,
-not mathematical uniqueness across unsynchronized clones or forgotten history.
-Do not silently combine different Roots or rewrite identity to resolve a clash.
+The standard model concerns formal versions, not every ordinary editing commit.
+Content/Checkpoint is a concrete encoding retaining editing history in addition
+to formal semantics; it is not itself the fully non-sparse reference model.
+
+## Identity and permanent Git encoding
+
+Let P(c) be the ordered Git parent list and T(c) the tree OID. UUIDs use canonical
+lowercase hyphenated text. Every valid Node commit has exactly one top-level
+directory, named for its UUID, containing the regular-file marker <uuid>/.roam;
+nothing outside that directory is permitted. Content and Checkpoint trees may
+also contain arbitrary knowledge payload within that directory.
+
+The Root establishes identity. In valid history, following first parents reaches
+the same-Node Root, whose tree supplies the UUID marker. Full Git ancestry also
+contains external Nodes' Roots and cannot identify a unique Root for this purpose.
+Validate every relevant commit's tree and same-Node history, not just the branch
+name. A UUID-looking name alone does not prove valid history.
+
+Create UUIDv4 identities and zero-byte regular-file markers. Historical marker
+contents need not be empty; marker bytes carry no type/version/dependency meaning.
+Preserve marker path and regular-file type. No mandatory note filename, Org
+syntax, Org ID, nonempty payload, or nonempty diff follows from this protocol.
+Same-UUID relevant history must have one consistent Root; reject conflicts rather
+than selecting, rewriting identity, or merging them. UUID uniqueness is local to
+known history, not a global guarantee or permanent retirement registry.
 
 ### Root and Content
 
-A Root has no parents. Its complete tree is only `<uuid>/.roam`: one UUID
-directory containing a regular-file marker, with no body or dependencies.
-The marker is a file, not a directory or mandatory classification record.
-Creation may emit an empty blob, but nonempty historical markers are not
-invalid merely because of their content. Stronger marker blob/mode protection
-is an operational choice, not an empty-blob history invariant.
+Root R_u has no parents and its complete tree is only <uuid>/.roam. It establishes
+identity, contains no knowledge payload, and is not a formal Checkpoint.
 
-Content has exactly one parent, keeps the same sole top-level UUID subtree,
-and retains its regular-file marker. Additional Node directories or content
-outside that subtree are invalid. Before the first Checkpoint, Content forms
-a single-parent chain to the Root; after a Checkpoint, new Content starts
-from that Checkpoint and continues as a single-parent chain.
+Content W has exactly one same-Node parent, which may be Root, Content, or
+Checkpoint. Content chains may fork. A Content commit retains editing history
+but is not an independent standard-model formal version: its formal dependency
+set is undefined, not empty and not inherited from a previous Checkpoint.
 
-Core validation is Git-only. It does not require `note.org`, Org syntax or IDs,
-a nonempty body, a particular number of payload files, or a nonempty diff.
-An empty-diff non-Root Content commit is still distinct from the Root.
-Org semantics may be added through a separate adapter without changing this
-Git history protocol.
+Native Git supplies ordinary editing, staging, commits, amend, reset, rebase, and
+squash. Git Roam does not replace that workflow or impose a Content message
+format. Empty-diff Content is valid.
 
-Native Git creates and edits Content. Git Roam does not wrap `git add`,
-ordinary `git commit`, amend, reset, or rebase with replacement editing commands.
+### Checkpoint and projection
 
-### Checkpoint structure and continuity
+For a Checkpoint K:
 
-For later Checkpoints:
+    P(K) = [q, w, p3, ..., pn], n >= 2
+    T(K) = T(w)
 
-```text
-P(K_i) = [K_(i-1), W_i, d_1, ..., d_n]
-T(K_i) = T(W_i)
-```
+q is the same-Node Root or Checkpoint, the formal main predecessor. w is a
+same-Node Content commit; following its sole-parent Content chain must terminate
+at q. All additional parents are valid Checkpoints. All parent OIDs are distinct.
+The first two positions have permanent roles; extra-parent ordering does not.
 
-For the first Checkpoint, replace the first parent with `R_u`. The second
-parent must be a non-Root Content commit of the same Node. Third and later
-parents, if any, are valid Checkpoints of other Nodes. Every Checkpoint
-therefore has at least two parents.
+Partition the additional Checkpoints by UUID:
 
-The first parent is the previous formal state and defines the ordered formal
-history; the second is its recognized committed content; the remainder are
-precise external knowledge dependencies. This fixed role split lets ordinary
-Content history and formal history coexist on one branch.
+    M(K) = same-UUID Checkpoints among p3, ..., pn
+    D(K) = parents whose UUID differs from uuid(K)
+    H(K) = M(K) union {q}, when q is a Checkpoint
+           M(K), otherwise
 
-Adjacent Checkpoints must satisfy exactly one of these continuity cases:
+M(K) retains other same-Node formal histories, not external dependencies.
+Each external UUID occurs at most once in D(K). Every same-Node formal predecessor
+has the same Root. Root/Content cannot be external dependency targets.
 
-- No new Content: reuse the identical second-parent Content commit.
-- One or more new Content commits: the first has the preceding Checkpoint as
-  its sole parent, subsequent Content commits each parent the preceding Content,
-  and the new Checkpoint's second parent is the last commit in this chain.
+Projection to the standard model preserves H(K), D(K), and T(K). The second
+parent and intermediate Content commits preserve the editing process but do not
+project to separate formal versions. The validator must accept valid same-Node
+multi-predecessor Checkpoints even though v0.1.0 has no general merge constructor.
+Parent count alone never establishes validity.
 
-The first Checkpoint requires at least one Content commit whose sole-parent
-chain reaches the Root. Do not choose unrelated old forks as content sources.
-Reintroducing older text through new legal commits is allowed; continuity is
-about history, not whether payload bytes are novel. In the nonzero case,
-traversal back to prior content passes through the previous Checkpoint and its
-second parent, not an uninterrupted Content-only parent chain.
+With this encoding, Git ancestry between valid Checkpoints equals transitive
+reachability through H union D (including equality). It does not equal H-only,
+same-Node formal ancestry. The Content second-parent path returns to q and adds
+no other formal predecessor.
 
-### External dependencies
+## Managed reference state and closure
 
-A Checkpoint stores its complete direct dependency set. Map each external
-UUID to at most one exact Checkpoint: no self-dependency, duplicate UUID with
-multiple direct versions, or Root/Content dependency targets.
+A managed Node uses one persistent local branch refs/heads/<uuid>, whose name
+must match its validated identity. R maps managed UUIDs to their tips; tips may
+be Root, Content, or Checkpoint. Enumerate canonical UUID branch names, validate
+them, and report malformed histories rather than silently excluding bad refs.
+Unrelated branches, tags, remote-tracking refs, and symbolic HEAD are distinct.
 
-Targets need not be the external Node's latest Checkpoint. Indirect histories
-may legitimately contain different versions of a Node; do not impose one
-global version across the transitive closure. Text links/backlinks do not
-automatically create formal dependencies.
+K_u(R) is the complete same-Node formal history retained by R(u): follow a
+Content's sole parent; at a Checkpoint record it and follow q and all M(K);
+stop at Root. Do not follow foreign dependencies to compute K_u.
+K(R) is the union over managed Nodes.
 
-External parents are semantically an unordered set. The current creation
-strategy sorts them by UUID for deterministic construction, but valid history
-does not require this order. First and second parent roles remain ordered.
+For each retained K, all H(K) and D(K) must be retained; each d in D(K) must belong
+to K_uuid(d)(R). Dependencies may select old versions, not only branch tips.
+Object reachability alone does not substitute for the required persistent branch.
+Refs outside the managed set do not grant formal retention merely by keeping
+objects reachable. No Node active/inactive lifecycle or separate Node registry
+exists. Worktrees do not determine managed membership.
 
-## Creating formal state
+Required objects must be locally available for complete validation. Missing
+objects, shallow boundaries, or other incomplete evidence cannot be accepted as
+a complete valid history; distinguish those conditions from proven violations.
+Recovering a lost original branch tip from residual objects is outside v0.1.0.
 
-Creation defaults to the previous Checkpoint's complete dependency mapping,
-or an empty mapping for the first Checkpoint. One operation can add, remove,
-and replace multiple dependencies: remove requested entries, then apply the
-additions/replacements. Validate the complete final map and conflicting inputs
-before advancing the Node ref. Every target must exist, be an appropriate
-external Checkpoint, and have a still-retained, nonconflicting identity.
-Any invalid request leaves the ref unchanged.
+## Ordinary protection, coordination, and checking
 
-Inheritance is a creation convenience, not an implicit historical rule:
-the new commit itself always carries all final external dependencies.
+Ordinary updates preserve all established formal versions per existing Node:
 
-Choose content solely from the validated current branch tip:
+    K_u(R) is a subset of K_u(R')
 
-| Tip | New Checkpoint second parent |
-| --- | --- |
-| Root | Reject: a non-Root Content commit is required first |
-| Content | That exact tip |
-| Checkpoint | That Checkpoint's existing second parent |
+This includes unreferenced and old Checkpoints. Native Git may introduce valid
+new Checkpoints and adjust unconfirmed Content, including legal non-FF Content
+changes. Git fast-forward alone is insufficient; inspect UUID-aware formal
+retention and valid target history. Anchor equality is only a possible local
+shortcut for a restricted Content transition, not the complete protection rule.
+Reject ordinary managed branch deletion and uncontrolled new managed branches.
+Controlled creation may occur inside deploy as described below.
 
-Read that Content commit's existing tree; do not call `write-tree` to synthesize
-a new snapshot from the index. A dirty index/worktree is allowed. Staged,
-unstaged, and untracked files are not included or altered. Feedback should
-identify the selected Content OID so users can see what was formalized.
+Use a shared validator for check, Hook, and application plans. Check is the
+public complete protocol validation entry; status reports actual history,
+dependencies, deployment, and diagnostics. For Content tips, label any displayed
+dependencies as those of the latest Checkpoint, not dependencies of Content.
 
-Under the structural lock, validate state/dependencies, read the Content tree,
-construct the commit using `git commit-tree` with exact parent order, and
-advance the ref using `git update-ref <ref> <new> <expected-old>`.
-A stale comparison must fail without overwriting the competing update.
-An unreachable newly written object may remain after failure; no partial
-formal ref update may become effective. Single-ref atomicity is not a
-distributed transaction or atomic worktree deployment.
+Separate current-state checks, candidate-state checks, local safety, and realtime
+reference protection. Enable has no knowledge-validity precondition. Deploy can
+turn an incomplete current local branch set into a valid target set.
+Ordinary local Content checks need not rescan the entire repository.
 
-## Native Git protection and concurrency
+Use a named configured reference-transaction Hook, coexisting with other hooks.
+Evaluate complete proposed transactions in a rejectable phase, using actual ref
+state rather than assuming zero old OID always means creation. Handle symbolic
+HEAD and unrelated refs separately. A managed invocation may authorize or disable
+only its own Hook after independent validation; never disable all hooks.
+Protection prevents ordinary mistakes, not hostile-user bypass.
 
-Define `anchor(H)` by walking the sole-parent Content tail from tip `H` to
-its nearest Checkpoint, or to its Root if no Checkpoint exists. A native ref
-update must preserve `anchor(new) = anchor(old)`, with only legal Content
-between the new tip and that anchor and valid Node trees along the path.
+Coordinate controlled operations at Git common-directory scope; use expected-old
+updates and, where useful, transaction verify for read dependencies. Types and
+application locks do not freeze external Git state. Multi-ref transactions do
+not provide atomic snapshots to all readers. v0.1.0 targets correctness under
+declared supported conditions, not arbitrary external-writer serializability.
+Distinguish rejection, unstable observation, Git failure, and post-commit anomaly.
+Postchecks are detection, not automatic rollback or recovery.
 
-This permits ordinary commits, tail-only amend/rebase, and reset to the latest
-Checkpoint or its Content descendants. It rejects dropping an established
-Checkpoint, amending the latest Checkpoint, native multi-parent merge commits,
-and uncontrolled deletion of an active Node branch. Judge fast-forward-only
-merge by its resulting history, not the command's name.
+## Protection lifecycle
 
-The reference-transaction Hook adapter and explicit checker must share history
-validation with controlled operations. Distinguish Node branches, unrelated
-branches, remote-tracking refs, symbolic HEAD updates, and pure HEAD switches;
-check actual ref state rather than trusting only an input old OID. Reject
-corrupt or indeterminate protected history conservatively. A routine Content
-update checks the anchor/new path, not the entire external dependency graph.
+Enable installs/activates this repository's protection. It creates no repository,
+knowledge commit, Node, worktree, registration state, or closure repair.
+It can run in any knowledge-history state; installation conflicts and unsupported
+Git features can still fail. Correct repeated enable is safe.
 
-Managed operations validate first and bypass only Git Roam's own corresponding
-named hook during their controlled ref update. Other hooks must remain effective.
-Installation is local configuration, not something clone/fetch/push automatically
-activates. Hooks prevent ordinary misuse; they are not a hostile-user security
-boundary. Exact integration/compatibility details remain implementation work.
+Disable removes only Git Roam's protection configuration, after full undeploy has
+completed. It retains branches, objects, identities, and histories. Undeploy does
+not uninstall protection. Other modifying commands require healthy protection;
+check and status do not. There are no init/deinit commands.
 
-Use one repository-wide OS-level mutex associated with the Git common directory
-for Node creation, admission of existing history, Checkpoint creation, and
-deletion. All managed structural entry points participate. Worktrees share the
-lock, which is local operational state, not a committed protocol object or
-permanent locking ref, and must release after process termination.
+## Node creation, tracking branches, and full deployment
 
-Ordinary Content commits do not add dependency edges and need not acquire it.
-Different Nodes can be edited concurrently. For a Content/Checkpoint race on
-the same ref, expected-old comparison rejects stale updates. The structural
-lock prevents dependency creation racing a deletion scan. It supplies no
-cross-clone lock or distributed guarantee.
+Node create requires --path and creates UUIDv4, valid Root, local UUID branch,
+and linked worktree, returning full UUID and actual path. It is not a branch-only
+operation. This one-Node creation does not add subset selection to normal deploy.
 
-## Deletion and admission
+There is no independent node adopt command. Normal clone/fetch can be followed by
+enable and deploy. Deploy may establish missing local UUID tracking branches for
+already fetched valid history, using native worktree/tracking behavior where
+safe. It is therefore not strictly read-only with respect to R.
 
-Delete a Node's active branch only if no historical Checkpoint of any other
-retained active Node directly depends on that Node. Scanning only latest
-Checkpoints is insufficient. Its own Checkpoints or outgoing dependencies do
-not prohibit deletion if no such incoming edge exists.
+Candidate discovery uses canonical UUID local heads and canonical remote-tracking
+names, not arbitrary refs or an object-database scan. Local branches take priority
+and are never advanced by deploy. A sole remote source is usable; equal-OID sources
+may coalesce; distinct tips require explicit remote selection. User Git defaults
+must not silently override this ambiguity policy. If Git guessing still rejects
+equal-OID sources, explicitly supply a selected starting ref. Do not infer the
+latest remote branch tip from a dependency Checkpoint.
 
-Deletion does not rewrite other Nodes, cascade through the DAG, create a
-tombstone/retired identity registry, or promise physical erasure of Git objects.
-Handle associated worktrees without destroying user data, and condition ref
-deletion on the expected old OID. The same UUID may become reusable after it
-is absent from all retained relevant knowledge, but later synchronization with
-an older clone can reveal a conflict; never claim global uniqueness.
+Validate the complete target branch set and all necessary dependencies before
+controlled creation. Mutually dependent new branches may need a joint conditional
+ref transaction rather than unvalidated intermediate worktree-add operations.
+This technical coordination does not justify restoring a public adopt interface.
+Deploy does not fetch, merge divergence, reconstruct, or discard Checkpoints.
 
-Fetch remains native Git's responsibility. Objects and remote-tracking refs
-do not automatically create local active branches. Deployment may admit fetched
-candidate history when a local Node branch is absent: fully validate its Root,
-history, required external closure, and identity compatibility, then establish
-the active ref under the structural lock and deploy the worktree. If a local
-branch already exists, reject incompatible candidate histories rather than
-merging or forcing them. Admission creates no permanent import state.
+Normal deploy targets all current and selected newly established Nodes, not a
+user-selected subset or dependency expansion at a historical version. Recognize
+existing valid linked worktrees at their actual paths, including manually created
+and moved ones; do not migrate them to match the current --path. Partial actual
+deployment may exist after creation, fetch, or failure; full is the command goal,
+not a repository invariant.
 
-## Deployment and validation boundaries
+### Paths, worktree scope, and undeploy
 
-A Node tree fixes its UUID subtree, not filesystem placement or classification.
-Deployment/undeployment do not rewrite knowledge history. Optional `main`
-content may generate deployment instructions using Nix or scripts; it is not
-a central authoritative knowledge snapshot and may be replaced independently.
+All newly created Node worktrees use explicit --path, then <path>/<short(uuid)>.
+The tree within the worktree retains the full UUID directory.
 
-Batch deployment should preflight the complete manifest for duplicate UUIDs,
-path conflicts, occupied branches, unsafe paths, and user-file overwrites, and
-report failures. Short deployment names carry no identity semantics; the
-candidate manifest and naming algorithm are in
-[implementation.md](implementation.md), not permanent history invariants.
+    canonical lowercase hyphenated UUID ASCII
+      -> SHA-256 -> first 5 raw digest bytes
+      -> RFC 4648 standard Base32 -> lowercase -> no padding
 
-Tailor verification to the operation: routine Content updates inspect anchors
-and paths; Checkpoint creation inspects the current Node/final dependencies;
-admission validates necessary history and external closure; explicit checking
-supports selected Node or repository scope; deletion scans retained historical
-incoming edges. Cache immutable commit OIDs within one validation to avoid
-rechecking shared dependencies. Graph traversal is O(V+E), plus Git object/tree
-I/O; it needs neither full checkouts nor Org parsing.
+The result has eight characters. Detect collisions; do not silently lengthen or
+substitute names. Short names are derived path components, not identity or a
+separate persistent mapping. Git records actual paths; do not reverse-map them
+using the current short-name algorithm.
 
-Start without a permanent global dependency/identity index. Derived views may
-later be disposable caches, never a second authority. Infrequent deletion can
-use correct scans before performance evidence warrants indexing. Batched object
-reads or Git commit-graph may optimize access, not replace protocol validation.
+The deployment root may be inside a main or linked worktree, but cannot equal an
+existing worktree root. First use requires absent/empty directory. Nested roots
+must be wholly protected by applicable Git ignore rules; never edit outer ignore
+configuration automatically. Reuse may contain valid existing Node worktrees,
+not unrelated files/directories/worktrees. Check path and symlink safety,
+collisions, occupancy, locked/prunable states, ignored data, and nesting.
 
-Standard Git plumbing is the protocol implementation direction. Patched Git
-is optional deployment acceleration, not a prerequisite for interpreting Node
-history. The verified worktree experiments and their limits are maintained in
-[experiment.md](experiment.md).
+All linked worktrees attached to canonical managed branches are deployment
+targets regardless of creator or location. Undeploy discovers all of them from
+Git, needs no --path, and changes no Node branch or Hook. Unsafe preflight for
+any target rejects the whole operation. Main worktrees are not automatically
+removed, cleaned, or switched; report their Node checkout as a special conflict.
+Detached worktrees are not normal Node deployments. Historical checkout is deferred.
 
-## Source and adoption boundary
+Do not keep previous deployment roots, classify Nodes by directories, or maintain
+CSV/classification mappings. Re-deploy does not restore former manual layouts.
+Upper-level tools may provide knowledge classification and navigation.
 
-Distilled from the user-supplied `git-roam-design-2026-10-31.org` member of
-`tmp/git-roam-v0.1.0-design-and-experiment.zip`; the user explicitly confirmed
-that its settled decisions are the current effective design. The member is
-43390 bytes, SHA-256
-`d65ec4e2253e2e2f839780832382d8e0c4cd08923280e6f6df29631ce3b2f953`.
-The ZIP SHA-256 is
-`d63547595d2de0bed3b4a3745c173a470a1deaea999a7d7e4a80f9ad44b19485`.
+Execution can fail after partial worktree progress. Compensate only this
+invocation's newly created, unchanged, safely removable state; preserve prior
+worktrees and user changes. Branch compensation also must preserve final closure.
+Never equate newly created/unchanged with safe branch deletion. Report completed,
+remaining, and uncompensated changes accurately, without filesystem atomicity claims.
 
-This memory is self-contained current knowledge, not a raw-document archive,
-chronology, or claim that referenced historical experiments were repeated.
-Implementation remains separate. Changes that affect permanent parent/tree
-semantics need an explicit design decision, not an undocumented implementation
-shortcut.
+## Constructing Checkpoints
+
+The accepted implementation plan requires Content before the first Checkpoint
+when tip is Root. With Content tip, use its exact committed tree. With Checkpoint
+tip, write a new empty-diff Content object with that Checkpoint as sole parent,
+then use it as w; do not reuse the old second parent. Advance only the final
+Checkpoint ref with its original expected-old.
+
+Default the dependency configuration to the prior Checkpoint's complete mapping
+(or empty before the first), then apply clear/remove/add/replace requests and
+validate the full result. Inheritance is construction convenience, not permanent
+delta semantics. Create a commit-tree object with exact parents and tree;
+do not synthesize content using write-tree, auto-squash, or inspect Org semantics.
+Dirty index, working files, and untracked data are excluded and remain unchanged.
+
+Checkpoint messages are nonempty UTF-8, using -m/-F without requiring Conventional
+Commits or launching an editor. Feedback identifies the selected Content and new
+Checkpoint. Failure may leave unreachable new objects but must not overwrite a
+competing reference update. Merge representation is supported by validation;
+a general formal-history merge command is outside this batch.
+
+## Explicit discard
+
+For nonempty explicitly resolved target Checkpoints Q contained in K(R), define:
+
+    S_R(Q) = { L in K(R) | some K in Q is a Git ancestor of L }
+    K' = K(R) minus S_R(Q)
+
+The ancestor relation includes equality. This is exactly the minimal successor
+closure through H union D, including historical external dependencies and merged
+formal branches. Do not enlarge S for easier execution. K' is predecessor-closed
+when initial R is valid, but it may not be representable by one existing branch
+entry per Node.
+
+For each affected Node, point to the unique maximal remaining Checkpoint, or Root
+if none remains. Multiple remaining maxima reject the operation. Unaffected tips,
+including their Content tails, stay unchanged. v0.1.0 performs no Content-retention
+optimization and creates no replacement Checkpoint to make a result representable.
+Require the exact final equality K(R') = K'. Old commits are never rewritten.
+
+Provide --dry-run with explicit targets, complete collateral set and reasons,
+UUIDs, old/new tips, worktrees, Content losing managed entry, and refusal reasons.
+Actual execution must bind explicit authorization to the complete impact, not
+merely the input Q. The accepted plan uses a plan summary identifier, interactive
+confirmation, and matching-preview authorization for noninteractive execution;
+exact option spellings are local interface work.
+
+Affected deployed worktrees must be safe and clean: no staged/unstaged/untracked
+changes, unsafe ignored data, or conflicting in-progress Git operation. No
+automatic stash, hard reset, clean, forced worktree removal, or user-data loss.
+Content is not in S but loss of its managed history entry is a separately reported
+destructive effect. Refs, tags, reflogs, and clones may retain objects; do not
+manually delete objects, promise restoration, or describe discard as secure erasure.
+
+Validate initial state, compute Q/S/K', check representability, validate complete
+candidate refs, preview impact, obtain confirmation, recheck assumptions, execute
+a controlled ref transition, and verify actual results. Worktree and ref execution
+details need experiments; no cross-worktree filesystem transaction is promised.
+
+## Node deletion and deferred work
+
+Node delete does not cascade into other Nodes. Reject if any other retained
+Checkpoint depends on the target Node, including old and non-first-parent formal
+history. Its own history and outgoing edges do not alone block deletion.
+Require no worktree to have the target branch checked out; no implicit one-Node
+undeploy. User may need full undeploy or safe manual checkout changes.
+Use explicit destructive confirmation and conditional ref deletion. This removes
+managed retention/identity entry, not physical objects or a global UUID tombstone.
+
+The current batch uses standard Git, Haskell, Cabal, and Nix. No patched Git,
+CSV, classification registry, independent adopt, partial deploy, historical
+multi-Node checkout, automatic formal merge, lost-tip reconstruction, signatures/
+trust policy, permanent global dependency index, or cross-clone transactions.
+Optional naming strategies and acceleration remain candidates whose inclusion in
+0.1.0 is undecided; they do not alter identity or historical semantics.
+
+The initial source was git-roam-design-2026-10-31.org (43390 bytes), member SHA-256
+d65ec4e2253e2e2f839780832382d8e0c4cd08923280e6f6df29631ce3b2f953.
+Its ZIP identity and the independently executed patch experiment are recorded in
+[experiment.md](experiment.md) and the linked immutable experiment archive. That
+archive contains only selected local experiment evidence, not the design document.
+Those tests do not validate this revised product protocol, Hook, or native
+deployment implementation. No new build or experiment result is implied here.
