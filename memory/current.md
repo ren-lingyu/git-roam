@@ -30,9 +30,10 @@ files in the tested snapshot. Node 3 is committed by the user, and all 28
 committed source files match the verified snapshot.
 Its final pre-commit build passed all 79 cases with no
 compiler warnings, and flake check passed on x86_64-linux. check/status are now
-available. Node 4 is implemented and verified in the worktree, awaiting user
-review/staging/commit. All 86 cases, build and flake check pass on x86_64-linux.
-Do not start node 5 until its user commit is confirmed.
+available. Node 4 is committed by the user, and all 29 committed source files
+match its tested snapshot. Its pre-commit 86 cases, build and flake check passed
+on x86_64-linux. The project worktree was clean at transition. Node 5 is now
+implemented, verified and staged by the user, awaiting its project commit.
 
 ## Navigation and authority
 
@@ -381,7 +382,8 @@ the other declared platforms were omitted. Final package derivation:
 All 29 files match manifest SHA-256
 f1d566e5bb658e2cbe932ea51c4581bc55ce64ab68cbdac3644069893d268015.
 tmp/prepare-milestone4-source.py and tmp/git-roam-milestone4-source/ preserve older
-snapshots. diff --check passes; project index is empty. No lockfile changes.
+snapshots. diff --cached --check passes; the staged index matches all 29 verified
+source files. No lockfile changes.
 README records actual lifecycle/safety/compatibility limits. CHANGELOG remains
 TODO 0.1.0 and additionally checks the two repository protection boxes. History-
 constructing/deploy/delete/discard application capabilities remain unchecked.
@@ -390,15 +392,69 @@ actual project still has its canonical GAW Hook and no Git-roam installation.
 These tests concern uncommitted node-4 source, so no new project parent is added
 to the final handoff checkpoint.
 
+## Node-5 implementation and verification
+
+The user committed node 4; all 29 committed source files were confirmed equal to
+its tested snapshot before node 5. The new internal worktree foundation uses a
+shared binary NUL parser, including raw filesystem paths, unborn/bare/main/
+detached state and locked/prunable diagnostics. Inspection and disable now reuse
+that parser. Deployment/removal plans have private constructors and require a
+repository-wide validated managed state. Fixed short names follow the accepted
+SHA-256/first-five-bytes/Base32 algorithm; collisions are explicit failures.
+
+Planning preserves manual/moved deployments, rejects main checkout conflicts,
+occupied targets and symlink path components, and checks nested roots against
+the outer Git repository's ignore and tracked paths. No deployment registry is
+introduced. Removal preflights all targets, protecting staged/unstaged/untracked/
+ignored files, empty unknown directories, special files, unfinished operations,
+locked/prunable worktrees, assume-unchanged/skip-worktree entries and submodules.
+Selected nested Node worktrees are removed deepest first; non-target nested
+worktrees prevent removal. Main worktrees are reported, never removed.
+
+Protected native add/remove primitives require matching enabled protection and
+the common-directory operation lock, recheck plans, disable only their own named
+Hook for independently checked calls, and verify the resulting refs/registration.
+They do not create/delete Node branches. Add disables remote guessing. Execution
+uses the common Git directory so removing the caller's linked directory does not
+invalidate later Git calls. A failed native operation may leave residual state;
+there is no force cleanup, automatic rollback or filesystem atomicity claim.
+Public deploy/undeploy/node-create commands remain later milestones.
+
+Fifteen new test groups cover naming/parser/path safety, nested ignore protection,
+manual/moved dirty worktrees, user-data and index-flag refusal, stale plans,
+nested removal, main/locked/prunable states, other-Hook failure residuals, and
+protected primitives across files/reftable x SHA-1/SHA-256. Together with the prior
+86 cases, Cabal declares 101 cases. The Nix package keeps doCheck=true.
+
+The user authorized on-demand repetition of these exact commands for node 5;
+all completed with exit 0, in this order:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone5-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone5-source
+
+The user reported already running formatting and flake check. Our formatting
+changed zero files; build/check reused cached results, with no fresh compiler or
+individual test output. This validates the matching derivations, not a fresh test
+run. Package derivation:
+/nix/store/cdwmxb6zy2mbdhd5skhk1mzv1nza64j2-git-roam-0.1.0.drv.
+Only x86_64-linux was checked; aarch64-linux/aarch64-darwin were omitted.
+All 33 current worktree, clean snapshot and user-staged index files match manifest
+SHA-256 dfe37b54765889937f0b531133e853262f2b4c3d7d69cfbafb542b4032c8e6c8.
+The bounded helper is tmp/prepare-milestone5-source.py; older snapshots remain.
+Staged diff --check passes. README describes the internal capability and limits.
+CHANGELOG stays TODO 0.1.0, with no deployment box checked before public commands.
+No project protection installation or project staging/commit was performed by
+the agent. This uncommitted source is not represented by an added project parent.
+
 ## Next action and authorization
 
-Present node 4 for user review/staging. After staging, review the actual index and
-prepare its commit message; wait for the user's commit. Confirm its source against
-the tested snapshot before node 5 (internal safe worktree enumeration, planning,
-path validation and fixed short names; no public partial deployment command).
-Do not stage/commit project files, install protection in the project, or begin
-node 5 now. No further checks are needed absent changes/new concerns. Preserve
-the independent archives and prior snapshots; use the public GAW memory loop.
+Node 5 is verified and staged by the user. Prepare a commit message from the
+actual staged diff when requested, then wait for the user's project commit.
+Confirm the committed source against the tested snapshot before node 6 (full
+deployment and fetched tracking candidates). Do not start node 6 or stage/commit
+project files now. No further checks are needed absent source changes or new
+concerns. Preserve archives, snapshots and the actual project's GAW Hook.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

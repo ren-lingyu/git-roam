@@ -10,7 +10,8 @@ ignored temporary file. Node 1 is committed and its exact source was compared
 with the verified GHC 9.12 snapshot. Node 2 is implemented and verified in the
 project history, confirmed equal to its tested snapshot. Node 3 is implemented and
 committed and confirmed against its 28-file tested snapshot. Node 4 is implemented
-and verified in the worktree, awaiting user staging/commit. See current.md for evidence,
+and verified in project history, confirmed against its tested source. Node 5 is
+implemented, verified and user-staged, awaiting its project commit. See current.md for evidence,
 actual progress and authorization boundaries.
 
 Use serial milestones, not parallel agents. Each project commit must independently
@@ -89,7 +90,17 @@ locking, matching configuration health, current/candidate validation and own-onl
 bypass support for future controlled calls. Git's preparing phase is accepted
 before prepared validation. README and the two protection CHANGELOG boxes match
 actual behavior. No Git-roam Hook was installed in the project itself. Wait for
-the user node-4 commit before internal worktree primitives in node 5.
+the user node-4 commit before internal worktree primitives in node 5. That commit
+was confirmed against all 29 tested files. Node 5 now provides the shared native
+worktree parser, fixed short names, whole-input safety planning and protected
+add/remove primitives. Removal also refuses assume-unchanged/skip-worktree entries,
+submodules and unknown filesystem data rather than trusting ordinary Git status.
+The 33-file worktree, snapshot and user-staged index match. Separately authorized
+format/build/check passed using cached derivations on x86_64-linux; the user had
+already formatted and checked this source. Fifteen new groups bring the declared
+tests to 101. No public deployment or partial-deployment interface is introduced,
+so CHANGELOG deployment boxes stay unchecked. Wait for the user project commit
+before node 6; see current.md for verification evidence and limits.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.
