@@ -11,7 +11,8 @@ with the verified GHC 9.12 snapshot. Node 2 is implemented and verified in the
 project history, confirmed equal to its tested snapshot. Node 3 is implemented and
 committed and confirmed against its 28-file tested snapshot. Node 4 is implemented
 and verified in project history, confirmed against its tested source. Node 5 is
-implemented, verified and user-staged, awaiting its project commit. See current.md for evidence,
+committed and confirmed against its 33-file verified snapshot. Node 6 is implemented
+and verified in the worktree, awaiting user review/staging/commit. See current.md for evidence,
 actual progress and authorization boundaries.
 
 Use serial milestones, not parallel agents. Each project commit must independently
@@ -99,8 +100,16 @@ The 33-file worktree, snapshot and user-staged index match. Separately authorize
 format/build/check passed using cached derivations on x86_64-linux; the user had
 already formatted and checked this source. Fifteen new groups bring the declared
 tests to 101. No public deployment or partial-deployment interface is introduced,
-so CHANGELOG deployment boxes stay unchecked. Wait for the user project commit
-before node 6; see current.md for verification evidence and limits.
+so CHANGELOG deployment boxes stayed unchecked at that boundary. The user committed
+the exact 33-file source before node 6. Node 6 now exposes full deploy with native
+tracking setup, prevalidated complete target state and coordinated conditional
+ref creation. --remote limits missing-Node discovery; local tips always win.
+Conservative compensation uses an execution journal, expected-old checks and
+dependency closure, retaining changed, required or externally created state.
+All 117 cases, build and flake check pass on x86_64-linux, with final 36-file source
+and snapshot equal. README and four deployment CHANGELOG boxes reflect actual
+capabilities. Full undeploy remains node 7. Wait for the user project commit before
+continuing; see current.md for evidence, failure corrections and remaining limits.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.

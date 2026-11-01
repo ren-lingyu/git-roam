@@ -33,7 +33,9 @@ compiler warnings, and flake check passed on x86_64-linux. check/status are now
 available. Node 4 is committed by the user, and all 29 committed source files
 match its tested snapshot. Its pre-commit 86 cases, build and flake check passed
 on x86_64-linux. The project worktree was clean at transition. Node 5 is now
-implemented, verified and staged by the user, awaiting its project commit.
+committed by the user. All 33 committed files match its tested snapshot; the
+project worktree was clean at transition to node 6. Node 6 is now implemented and
+verified in the worktree, awaiting user review/staging/commit.
 
 ## Navigation and authority
 
@@ -447,14 +449,74 @@ CHANGELOG stays TODO 0.1.0, with no deployment box checked before public command
 No project protection installation or project staging/commit was performed by
 the agent. This uncommitted source is not represented by an added project parent.
 
+## Node-6 implementation and verification
+
+The user committed node 5 and explicitly requested continuation. All 33 committed
+source files match its tested snapshot. Application.Deploy now implements public
+deploy --path <path> [--remote <remote>]. All local canonical UUID branches take
+priority and are never advanced; canonical fetched candidates establish missing
+local branches. Equal-OID sources coalesce deterministically; different tips
+refuse automatic selection, regardless of checkout.defaultRemote. --remote limits
+discovery of missing Nodes to that configured remote, without excluding locals.
+
+The complete target is validated before writes, permitting incomplete initial
+branch closure to become complete. Paths are preflighted against current refs and
+the validated target without temporarily installing branches. Native update-ref
+creates the missing set jointly, verifies existing and source refs, then native
+branch --set-upstream-to configures tracking and worktree add checks out existing
+local branches with guessing disabled. No fetch/adopt/merge or existing-worktree
+relocation is performed. Existing local configuration for a missing branch refuses
+creation. Main checkout conflicts refuse deployment. Relative --path resolves
+against the invocation directory, including ignored nested roots.
+
+On failure, compensation only attempts issued new worktree additions at unchanged
+planned tips. Branch rollback requires a confirmed successful creation transaction,
+unchanged tips/configuration, no checkout, and a closed final ref set. The closure
+fixed point preserves every dependency required by retained histories, including
+old Checkpoints. Changed/unsafe or externally created state is kept and reported.
+Final refs and closure are checked, with no filesystem atomicity or arbitrary
+external-writer isolation promise. IOException or unavailable evidence produces
+explicit failure/inspection guidance rather than guessed cleanup.
+
+The first build compiled, but a race fixture was blocked by the application lock
+before its intended expected-old test. The corrected fixture models an explicitly
+uncoordinated writer using only its own temporary repository's Hook bypass. Test
+compiler warnings were also cleaned up. Review required an execution journal so
+compensation never removes a competing same-OID creation; a regression covers it.
+The final source passes all 117 cases without compiler warnings: 16 new deployment
+groups plus the previous 101, using shared Cabal fixture helpers. Coverage includes
+actual local clone/fetch, native tracking, files/reftable x SHA-1/SHA-256, ambiguity,
+incomplete-to-complete closure, unchanged locals, clean/dirty failure compensation,
+stale expected-old checks and competing branch creation. Only fixtures install
+Git-roam protection or mutate history; the actual project's GAW Hook is unchanged.
+
+The user separately authorized repeating these exact node-6 commands in order;
+all final commands passed with exit 0:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone6-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone6-source
+
+The final build reused the successful compiled/tested package after documentation
+updates; flake check ran the final treefmt check, with zero formatting changes.
+Package derivation: /nix/store/sv0b4104s6nad85fzld11v9ld188sp6w-git-roam-0.1.0.drv.
+Git 2.56.0, GHC 9.12.3/Cabal 3.14.2.0, x86_64-linux only; other declared platforms
+remain unverified. The 36 worktree and clean-snapshot files match manifest SHA-256
+26519c9c3c589d62e4f143338b5aa9b5c3bded6e144d80f033cef6365fc38385.
+Snapshot helper: tmp/prepare-milestone6-source.py. diff --check passes; project
+index is empty. No lockfile changes. README describes actual deployment usage and
+failure limits. CHANGELOG remains TODO 0.1.0 and checks four deployment-related
+items, leaving full undeploy unchecked. No project parent represents this as-yet
+uncommitted implementation; do not attach its baseline as though tests ran there.
+
 ## Next action and authorization
 
-Node 5 is verified and staged by the user. Prepare a commit message from the
-actual staged diff when requested, then wait for the user's project commit.
-Confirm the committed source against the tested snapshot before node 6 (full
-deployment and fetched tracking candidates). Do not start node 6 or stage/commit
-project files now. No further checks are needed absent source changes or new
-concerns. Preserve archives, snapshots and the actual project's GAW Hook.
+Present node 6 for user review/staging, prepare its commit message from the actual
+staged diff when requested, then wait for the user's project commit. Confirm the
+committed source against the snapshot before node 7 (public full undeploy).
+Do not begin node 7, stage/commit project files or install project protection.
+No further tests are needed absent changes or new concerns. Preserve archives,
+earlier snapshots and the actual project's GAW Hook.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
