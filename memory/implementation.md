@@ -16,8 +16,10 @@ and confirmed against all 36 verified source files. Node 7 is committed and
 confirmed against its final 38-file snapshot. Node 8 is committed and confirmed
 against all 40 verified source files. Node 9 is committed and confirmed against
 all 42 verified files, with complete-dependency Checkpoints. Node 10 read-only
-discard preview is implemented and verified with 195 cases and final
-format/build/flake checks. It awaits user review/staging/commit.
+discard preview is committed and confirmed against all 45 verified files, with
+195 cases and final format/build/flake checks. Node 11 confirmed discard execution
+is implemented and verified in the worktree with 216 cases and final checks,
+awaiting user review/staging/commit.
 See current.md for evidence,
 actual progress and authorization boundaries.
 
@@ -151,9 +153,15 @@ implements discard --dry-run, exact H/D successor impact and causal reasons,
 unique-maximum/Root candidates, Content loss and conservative worktree blockers.
 It reuses a shared refs/OIDs resolver with checkpoint and performs no writes.
 The 18 new groups pass with the prior 177 cases. Final checks pass on x86_64-linux,
-and all 45 source/snapshot files match. README and the preview CHANGELOG checkbox
-are synchronized; actual discard/delete remain unchecked. Wait for user
-staging/commit before node 11 execution work.
+and all 45 source/snapshot files match. The user's node-10 commit was confirmed
+against that snapshot before node 11. Confirmed discard execution and plan-ID
+authorization now exist in the worktree. Both the first full build and the final
+post-warning-cleanup build passed 216 cases, including real PTY interaction and
+both Git formats/backends. The initial two 120s timeouts were reported and each
+continuation explicitly authorized; the user then authorized 180s builds. Final
+format/flake checks pass, and all 45 snapshot files match. README and the execution
+CHANGELOG checkbox are synchronized; Node deletion remains unimplemented.
+Wait for user review/staging/commit before node 12.
 See current.md for evidence and limits.
 
 After commit 0, use a new isolated directory such as

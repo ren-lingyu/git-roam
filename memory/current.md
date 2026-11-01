@@ -42,8 +42,10 @@ worktree was clean at transition. Node 8 is implemented and verified in the
 project history, confirmed against all 40 verified files. The project worktree
 was clean at transition. Node 9 is committed and confirmed against its 42-file
 verified source snapshot, with all 177 cases passing. Node 10 implements read-only
-discard preview, with all 195 cases and final format/build/flake checks passing.
-It is awaiting user review/staging/commit.
+discard preview, committed and confirmed against its 45-file snapshot, with all
+195 cases and final format/build/flake checks passing. Node 11 is implemented and
+verified in the worktree with 216 cases and final format/build/flake checks.
+It awaits user review/staging/commit.
 
 ## Navigation and authority
 
@@ -763,23 +765,80 @@ and limits; only its CHANGELOG preview box is newly checked. TODO 0.1.0 remains.
 Node-10 verification used uncommitted source, so no project-parent edge represents
 this tested snapshot. No independent archive is needed for ordinary source work.
 
-## Next action and authorization
+## Node-11 implementation and verification
 
-The user committed node 9 as e2bcc341c07abe773cfefce99af0033db45b4792. All 42
-committed source files match its verified snapshot and the project was clean.
-Node 10 is implemented and verified under user authorization
-for on-demand repetition, in order, of:
+The verified implementation's collect function constructs a
+private Plan from shared initial/candidate validation and full worktree preflight.
+An unblocked dry run prints a SHA-256 plan ID binding common repository path,
+managed refs, Q/S, causal/Content impact and sorted worktree registrations.
+Execution uses --confirm <64-lowercase-hex-plan-id>, or terminal stdin/stderr with
+full preview and exact ID reply. No force/yes shortcut or persistent plan file.
+The protected common-directory session recomputes the ID twice, removes only
+confirmed safe affected linked worktrees, verifies all source refs and the expected
+registration set, then performs one expected-old/verify transaction. Restoration
+uses original paths and actual target tips. Success requires exact final refs,
+formal sets, all registrations and matching protection. Any transaction failure
+remains a failure even if candidate refs are observed; no formal rollback.
+Recovery only recreates confirmed missing worktrees at fully verified original
+or candidate refs; other ref sets, occupied paths or uncertain removals are left
+for inspection. Actual refs/worktree and transaction-confirmation diagnostics are
+returned even for unexpected IO/lock-cleanup failure when context is available.
+
+The worktree layer adds discard-specific safety planning and session-owned
+restoration/path checks. Main checkouts, affected parents containing nested
+worktrees, private config.worktree or worktree/bisect/rewritten refs refuse.
+Outer ignore protection is checked outside the target's own existing worktree,
+and rechecked after removal. No automatic forced checkout/cleanup or index reuse.
+These are execution support limits, not changes to the permanent DAG model.
+The test suite adds 21 execution groups (216 total passing), including files/
+reftable x SHA-1/SHA-256, real different-content checkout, partial-removal and ref/
+restoration failures, stale/dirty/moved/declined confirmation, transaction response
+loss, metadata/nesting refusal and real PTY acceptance/refusal. Cabal declares the
+process/unix test dependencies. README and the discard-execution CHANGELOG box
+reflect the verified implementation; version status stays TODO 0.1.0.
+
+The user authorized node-11 format/build/check commands on demand, in order:
 
 - timeout 120s nix fmt --no-write-lock-file
-- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone10-source#default
-- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone10-source
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone11-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone11-source
 
-Present node 10 for user review/staging. Generate the commit message from the
-actual staged diff when requested, then wait for the user's project commit.
-Confirm the committed source against the 45-file snapshot before node 11.
-No further tests absent source changes or new concerns. Execution and impact-bound
-authorization remain node 11. Do not stage/commit project files or install project
-protection. Preserve archives and earlier snapshots.
+The first build rebuilt uncached locked UUID dependencies, compiled the project
+and passed 135 existing cases, then reached timeout 120s at discard suite start.
+After explicit retry authorization, the second build passed all 39 discard cases,
+23 checkpoint cases and those prior 135 cases (197 total), but reached 120s at the
+last 19 creation cases. There were no observed test failures. The agent stopped
+again and obtained explicit authorization for this new exact command on demand:
+`timeout 180s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone11-source#default`.
+Format and flake check retain their 120s authorizations. The first complete 180s
+build passed all 216 cases. A new test variable shadowing the imported cwd field
+was then renamed. The final 180s build reran all 216 cases (10 suites), passing
+with a checkPhase duration of 1m27s. Final format and flake check passed with zero
+treefmt changes. The preview explicitly reports fresh worktree administration.
+Only the inherited Undeployment.hs unused import warning remains; no unrelated
+cleanup. No automatic timeout expansion or retry.
+
+Final package derivation:
+/nix/store/h18f30dm7dbpqrpx67cw6c5dlmfmif79-git-roam-0.1.0.drv.
+Git 2.56.0, GHC 9.12.3/Cabal 3.14.2.0, x86_64-linux only; other declared systems
+and the minimum Git version remain unverified. All 45 worktree/snapshot files
+match manifest SHA-256
+7b3f1eede2b6bf25f8144ab41a40b4f322472b84fc8149d1658f2fe3dcdc72b2.
+Helper: tmp/prepare-milestone11-source.py; snapshot:
+tmp/git-roam-milestone11-source/. diff --check passes, the project index is empty,
+and no lockfile or actual project protection configuration changed. No project
+parent represents this tested uncommitted snapshot; no independent archive is
+needed for ordinary source implementation/testing.
+
+## Next action and authorization
+
+The user committed node 10 as 55a4bc89e8d99190e5d3aa9c53aa96084108b8be. All 45
+committed files match its verified snapshot, and the project was clean.
+Present node 11 for user review/staging. Draft the message from the actual staged
+diff when requested and wait for the user's commit. Confirm its source against
+the 45-file node-11 snapshot before node 12 (non-cascading Node delete). No further
+tests absent source changes or new concerns. Never stage/commit project files or
+install project protection. Preserve archives and prior snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
