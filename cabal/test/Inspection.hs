@@ -138,6 +138,7 @@ main = do
         , ("missing commit is not silently omitted", missingCommitTest environment)
         , ("replace refs do not rewrite inspected history", replaceTest environment)
         , ("grafts cannot hide missing older payload", graftTest environment)
+        , ("raw connectivity covers nested trees, symlinks and gitlinks", nestedObjectsTest environment)
         , ("shallow history is reported as incomplete", shallowTest environment)
         , ("read-only inspection preserves index, files and refs", readOnlyTest environment)
         , ("main, moved linked and detached worktree status", worktreeTest environment)
@@ -405,12 +406,45 @@ graftTest environment = initialized environment "files" Sha1 $ \directory -> do
     top <- line <$> ok environment directory ["mktree"] ("040000 tree " <> contents <> "\t" <> uuidA <> "\n")
     w <- makeCommit environment directory top [a] "Content"
     setRef environment directory uuidA w
+    next <- makeCommit environment directory top [w] "Next Content"
+    _ <- invokeCli environment directory ["enable"] >>= \result -> assertEqual ExitSuccess (gitExitCode result)
     BS.writeFile (directory </> ".git/info/grafts") (w <> "\n")
     removeLoose directory oldMarker
     outcome <- inspectState native directory environment Nothing
     case outcome of
         Left (MissingReachableObjects missing) -> assertEqual [oldMarker] missing
         other -> fail ("Graft hid incomplete stored history: " ++ show other)
+    candidate <- validateCandidate native directory (Map.singleton (nodeId uuidA) (objectId Sha1 w))
+    case candidate of
+        Left (MissingReachableObjects missing) -> assertEqual [oldMarker] missing
+        other -> fail ("Candidate traversal followed grafts: " ++ show other)
+    rejected <- invoke environment directory ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack next, BSC.unpack w] BS.empty
+    assertTrue "Hook allowed grafts to hide missing old payload" (gitExitCode rejected /= ExitSuccess)
+    _ <- ok environment directory ["hash-object", "-w", "--stdin"] "historical marker is not empty\n"
+    inspect environment directory Nothing >>= valid
+    _ <- ok environment directory ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack next, BSC.unpack w] BS.empty
+    pure ()
+
+nestedObjectsTest :: [(String, Maybe String)] -> IO ()
+nestedObjectsTest environment = initialized environment "files" Sha1 $ \directory -> do
+    (a, _, marker) <- makeRoot environment directory uuidA "A"
+    payload <- line <$> ok environment directory ["hash-object", "-w", "--stdin"] "nested payload\n"
+    link <- line <$> ok environment directory ["hash-object", "-w", "--stdin"] "assets/note\n"
+    assets <- line <$> ok environment directory ["mktree"] ("100644 blob " <> payload <> "\tnote\n")
+    contents <- line <$> ok environment directory ["mktree"] ("100644 blob " <> marker <> "\t.roam\n040000 tree " <> assets <> "\tassets\n120000 blob " <> link <> "\tlink\n160000 commit 1111111111111111111111111111111111111111\tsubmodule\n")
+    top <- line <$> ok environment directory ["mktree"] ("040000 tree " <> contents <> "\t" <> uuidA <> "\n")
+    w <- makeCommit environment directory top [a] "Content with nested objects"
+    setRef environment directory uuidA w
+    inspect environment directory Nothing >>= valid
+    removeLoose directory payload
+    outcome <- inspectState native directory environment Nothing
+    assertEqual (Left (MissingReachableObjects [payload])) outcome
+    _ <- ok environment directory ["hash-object", "-w", "--stdin"] "nested payload\n"
+    removeLoose directory link
+    inspectState native directory environment Nothing >>= assertEqual (Left (MissingReachableObjects [link]))
+    _ <- ok environment directory ["hash-object", "-w", "--stdin"] "assets/note\n"
+    removeLoose directory assets
+    expectLeft =<< inspectState native directory environment Nothing
 
 shallowTest :: [(String, Maybe String)] -> IO ()
 shallowTest environment = initialized environment "files" Sha1 $ \directory -> withTempDirectory $ \destination -> do
@@ -421,6 +455,8 @@ shallowTest environment = initialized environment "files" Sha1 $ \directory -> w
     _ <- ok environment directory ["clone", "-q", "--no-local", "--depth=1", "-b", BSC.unpack uuidA, directory, clone] BS.empty
     result <- inspectState native clone environment Nothing
     assertEqual (Left ShallowRepository) result
+    candidate <- validateCandidate native clone (Map.singleton (nodeId uuidA) (objectId Sha1 w))
+    assertEqual (Left ShallowRepository) candidate
     incomplete <- invokeCli environment clone ["check"]
     assertEqual (ExitFailure 3) (gitExitCode incomplete)
     assertTrue "Incomplete history diagnostic lost" ("history-incomplete:" `BS.isInfixOf` gitStderr incomplete)

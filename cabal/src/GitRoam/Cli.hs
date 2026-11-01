@@ -4,15 +4,19 @@ module GitRoam.Cli (
     Command (..),
     HelpTopic (..),
     CliResponse (..),
+    CheckpointMessage (..),
     parseCommand,
     runCli,
 ) where
 
+import Control.Exception (IOException, try)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+import qualified GitRoam.Application.Checkpoint as Checkpoints
 import qualified GitRoam.Application.Create as Creation
 import qualified GitRoam.Application.Deploy as Deployment
 import GitRoam.Application.Inspect
@@ -29,10 +33,12 @@ import System.Directory (getCurrentDirectory)
 import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
 
-data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp
+data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp | CheckpointHelp
     deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath
+data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
+
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -62,6 +68,10 @@ parseCommand arguments = case arguments of
     ["help", "disable"] -> help DisableHelp
     ["help", "deploy"] -> help DeployHelp
     ["help", "undeploy"] -> help UndeployHelp
+    ["help", "checkpoint"] -> help CheckpointHelp
+    ["checkpoint", "--help"] -> help CheckpointHelp
+    ["checkpoint", "-h"] -> help CheckpointHelp
+    "checkpoint" : args -> checkpointArgs Nothing Nothing False [] [] args
     ["help", "node"] -> help NodeHelp
     ["help", "node", "create"] -> help NodeCreateHelp
     ["node"] -> help NodeHelp
@@ -109,6 +119,17 @@ parseCommand arguments = case arguments of
     validValue value = not (null value) && take 1 value /= "-" && '\0' `notElem` value
     quoted = Text.pack . show
     uuid node = either (const (Left ("Invalid Node UUID: " <> quoted node))) Right (parseNodeId (Encoding.encodeUtf8 (Text.pack node)))
+    checkpointArgs node message clear drops adds args = case args of
+        [] -> case message of
+            Nothing -> Left "Checkpoint requires exactly one -m or -F message"
+            Just text -> Right (CreateCheckpoint node text (Checkpoints.DependencyEdits clear (reverse drops) (reverse adds)))
+        "--node" : value : rest | node == Nothing -> uuid value >>= \selected -> checkpointArgs (Just selected) message clear drops adds rest
+        "-m" : value : rest | message == Nothing -> checkpointArgs node (Just (InlineMessage value)) clear drops adds rest
+        "-F" : value : rest | message == Nothing && not (null value) && '\0' `notElem` value -> checkpointArgs node (Just (FileMessage value)) clear drops adds rest
+        "--depend" : value : rest | not (null value) && '\0' `notElem` value -> checkpointArgs node message clear drops (value : adds) rest
+        "--drop-dependency" : value : rest -> uuid value >>= \dep -> checkpointArgs node message clear (dep : drops) adds rest
+        "--clear-dependencies" : rest | not clear -> checkpointArgs node message True drops adds rest
+        _ -> Left "Usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>) [--depend <revision>] [--drop-dependency <uuid>] [--clear-dependencies]"
 
 renderHelp :: HelpTopic -> Text
 renderHelp topic = case topic of
@@ -126,6 +147,7 @@ renderHelp topic = case topic of
             , "  deploy          Deploy all local and fetched candidate Nodes"
             , "  undeploy        Safely remove all Node linked worktrees"
             , "  node create     Create a Node and editable linked worktree"
+            , "  checkpoint      Confirm committed Content and complete dependencies"
             , ""
             , "Options:"
             , "  -h, --help      Show general help"
@@ -141,6 +163,7 @@ renderHelp topic = case topic of
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
     NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path>  Create a UUIDv4 Node with an editable linked worktree"]
     NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path>", "", "Create a UUIDv4 identity, empty-marker Root, persistent local branch and linked worktree.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID and actual path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
+    CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       [--depend <ref-or-oid>] [--drop-dependency <uuid>] [--clear-dependencies]", "", "Select an explicit Node or infer its worktree; Root requires committed Content first.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Inherit the previous full dependency set; --depend adds/replaces one external Checkpoint per UUID.", "Dependencies accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "Repeat --depend/--drop-dependency for different Nodes. Clear may combine with additions, not removals.", "Conflicting edits, self dependencies and unretained/non-Checkpoint inputs are refused.", "Uses the committed tree, preserving all Content history and uncommitted index/worktree data."]
   where
     inspectionHelp command description =
         Text.unlines
@@ -168,6 +191,29 @@ runCli arguments = case parseCommand arguments of
     Right (StatusNode node) -> inspect True node
     Right EnableProtection -> lifecycle Protection.enableProtection "Repository protection enabled.\n"
     Right DisableProtection -> lifecycle Protection.disableProtection "Repository protection disabled.\n"
+    Right (CreateCheckpoint node source edits) -> do
+        loaded <-
+            try
+                ( case source of
+                    InlineMessage text -> pure (Encoding.encodeUtf8 (Text.pack text))
+                    FileMessage "-" -> BS.getContents
+                    FileMessage path -> BS.readFile path
+                )
+        case loaded of
+            Left problem -> pure (failure 1 ("Cannot read Checkpoint message: " <> Text.pack (show (problem :: IOException))))
+            Right message -> do
+                directory <- getCurrentDirectory
+                executable <- getExecutablePath
+                result <- Checkpoints.checkpoint executable (nativeGit defaultGitExecutable) directory node message edits
+                pure $ case result of
+                    Left (Checkpoints.CheckpointFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
+                    Right value ->
+                        success
+                            ( Text.unlines
+                                ( ["node " <> nodeText (Checkpoints.checkpointNode value), "checkpoint " <> oidText (Checkpoints.checkpointOid value), "content " <> oidText (Checkpoints.checkpointContent value)]
+                                    ++ ["dependency " <> nodeText dep <> " " <> oidText oid | (dep, oid) <- Map.toList (Checkpoints.checkpointDependencies value)]
+                                )
+                            )
     Right (CreateNode path) -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath

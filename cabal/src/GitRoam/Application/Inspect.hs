@@ -96,7 +96,7 @@ inspectState git directory environment target = do
                     case [(node, symbolic) | node <- Map.keys selected, Just (_, symbolic) <- [Map.lookup node before], not (BS.null symbolic)] of
                         (node, symbolic) : _ -> throwE (SymbolicNodeBranch node symbolic)
                         [] -> pure ()
-                    connectivity (Map.elems selected)
+                    connectivity provider (Map.elems selected)
                     worktrees <- query ["worktree", "list", "--porcelain", "-z"] >>= parseWorktrees (repositoryObjectFormat repository)
                     let validated = validateManagedState history selected
                         problems = either id (const []) validated
@@ -149,11 +149,10 @@ inspectState git directory environment target = do
                     , Right (Just version) <- [projectCheckpoint history oid]
                     ]
 
-    connectivity [] = pure ()
-    connectivity tips = do
-        bytes <- query (["rev-list", "--objects", "--no-object-names", "--missing=print"] ++ map (BSC.unpack . objectIdBytes) tips ++ ["--"])
-        let missing = [BS.drop 1 row | row <- BSC.lines bytes, "?" `BS.isPrefixOf` row]
-        unless (null missing) (throwE (MissingReachableObjects missing))
+    connectivity provider tips = do
+        outcome <- lift (checkStoredConnectivity git directory environment provider tips)
+        missing <- either (throwE . HistoryFailure . uncurry ObjectUnavailable) pure outcome
+        unless (null missing) (throwE (MissingReachableObjects (map objectIdBytes missing)))
 
     nodeView history (node, tip) = do
         value <- maybe (throwE (InvalidGitOutput [] "Validated tip is absent")) pure (lookupCommit history tip)
@@ -210,16 +209,18 @@ validateCandidate git directory refs = runExceptT $ do
     discovered <- lift (inspectRepository git directory readOnlyEnvironment)
     repository <- either (throwE . RepositoryDiscoveryFailure) pure discovered
     let format = repositoryObjectFormat repository
-    loaded <- lift (validateHistory format (nativeHistorySource git directory format []) (Map.elems refs))
+    let arguments = ["rev-parse", "--is-shallow-repository"]
+    observed <- lift (runGit git (GitInvocation directory arguments BS.empty readOnlyEnvironment))
+    result <- either (throwE . InspectionTransportFailure arguments) pure observed
+    unless (gitExitCode result == ExitSuccess) (throwE (InspectionGitFailure arguments result))
+    case gitStdout result of
+        "false\n" -> pure ()
+        "true\n" -> throwE ShallowRepository
+        bytes -> throwE (InvalidGitOutput arguments bytes)
+    provider <- lift (cachedSource (nativeHistorySource git directory format []))
+    loaded <- lift (validateHistory format provider (Map.elems refs))
     history <- either (throwE . HistoryFailure) pure loaded
-    unless (Map.null refs) $ do
-        let arguments =
-                ["--no-replace-objects", "rev-list", "--objects", "--no-object-names", "--missing=print"]
-                    ++ map (BSC.unpack . objectIdBytes) (Map.elems refs)
-                    ++ ["--"]
-        outcome <- lift (runGit git (GitInvocation directory arguments BS.empty readOnlyEnvironment))
-        result <- either (throwE . InspectionTransportFailure arguments) pure outcome
-        unless (gitExitCode result == ExitSuccess) (throwE (InspectionGitFailure arguments result))
-        let missing = [BS.drop 1 row | row <- BSC.lines (gitStdout result), "?" `BS.isPrefixOf` row]
-        unless (null missing) (throwE (MissingReachableObjects missing))
+    outcome <- lift (checkStoredConnectivity git directory [] provider (Map.elems refs))
+    missing <- either (throwE . HistoryFailure . uncurry ObjectUnavailable) pure outcome
+    unless (null missing) (throwE (MissingReachableObjects (map objectIdBytes missing)))
     either (throwE . CandidateStateInvalid) pure (validateManagedState history refs)

@@ -176,8 +176,10 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
                                 sameRoot = (validatedRoot <$> lookupCommit history old) == (validatedRoot <$> lookupCommit history new)
                             let unchanged = sameRoot && formal old == formal new
                             when unchanged $ do
-                                evidence <- ExceptT (checked directory ["--no-replace-objects", "rev-list", "--objects", "--no-object-names", "--missing=print", BSC.unpack (objectIdBytes new), "--"])
-                                when (any (BS.isPrefixOf "?") (BSC.lines evidence)) (throwE "Content history has missing objects")
+                                shallow <- ExceptT (checked directory ["rev-parse", "--is-shallow-repository"])
+                                unless (shallow == "false\n") (throwE "Content updates require complete, non-shallow history")
+                                evidence <- lift (checkStoredConnectivity native directory [] (nativeHistorySource native directory format []) [new]) >>= either (throwE . show) pure
+                                unless (null evidence) (throwE "Content history has missing objects")
                             pure unchanged
                 _ -> pure False
             unless local $ do
