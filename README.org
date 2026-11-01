@@ -31,6 +31,7 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam status
   git roam enable
   git roam disable
+  git roam node create --path /path/to/worktrees
   git roam deploy --path /path/to/worktrees
   git roam undeploy
 #+end_src
@@ -65,7 +66,7 @@ Ordinary Git updates may edit or replace unconfirmed Content and add valid Check
 
 =disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Use =undeploy= to remove Node linked worktrees before disabling protection.
 
-Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook. History-modifying public commands remain later work.
+Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook. Checkpoint construction and destructive history operations remain later work.
 
 The current build uses Git 2.56.0. Protection requires configured named Hook support and enforces a Git 2.54 version floor; the full behavior on that minimum version and on other platforms remains unverified. Hook configuration identifies the enabled executable, so a different executable or divergent configuration requires an explicit lifecycle/configuration review. Configuration writes use Git's own locking; a failed installation is not claimed to be an atomic configuration transaction.
 
@@ -79,7 +80,7 @@ The library projects Checkpoints to their content tree, formal predecessors =H= 
 Protocol tests include malformed graphs, same-Node history convergence, empty-diff Content, dependency replacement and removal, and generated SHA-1/SHA-256 graphs comparing projected knowledge ancestry with raw Git ancestry. The native object reader and shared managed-state validator power =check= and =status=. A pure transition validator checks Root consistency and preservation of all existing formal Checkpoints and is shared with realtime reference protection.
 
 * Internal worktree foundation
-The library provides whole-set worktree planning and protected native add/remove primitives. Public =node create= remains future work. Planning preserves existing manual or moved Node linked worktrees, distinguishes main and detached worktrees, and refuses locked, missing or prunable targets. Main worktrees are never removal targets.
+The library provides whole-set worktree planning and protected native add/remove primitives used by Node creation, deployment and undeployment. Planning preserves existing manual or moved Node linked worktrees, distinguishes main and detached worktrees, and refuses locked, missing or prunable targets. Main worktrees are never removal targets.
 
 Default directory names hash the canonical UUID's ASCII bytes with SHA-256, encode the first five digest bytes using standard Base32, and use eight lowercase characters without padding. Names are derived paths, with explicit collision checks; no mapping or deployment-root registry is stored.
 
@@ -106,6 +107,30 @@ The complete candidate set and paths are checked before structural writes. Missi
 On failure, the command reports failure and actual residual state. Compensation only attempts worktrees newly created by this operation, with unchanged planned tips and safe contents. New branches can be removed only if unchanged, unchecked-out, and unnecessary to the dependency closure of retained histories. Changed or required branches stay together. Preexisting branches and worktrees are retained. A failed compensation stops conservatively, and the deployment root may remain empty. Neither multi-worktree filesystem atomicity nor isolation from arbitrary external writers is promised. Concurrent changes or incomplete observations require inspection, not automatic repair.
 
 Tests exercise actual local clone/fetch, tracking setup, both object formats and reference backends, equivalent and divergent sources, incomplete-to-complete dependency closure, stale conditional updates, and checkout-Hook failures with and without new user data.
+
+* Create and edit a Node
+#+begin_src sh
+  git roam enable
+  git roam node create --path /path/to/worktrees
+#+end_src
+
+=node create= generates a canonical UUIDv4 and creates a Root, its persistent local UUID branch, and an immediately editable linked worktree. Output contains =node <uuid>=, =root <oid>= and the actual =worktree= path. The path uses the same eight-character short name as deployment. Only this new Node receives a worktree; existing undeployed Nodes are left for a later full =deploy=. Unrelated main or locked Node worktrees are left alone and do not prevent creation when the new target is safe.
+
+The Root has no parents and contains only =<uuid>/.roam=, an empty regular file. Knowledge content belongs inside that UUID directory. Use ordinary Git to stage and commit edits there, retaining the marker:
+
+#+begin_src sh
+  cd <reported-worktree>/<uuid>
+  # Create or edit note.org here.
+  git add note.org
+  git commit -m 'Write a note'
+  git roam status
+#+end_src
+
+These single-parent commits are unconfirmed Content; they are not Checkpoints and do not declare formal dependencies. Ordinary Git can revise this Content under the enabled history protection rules. The public Checkpoint command is not yet available.
+
+Creation requires matching enabled protection and valid managed history. It uses Git's configured author/committer identities and constructs objects without using or changing the current index. Before object writes, it checks UUID/ref/configuration conflicts, paths and native author/committer availability. The new Root and complete target branch state are validated before conditional reference creation. Existing local UUIDs, canonical fetched identities, an ambiguous UUID tag, an existing unborn checkout of that UUID, occupied paths and stale branch configuration cause refusal.
+
+A failed checkout attempts compensation only for its proven new unchanged branch and safely removable worktree. User files, changed Content history, changed branch configuration and competing creation results are retained and reported. Creation does not fetch, establish tracking for a new identity, reset user changes or manually delete Git objects; failed attempts can leave unreachable objects and an empty deployment parent directory.
 
 * Full undeployment
 #+begin_src sh

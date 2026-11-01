@@ -13,8 +13,8 @@ Unchecked items describe planned work, not a claim of available functionality.
 - [X] Protect all retained Checkpoints while allowing legal native Git Content edits and formal history advancement.
 
 *** Node history and dependencies
-- [ ] Create a UUID-identified Node and an editable linked worktree under an explicit deployment path.
-- [ ] Edit and revise unconfirmed Content with ordinary Git, preserving editing history without automatic squash.
+- [X] Create a UUID-identified Node and an editable linked worktree under an explicit deployment path.
+- [X] Edit and revise unconfirmed Content with ordinary Git, preserving editing history without automatic squash.
 - [ ] Create Checkpoints from committed Content with complete, exact-version external dependencies.
 - [ ] Add, remove, replace, or clear dependencies without including or changing uncommitted index and worktree content.
 - [X] Check Node identities, history structure, formal history retention, and managed dependency closure.

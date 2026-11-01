@@ -13,6 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+import qualified GitRoam.Application.Create as Creation
 import qualified GitRoam.Application.Deploy as Deployment
 import GitRoam.Application.Inspect
 import qualified GitRoam.Application.Protection as Protection
@@ -28,10 +29,10 @@ import System.Directory (getCurrentDirectory)
 import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
 
-data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp
+data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp
     deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -61,6 +62,15 @@ parseCommand arguments = case arguments of
     ["help", "disable"] -> help DisableHelp
     ["help", "deploy"] -> help DeployHelp
     ["help", "undeploy"] -> help UndeployHelp
+    ["help", "node"] -> help NodeHelp
+    ["help", "node", "create"] -> help NodeCreateHelp
+    ["node"] -> help NodeHelp
+    ["node", "--help"] -> help NodeHelp
+    ["node", "-h"] -> help NodeHelp
+    ["node", "create", "--help"] -> help NodeCreateHelp
+    ["node", "create", "-h"] -> help NodeCreateHelp
+    ["node", "create", "--path", path] | validValue path -> Right (CreateNode path)
+    "node" : _ -> Left "Usage: git roam node create --path <path>"
     ["undeploy", "--help"] -> help UndeployHelp
     ["undeploy", "-h"] -> help UndeployHelp
     ["undeploy"] -> Right UndeployNodes
@@ -115,6 +125,7 @@ renderHelp topic = case topic of
             , "  disable         Disable protection after full undeployment"
             , "  deploy          Deploy all local and fetched candidate Nodes"
             , "  undeploy        Safely remove all Node linked worktrees"
+            , "  node create     Create a Node and editable linked worktree"
             , ""
             , "Options:"
             , "  -h, --help      Show general help"
@@ -128,6 +139,8 @@ renderHelp topic = case topic of
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
+    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path>  Create a UUIDv4 Node with an editable linked worktree"]
+    NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path>", "", "Create a UUIDv4 identity, empty-marker Root, persistent local branch and linked worktree.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID and actual path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
   where
     inspectionHelp command description =
         Text.unlines
@@ -155,6 +168,13 @@ runCli arguments = case parseCommand arguments of
     Right (StatusNode node) -> inspect True node
     Right EnableProtection -> lifecycle Protection.enableProtection "Repository protection enabled.\n"
     Right DisableProtection -> lifecycle Protection.disableProtection "Repository protection disabled.\n"
+    Right (CreateNode path) -> do
+        directory <- getCurrentDirectory
+        executable <- getExecutablePath
+        result <- Creation.createNode executable (nativeGit defaultGitExecutable) directory path
+        pure $ case result of
+            Left (Creation.CreationFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
+            Right report -> success (Text.unlines ["node " <> nodeText (Creation.createdNode report), "root " <> oidText (Creation.createdRoot report), "worktree " <> Text.pack (show (Creation.createdPath report))])
     Right UndeployNodes -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath

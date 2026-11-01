@@ -7,6 +7,7 @@ module GitRoam.Application.Worktree (
     ProtectedSession,
     planDeployment,
     planDeploymentCandidate,
+    planDeploymentCandidateFor,
     planRemoval,
     planRemovalFor,
     deploymentRoot,
@@ -48,20 +49,20 @@ import System.FilePath
 import System.IO.Error (isDoesNotExistError)
 import qualified System.Posix.Files as Files
 
-data DeploymentPlan = DeploymentPlan FilePath ManagedState (Map NodeId FilePath) [(NodeId, FilePath)]
+data DeploymentPlan = DeploymentPlan FilePath ManagedState (Map NodeId FilePath) [(NodeId, FilePath)] (Set.Set NodeId)
     deriving (Eq, Show)
 data RemovalPlan = RemovalPlan ManagedState [Worktree] [Worktree] [Worktree]
     deriving (Eq, Show)
 data ProtectedSession = ProtectedSession (Git IO) FilePath (IORef (Set.Set BS.ByteString))
 
 deploymentRoot :: DeploymentPlan -> FilePath
-deploymentRoot (DeploymentPlan root _ _ _) = root
+deploymentRoot (DeploymentPlan root _ _ _ _) = root
 deploymentRefs :: DeploymentPlan -> Map NodeId ObjectId
-deploymentRefs (DeploymentPlan _ state _ _) = managedRefs state
+deploymentRefs (DeploymentPlan _ state _ _ _) = managedRefs state
 existingDeployments :: DeploymentPlan -> Map NodeId FilePath
-existingDeployments (DeploymentPlan _ _ existing _) = existing
+existingDeployments (DeploymentPlan _ _ existing _ _) = existing
 pendingDeployments :: DeploymentPlan -> [(NodeId, FilePath)]
-pendingDeployments (DeploymentPlan _ _ _ pending) = pending
+pendingDeployments (DeploymentPlan _ _ _ pending _) = pending
 removalTargets :: RemovalPlan -> [Worktree]
 removalTargets (RemovalPlan _ targets _ _) = targets
 retainedMainWorktrees :: RemovalPlan -> [Worktree]
@@ -145,7 +146,15 @@ planDeployment git directory state = planDeploymentCandidate git directory (mana
 -- Preflight the complete target before creating missing local branches. Current
 -- refs may lack dependency branches; only the supplied final state is validated.
 planDeploymentCandidate :: Git IO -> FilePath -> Map NodeId ObjectId -> ManagedState -> FilePath -> IO (Either String DeploymentPlan)
-planDeploymentCandidate git directory current state requestedRoot = guardIO $ runExceptT $ do
+planDeploymentCandidate git directory current state = planDeploymentCandidateFor git directory current state (Map.keysSet (managedRefs state))
+
+-- Internal operation scope: node creation targets only its new Node. Normal
+-- public deploy still targets the complete managed set. Unrelated main/locked
+-- deployments are not operations on the new Node, but root reuse must still
+-- recognize only valid actual linked worktree directories.
+planDeploymentCandidateFor :: Git IO -> FilePath -> Map NodeId ObjectId -> ManagedState -> Set.Set NodeId -> FilePath -> IO (Either String DeploymentPlan)
+planDeploymentCandidateFor git directory current state wanted requestedRoot = guardIO $ runExceptT $ do
+    unless (wanted `Set.isSubsetOf` Map.keysSet (managedRefs state)) (throwE "Unknown Node in internal deployment scope")
     (repository, records) <- ExceptT (observeRefs git directory current)
     root <- ExceptT (safeAbsolutePath (if isAbsolute requestedRoot then requestedRoot else directory </> requestedRoot))
     common <- lift (decodePath (repositoryCommonDirectory repository))
@@ -154,6 +163,10 @@ planDeploymentCandidate git directory current state requestedRoot = guardIO $ ru
         let matches = filter ((== Just node) . worktreeNode) records
         case matches of
             [] -> pure (node, Nothing)
+            [record] | Set.notMember node wanted && not (treeMain record) -> do
+                preserved <- lift (registered git repository record{treeLocked = Nothing})
+                pure (node, either (const Nothing) Just preserved)
+            _ | Set.notMember node wanted -> pure (node, Nothing)
             [record] | not (treeMain record) -> do
                 path <- ExceptT (registered git repository record)
                 pure (node, Just path)
@@ -162,7 +175,7 @@ planDeploymentCandidate git directory current state requestedRoot = guardIO $ ru
     when (root `elem` paths) (throwE "Deployment root equals a worktree root")
     let existing = Map.fromList [(node, path) | (node, Just path) <- selected]
         targets = [(node, root </> shortName node) | node <- Map.keys (managedRefs state)]
-        pending = [(node, path) | (node, path) <- targets, Map.notMember node existing]
+        pending = [(node, path) | (node, path) <- targets, Set.member node wanted, Map.notMember node existing]
     either throwE pure (checkPathCollisions targets)
     isPresent <- lift (exists root)
     when isPresent $ do
@@ -174,7 +187,7 @@ planDeploymentCandidate git directory current state requestedRoot = guardIO $ ru
         occupied <- lift (exists path)
         when occupied (throwE ("Occupied deployment target: " ++ show path))
     ExceptT (outerIgnore git root)
-    pure (DeploymentPlan root state existing pending)
+    pure (DeploymentPlan root state existing pending wanted)
 
 outerIgnore :: Git IO -> FilePath -> IO (Either String ())
 outerIgnore git root = runExceptT $ do
@@ -296,12 +309,12 @@ withProtectedSession executable git directory action = withOperationLock directo
                     newIORef Set.empty >>= action . ProtectedSession git common
 
 addPlannedWorktree :: ProtectedSession -> DeploymentPlan -> NodeId -> IO (Either String ())
-addPlannedWorktree (ProtectedSession git directory _) plan@(DeploymentPlan root state _ _) node = guardIO $ runExceptT $ do
+addPlannedWorktree (ProtectedSession git directory _) plan@(DeploymentPlan root state _ _ wanted) node = guardIO $ runExceptT $ do
     target <- maybe (throwE "Node is not a pending deployment") pure (lookup node (pendingDeployments plan))
-    refreshed <- ExceptT (planDeployment git directory state root)
+    refreshed <- ExceptT (planDeploymentCandidateFor git directory (managedRefs state) state wanted root)
     unless (lookup node (pendingDeployments refreshed) == Just target) (throwE "Deployment plan is stale")
     lift (createDirectoryIfMissing True root)
-    _ <- ExceptT (planDeployment git directory state root)
+    _ <- ExceptT (planDeploymentCandidateFor git directory (managedRefs state) state wanted root)
     _ <- ExceptT (command git directory (ownHookBypass ++ ["worktree", "add", "--no-guess-remote", "--", target, BSC.unpack (nodeIdBytes node)]) BS.empty)
     (_, records) <- ExceptT (observation git directory state)
     pathBytes <- lift (encodePath target)

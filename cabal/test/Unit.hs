@@ -37,7 +37,7 @@ main =
             , mapM_
                 checkInvalid
                 [ ["unknown"]
-                , ["node"]
+                , ["node", "unknown"]
                 , ["--unknown"]
                 , ["--version", "extra"]
                 , ["version", "extra"]
@@ -58,7 +58,7 @@ main =
                 output <- responseStdout <$> runCli []
                 assertTrue "help missing" ("help [command]" `Text.isInfixOf` output)
                 assertTrue "unimplemented command advertised" $
-                    not ("node create" `Text.isInfixOf` output)
+                    not ("checkpoint" `Text.isInfixOf` output)
             )
         ,
             ( "object formats"
