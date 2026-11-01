@@ -16,6 +16,7 @@ import qualified Data.Text.Encoding as Encoding
 import qualified GitRoam.Application.Deploy as Deployment
 import GitRoam.Application.Inspect
 import qualified GitRoam.Application.Protection as Protection
+import qualified GitRoam.Application.Undeploy as Undeployment
 import GitRoam.BuildInfo (packageVersion)
 import GitRoam.Git
 import GitRoam.ObjectId
@@ -27,10 +28,10 @@ import System.Directory (getCurrentDirectory)
 import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
 
-data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp
+data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp
     deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String)
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -59,6 +60,11 @@ parseCommand arguments = case arguments of
     ["help", "enable"] -> help EnableHelp
     ["help", "disable"] -> help DisableHelp
     ["help", "deploy"] -> help DeployHelp
+    ["help", "undeploy"] -> help UndeployHelp
+    ["undeploy", "--help"] -> help UndeployHelp
+    ["undeploy", "-h"] -> help UndeployHelp
+    ["undeploy"] -> Right UndeployNodes
+    "undeploy" : _ -> Left "Usage: git roam undeploy"
     ["deploy", "--help"] -> help DeployHelp
     ["deploy", "-h"] -> help DeployHelp
     ["deploy", "--path", path] | validValue path -> Right (DeployNodes path Nothing)
@@ -108,6 +114,7 @@ renderHelp topic = case topic of
             , "  enable          Enable repository reference protection"
             , "  disable         Disable protection after full undeployment"
             , "  deploy          Deploy all local and fetched candidate Nodes"
+            , "  undeploy        Safely remove all Node linked worktrees"
             , ""
             , "Options:"
             , "  -h, --help      Show general help"
@@ -120,6 +127,7 @@ renderHelp topic = case topic of
     EnableHelp -> Text.unlines ["usage: git roam enable", "", "Enable this executable's named repository Hook without changing knowledge history."]
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
+    UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
   where
     inspectionHelp command description =
         Text.unlines
@@ -147,6 +155,20 @@ runCli arguments = case parseCommand arguments of
     Right (StatusNode node) -> inspect True node
     Right EnableProtection -> lifecycle Protection.enableProtection "Repository protection enabled.\n"
     Right DisableProtection -> lifecycle Protection.disableProtection "Repository protection disabled.\n"
+    Right UndeployNodes -> do
+        directory <- getCurrentDirectory
+        executable <- getExecutablePath
+        result <- Undeployment.undeploy executable (nativeGit defaultGitExecutable) directory
+        pure $ case result of
+            Left (Undeployment.UndeploymentFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
+            Right report ->
+                success
+                    ( Text.unlines
+                        ( ["Undeployed " <> decimal (length (Undeployment.removedWorktrees report)) <> " Node linked worktrees."]
+                            ++ ["removed " <> nodeText node <> " " <> Text.pack (show path) | (node, path) <- Undeployment.removedWorktrees report]
+                            ++ ["retained main " <> nodeText node <> " " <> Text.pack (show path) | (node, path) <- Undeployment.retainedMainNodes report]
+                        )
+                    )
     Right (DeployNodes path remote) -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath

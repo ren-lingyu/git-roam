@@ -11,6 +11,7 @@ library
     GitRoam.Application.Deploy
     GitRoam.Application.Inspect
     GitRoam.Application.Protection
+    GitRoam.Application.Undeploy
     GitRoam.Application.Worktree
     GitRoam.Cli
     GitRoam.Git
@@ -147,6 +148,26 @@ test-suite protocol-tests
 
   default-language: Haskell2010
   ghc-options:      -Wall
+
+test-suite undeployment-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Undeployment.hs
+  other-modules:
+    TestSupport
+    WorktreeFixture
+
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , git-roam
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded
 
 test-suite inspection-tests
   type:               exitcode-stdio-1.0

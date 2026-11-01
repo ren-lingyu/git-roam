@@ -48,8 +48,7 @@ safeAbsolutePath :: FilePath -> IO (Either String FilePath)
 safeAbsolutePath input
     | null input || '\0' `elem` input = pure (Left "Empty path or NUL byte")
     | otherwise = do
-        cwd <- getCurrentDirectory
-        let path = if isAbsolute input then input else cwd </> input
+        path <- if isAbsolute input then pure input else (</> input) <$> getCurrentDirectory
         walk "/" (filter (`notElem` ["/", ""]) (splitDirectories path))
   where
     walk current [] = pure (Right (dropTrailingPathSeparator current))
