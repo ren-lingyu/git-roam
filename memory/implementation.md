@@ -13,8 +13,9 @@ committed and confirmed against its 28-file tested snapshot. Node 4 is implement
 and verified in project history, confirmed against its tested source. Node 5 is
 committed and confirmed against its 33-file verified snapshot. Node 6 is committed
 and confirmed against all 36 verified source files. Node 7 is committed and
-confirmed against its final 38-file snapshot. Node 8 is implemented and verified,
-awaiting user review/staging/commit, with UUIDv4 creation and immediate worktree.
+confirmed against its final 38-file snapshot. Node 8 is committed and confirmed
+against all 40 verified source files. Node 9 is implemented and verified in the
+worktree, awaiting review/staging/commit, with complete-dependency Checkpoints.
 See current.md for evidence,
 actual progress and authorization boundaries.
 
@@ -129,8 +130,16 @@ creation, user changes, competing creation, unrelated main/locked worktrees and
 unborn checkouts are tested. Internal operation scope avoids imposing full-deploy
 restrictions on creation while leaving the public full-deploy policy unchanged.
 README and the Node
-creation/Content editing CHANGELOG boxes reflect actual capability. Wait for its
-user commit before node 9; see current.md for evidence and remaining limits.
+creation/Content editing CHANGELOG boxes reflect actual capability. The user
+committed all 40 verified files before node 9. Its Checkpoint code, CLI and 19 new
+test groups pass, bringing the total to 172. Root requires prior Content; a Checkpoint tip gets a new
+empty-diff Content object. Only the final ref advances, with complete dependencies
+and shared target/retention validation. Dirty state is excluded and preserved.
+The first validation found deprecated-graft advice being misclassified as revision
+failure; the narrow per-command fix and ambiguity regression pass. Final format,
+build and flake checks pass on x86_64-linux, with 42 worktree/snapshot files equal.
+README and both Checkpoint/dependency editing CHANGELOG boxes are synchronized.
+Wait for the user commit before node 10; see current.md for evidence and limits.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.

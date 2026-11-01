@@ -39,7 +39,9 @@ user and all 36 committed files match its tested snapshot. The project worktree
 was clean at transition to node 7. Node 7 is committed by the user; all 38
 committed files match its final snapshot, including CHANGELOG. The project
 worktree was clean at transition. Node 8 is implemented and verified in the
-worktree, awaiting user review/staging/commit, with all 153 cases passing.
+project history, confirmed against all 40 verified files. The project worktree
+was clean at transition. Node 9 is implemented and verified in the worktree,
+awaiting user review/staging/commit, with all 172 cases passing.
 
 ## Navigation and authority
 
@@ -619,20 +621,88 @@ clarification, and the final flake treefmt check passed with zero changes.
 Git 2.56.0, GHC 9.12.3/Cabal 3.14.2.0, x86_64-linux; other declared platforms were
 omitted. All 40 current worktree/source-snapshot files match manifest SHA-256
 a0e5664d93049510076d8c4699607c6be6a85628b159be193849f7bade644e41.
-The helper is tmp/prepare-milestone8-source.py. diff --check passes; project index
-is empty, with no lockfile changes or project Hook installation. README records
+The helper is tmp/prepare-milestone8-source.py. diff --check passes; the user staged
+the change, and all 40 index/worktree files match the verified source snapshot.
+No lockfile changes or project Hook installation. README records
 the create/edit loop and failure boundaries. CHANGELOG remains TODO 0.1.0 and now
 checks Node creation and ordinary Content editing. These tests used uncommitted
 source, so no additional project parent represents their snapshot.
 
+## Node-9 implementation and verification
+
+The user committed node 8; all 40 committed files matched the verified snapshot
+before new edits. Application.Checkpoint now implements checkpoint [--node UUID]
+(-m text|-F file), with repeatable --depend revision, --drop-dependency UUID and
+--clear-dependencies. Selection is explicit or inferred from a legitimate Node
+worktree, never from the number of branches. Root requires prior Content. A Content
+tip is retained as w; a Checkpoint tip gets a new same-tree Content object based
+on that tip. Only the final branch ref advances once, with expected-old.
+
+Construction inherits the main predecessor's complete direct map (empty before
+the first Checkpoint), then clears/removes/adds/replaces it. Each added revision
+must resolve unambiguously to a retained external Checkpoint. Root/Content/self,
+unretained versions, duplicate UUID inputs, remove-and-replace or clear-and-remove
+conflicts refuse before object construction. Exact final dependencies are direct
+parents; old declarations remain protected through retained formal history. Formal
+merges are not constructed, but existing multi-predecessor histories are preserved.
+
+The tree equals the old tip's committed tree. No write-tree, index snapshot,
+squash, working-file inclusion or reused old second parent. Main/linked dirty
+state, including exact index bytes, is retained. Native commit-tree uses UTF-8
+per call and stdin messages, independent of persistent legacy encoding config.
+Messages are nonempty UTF-8/NUL-free text, -F - supports stdin, and no editor or
+Conventional Commit requirement is introduced. Shared full candidate/ordinary-
+retention validation precedes a transaction verifying other managed refs. Only
+the own Hook is bypassed; other Hooks can reject. Post-update state/protection
+checks report failure without rollback. Diagnostics identify constructed OIDs,
+selected Content, and confirmed versus uncertain ref installation.
+
+The first build compiled but failed three dependency-related cases: the shared
+GIT_GRAFT_FILE=/dev/null protection triggered Git 2.56 deprecated-graft advice on
+rev-parse despite exit 0 and a valid OID. Strict stderr handling misclassified it;
+the third race fixture never reached its intended update. Resolution now applies
+only per-call advice.graftFileDeprecated=false, --no-replace-objects and forced
+core.warnAmbiguousRefs=true. Other stderr/ambiguity still refuses, including when
+the user's default suppresses ambiguity warnings. Persistent config is unchanged.
+The user asked about this; the agent explained the distinction between successful
+Git resolution and the application's overly strict output classification.
+A redundant pattern warning in new code was removed. An inherited unused-import
+warning in Undeployment.hs remains; no unrelated cleanup or warning-free claim.
+
+All 172 cases pass: 19 new Checkpoint groups plus the prior 153. New coverage uses
+files/reftable x SHA-1/SHA-256, exact first/second parents and tree, repeated and
+empty-diff versions, full dependency inheritance/removal/replacement/clearing,
+historical dependency retention, merged formal history, invalid/conflicting and
+ambiguous revisions, UTF-8/legacy configuration/file/stdin messages, Root and
+selection refusal, dirty main/linked index/files/ignored data, CAS/verify races,
+other Hook rejection and post-install read failure without rollback.
+
+The user authorized on-demand repetition of these exact node-9 commands; all
+final commands passed with exit 0:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone9-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone9-source
+
+Package derivation: /nix/store/qq53h3g3mvyl4yangjv2rbkcdx6gppdb-git-roam-0.1.0.drv.
+The final build reused the successful tested package after the CHANGELOG checkbox
+edit; final treefmt check passed with zero changes. Git 2.56.0, GHC 9.12.3/Cabal
+3.14.2.0, x86_64-linux only; other declared platforms remain unverified.
+All 42 worktree/source-snapshot files match manifest SHA-256
+b88a3abfb1f53ed416778d7273b5b93b12cdf08e9edd2dbb4749f7cb9ef38be2.
+Helper: tmp/prepare-milestone9-source.py. diff --check passes; project index is
+empty, no lockfile changes or project protection installation. README and both
+Checkpoint/dependency editing CHANGELOG boxes match actual capability; version
+stays TODO 0.1.0. This uncommitted tested source has no new project-parent edge.
+
 ## Next action and authorization
 
-Present node 8 for user review/staging. Prepare a message from the actual staged
-diff when requested, then wait for the user's project commit. Confirm its source
-against the 40-file snapshot before node 9 (Checkpoint construction with complete
-dependencies). Do not begin node 9, stage/commit project files or install project
-protection. No further tests are needed absent source changes or new concerns.
-Preserve archives and earlier snapshots.
+Present node 9 for user review/staging. Prepare the commit message from the actual
+staged diff when requested, then wait for the user's project commit. Confirm its
+source against the 42-file snapshot before node 10 (read-only explicit-discard
+impact preview). Do not begin node 10, stage/commit project files or install project
+protection. No further tests absent source changes or new concerns. Preserve
+archives and earlier snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
