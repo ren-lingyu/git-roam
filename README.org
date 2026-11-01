@@ -37,3 +37,12 @@ The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal
 The test suites cover CLI behavior, SHA-1 and SHA-256 object IDs, native Git failures, binary input/output, argument boundaries, and repository discovery for ordinary, bare, and linked worktrees. Git integration tests use dedicated temporary repositories and isolated configuration.
 
 Cabal declares the CLI test dependency through =build-tool-depends=. The tests locate the resulting executable on =PATH=. The Nix package selects the GHC 9.12 package set, including its Cabal build driver. No test executable path is injected by Nix.
+
+* History protocol library
+The Haskell library validates decoded commit and tree objects through an injectable object source. It checks canonical UUID directories and regular-file =.roam= markers, unique Roots, single-parent Content chains, and Checkpoint parent roles and tree equality. Required missing objects and incomplete history are reported as unavailable evidence.
+
+A Checkpoint has parents =[q, w, ...]=. Its first parent =q= is the same Node's Root or a Checkpoint. Its second parent =w= ends a Content chain based on =q=, and supplies the exact Checkpoint tree. Additional same-UUID Checkpoints retain other formal history branches; different-UUID Checkpoints declare the complete direct external dependencies, with one version per external UUID.
+
+The library projects Checkpoints to their content tree, formal predecessors =H= and complete dependencies =D=. Root and Content do not project to formal knowledge versions. Empty dependencies differ from Content having no formal dependency declaration. Formal-history traversal follows all same-Node formal predecessors; combined knowledge ancestry also follows external dependencies. Ordinary Git ancestry cannot substitute for the former.
+
+Protocol tests include malformed graphs, same-Node history convergence, empty-diff Content, dependency replacement and removal, and generated SHA-1/SHA-256 graphs comparing projected knowledge ancestry with raw Git ancestry. This library layer does not yet load objects from a repository or validate managed branch closure; the CLI currently exposes help and version only.

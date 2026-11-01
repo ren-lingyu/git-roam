@@ -11,6 +11,9 @@ library
     GitRoam.Cli
     GitRoam.Git
     GitRoam.ObjectId
+    GitRoam.Protocol.History
+    GitRoam.Protocol.Identity
+    GitRoam.Protocol.Objects
     GitRoam.Repository
 
   other-modules:
@@ -22,6 +25,7 @@ library
     , async
     , base              >=4.16 && <5
     , bytestring
+    , containers
     , process
     , template-haskell
     , text
@@ -74,3 +78,19 @@ test-suite git-adapter-tests
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded
+
+test-suite protocol-tests
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Protocol.hs
+  other-modules:    TestSupport
+  build-depends:
+    , base          >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , git-roam
+    , transformers
+
+  default-language: Haskell2010
+  ghc-options:      -Wall
