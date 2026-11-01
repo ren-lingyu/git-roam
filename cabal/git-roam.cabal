@@ -5,9 +5,72 @@ synopsis:      Git Roam
 license:       MIT
 build-type:    Simple
 
+library
+  hs-source-dirs:   src
+  exposed-modules:
+    GitRoam.Cli
+    GitRoam.Git
+    GitRoam.ObjectId
+    GitRoam.Repository
+
+  other-modules:
+    GitRoam.BuildInfo
+    Paths_git_roam
+
+  autogen-modules:  Paths_git_roam
+  build-depends:
+    , async
+    , base              >=4.16 && <5
+    , bytestring
+    , process
+    , template-haskell
+    , text
+    , transformers
+
+  default-language: Haskell2010
+  ghc-options:      -Wall
+
 executable git-roam
   hs-source-dirs:   app
   main-is:          Main.hs
-  build-depends:    base >=4.16 && <5
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , git-roam
+    , text
+
+  default-language: Haskell2010
+  ghc-options:      -Wall -threaded
+
+test-suite unit-tests
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Unit.hs
+  other-modules:    TestSupport
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , directory
+    , git-roam
+    , text
+
   default-language: Haskell2010
   ghc-options:      -Wall
+
+test-suite git-adapter-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            GitAdapter.hs
+  other-modules:      TestSupport
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , directory
+    , filepath
+    , git-roam
+    , process
+    , text
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded

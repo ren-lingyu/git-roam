@@ -1,2 +1,39 @@
 #+title: Git Roam
 #+author: Lingyu Ren
+
+* Development status
+Version 0.1.0 is under development. Planned capabilities and their completion status are recorded in [[file:CHANGELOG.org][CHANGELOG.org]].
+
+* Build and check
+The Nix flake provides the executable and runs the Cabal test suites and formatting checks.
+
+#+begin_src sh
+  nix build .#default
+  nix flake check .
+  nix fmt
+#+end_src
+
+These commands use Git-tracked source files, including their current modifications. New files must be tracked or included in a clean source snapshot before they can be checked. Use a source snapshot without Git metadata when checking untracked implementation work.
+
+* Available commands
+#+begin_src sh
+  nix run .#default -- --help
+  nix run .#default -- --version
+#+end_src
+
+The installed executable is =git-roam=. When its directory is on =PATH=, Git exposes it as:
+
+#+begin_src sh
+  git roam --help
+  git roam help version
+  git roam version
+#+end_src
+
+Help and version queries do not require a Git repository. Successful queries write to standard output and exit with status 0. Invalid commands, help topics, or arguments write a diagnostic to standard error and exit with status 2.
+
+* Native Git and tests
+The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal builds use =git= from =PATH= unless =GIT_ROAM_GIT= selects another executable at compile time. The adapter retains ordinary Git configuration and passes arguments directly to the native process API.
+
+The test suites cover CLI behavior, SHA-1 and SHA-256 object IDs, native Git failures, binary input/output, argument boundaries, and repository discovery for ordinary, bare, and linked worktrees. Git integration tests use dedicated temporary repositories and isolated configuration.
+
+Cabal declares the CLI test dependency through =build-tool-depends=. The tests locate the resulting executable on =PATH=. The Nix package selects the GHC 9.12 package set, including its Cabal build driver. No test executable path is injected by Nix.
