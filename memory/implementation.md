@@ -6,9 +6,9 @@ The user requested implementation of the formal plan on 2026-11-01 after
 concluding the design discussion. [design.md](design.md) is the effective product
 model; [current.md](current.md) distinguishes actual work from intended features.
 This file retains the accepted plan so recovery does not depend on a chat or
-ignored temporary file. The committed executable is still a no-op; node 1 is now
-implemented and verified in the worktree, awaiting user staging/commit as
-described in current.md. Do not start node 2 before that commit is confirmed.
+ignored temporary file. Node 1 is committed and its exact source was compared
+with the verified GHC 9.12 snapshot. The user requested continuation to node 2;
+see current.md for actual progress and authorization boundaries.
 
 Use serial milestones, not parallel agents. Each project commit must independently
 build and pass its relevant tests/checks. Update README with implemented behavior
@@ -54,14 +54,18 @@ keeps Git configuration intact in production while isolating test configuration,
 uses direct argv/binary stdio and typed Git failures, preserves raw output path
 boundaries, and distinguishes SHA-1/SHA-256. Nix selects standard Git at build time.
 Tests declare the internal CLI dependency solely in Cabal and find it on PATH.
-Nix selects Cabal 3.14.2.0 for Setup: the bundled 3.12.1.0 reproduced a missing
-runtime tool despite correctly building it. No test executable path is injected;
-the earlier preCheck workaround was removed and both suites passed again.
+Following the user's request to match GAW, the overlay selects the GHC 9.12
+package set (verified GHC 9.12.3 with bundled Cabal 3.14.2.0). The original
+GHC 9.10.3/Cabal 3.12.1.0 reproduced a missing runtime tool despite correctly
+building it. No test executable path or separate Setup Cabal override remains;
+the earlier workarounds were removed and both suites passed again.
 The user separately authorized its formatter and clean-snapshot build/check;
 experiment approvals were not reused. The tested clean snapshot includes all
 eight new untracked Haskell files; all 20 copied files still match the worktree
-and manifest. No project staging was performed. Await the user's node-1 commit,
-then verify provenance before proceeding. Refresh snapshots after source changes.
+and manifest. The user staged and committed node 1, and all 20 committed files
+were confirmed equal to that tested snapshot. Node 2 is now the active step.
+Refresh snapshots after source changes; node-1 command approval does not silently
+authorize a new node-2 source path.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.

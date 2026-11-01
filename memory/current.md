@@ -15,12 +15,14 @@ The independent standard-Git experiment is complete: final unpatched Git 2.56.0
 fixtures passed 66/66 on x86_64-linux, including files/reftable and SHA-256 smoke.
 Findings and execution consequences are reviewed; the node-1 experimental gate
 is satisfied for this pinned Git. No minimum-2.54 or broader safety claim follows.
-Project node 1 is now implemented and verified in the worktree: CLI help/version, library, binary
+Project node 1 is now committed: CLI help/version, library, binary
 Git transport, opaque SHA-1/SHA-256 OIDs, repository discovery, two test suites,
 Nix Git selection and README. Formatting, build, all 12 unit and nine integration
-cases, and flake check passed on x86_64-linux. Changes are not staged or committed.
-Wait for the user's project commit before node 2; no Node lifecycle command is
-publicly advertised by this foundation.
+cases, and flake check passed on x86_64-linux. The user committed node 1 as
+feat(git-roam): add CLI and native Git foundations. Read-only comparison confirmed
+all 20 committed source files match the verified GHC 9.12 snapshot, and the project
+worktree is clean. Start node 2: pure permanent history protocol and projection,
+with corresponding tests and README. No Node lifecycle command is advertised yet.
 
 ## Navigation and authority
 
@@ -68,8 +70,8 @@ from the original design ZIP. Current memory is not a reconstruction of proposal
 
 ## Actual repository baseline
 
-The committed project remains the empty executable plus the roadmap. The node-1
-worktree implementation adds GitRoam.Cli/Git/ObjectId/Repository and private BuildInfo, using
+The committed project includes the roadmap and node-1 foundations:
+GitRoam.Cli/Git/ObjectId/Repository and private BuildInfo, using
 async/process byte pipes, text, transformers and build-time Git executable lookup.
 The executable prints help/version or usage errors. Cabal declares 12 unit cases
 and nine Git/CLI integration cases, all passed. Nix selects ordinary git using
@@ -129,7 +131,7 @@ clean-snapshot build/check for this node. All completed with exit 0:
 - timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone1-source#default
 - timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone1-source
 
-GHC 9.10.3 built the implementation. Both test suites passed (12 unit and nine
+GHC 9.12.3 built the final implementation. Both test suites passed (12 unit and nine
 integration cases). The fresh treefmt check reported zero changes; other declared
 platforms were omitted. A subsequent user review removed the initial Nix preCheck
 workaround and GIT_ROAM_TEST_EXECUTABLE override. Tests now use only the internal
@@ -139,34 +141,47 @@ the inspected GAW test organization. No test binary path is hard-coded in Nix.
 The lookup failure was reproduced with the GHC-bundled Cabal 3.12.1.0: its
 component graph correctly includes and builds exe:git-roam before the adapter
 tests, but Setup test does not expose it on the test process PATH. Selecting
-haskellPackages.Cabal_3_14_2_0 in setupHaskellDepends made the same tests pass
-without any executable-path injection. Nix now selects the Setup driver version;
-the Cabal file remains the sole declaration of test suites and the internal tool
-dependency. README explains the observed version boundary. This comparison does
-not establish the earliest fixed Cabal release or explain GAW's runtime toolchain;
-only its source organization was inspected. No library/compiler/lockfile upgrade
-or custom Setup script was needed.
+haskellPackages.Cabal_3_14_2_0 in setupHaskellDepends first made the same tests
+pass without executable-path injection. Further comparison identified GAW's
+explicit final_.haskell.packages.ghc912 selection in its package overlay, absent
+from Git Roam's original default-package-set overlay.
+
+The user then explicitly requested following GAW. The final Git Roam overlay now
+selects final_.haskell.packages.ghc912, and the independent setupHaskellDepends
+override has been removed. The actual build reports GHC 9.12.3 and bundled
+Cabal 3.14.2.0. All 21 cases and flake check passed again on x86_64-linux.
+The Cabal file remains the sole declaration of test suites and the internal tool
+dependency. README documents the GHC 9.12 package set. No lockfile change, custom
+Setup script or test-path injection is present. The earlier Cabal-only selection
+is superseded, not the final implementation. These observations do not establish
+the earliest fixed Cabal release or the exact installed GAW derivation's toolchain.
 
 The clean snapshot contains 20 explicitly enumerated files, including eight new
 untracked Haskell files, and excludes .git/.agents/unrelated ignored content.
 Final read-only comparison confirmed every project and copied file matches the
 tested manifest. Manifest SHA-256:
-37b63970af4a357e6f71167d763ba9002df805441ed1cf039fee8df76c40ed0f.
-Git diff --check passes and the project index is empty. CHANGELOG and lock inputs
-are unchanged. The successful package derivation is
-/nix/store/zpzz1iw9f986lymazqyy09q9sglsi37y-git-roam-0.1.0.drv.
-These results describe an uncommitted worktree snapshot, not project HEAD 8f1fed2;
-they do not justify a new project parent for this GAW checkpoint.
+a065e194a154f5593133d28b7574759f5a621882efe7aa29e33a282e66fd2929.
+The final staged review passed diff --cached --check. The user subsequently
+committed that exact source snapshot; CHANGELOG and lock inputs were unchanged.
+The successful package derivation is
+/nix/store/cdnkq15g50y09qyzzkzvc6brz02hzb34-git-roam-0.1.0.drv.
+The tests originally ran on an uncommitted snapshot. After the user committed it,
+all 20 committed files were directly compared with the tested manifest and match.
+That observed committed baseline now supplies provenance for the node-2 transition;
+no claim of fresh post-commit test execution is implied.
 
 ## Next action and authorization
 
-The test-discovery review is resolved and the final no-injection version passed
-formatting, build and flake check under the existing task command authorization.
-Present node 1 for user staging. Once staged, review the actual index
-and prepare its commit message, then wait for the user's commit. Confirm that
-commit and its relationship to the tested source before advancing to node 2.
-Do not stage or commit project files automatically. Preserve both independent
-archive snapshots. No additional build/check repetition is needed absent changes.
+The user confirmed node 1 committed and requested continuation. Implement node 2
+in cabal/src/GitRoam/Protocol and its Cabal tests, updating README for actual
+library capabilities. Validate UUID/tree identity, the complete recursive encoding,
+H/D projection and same-Node formal history, including legal extra same-UUID
+Checkpoint parents and cross-Node Git-ancestry traps. Ref closure, public check,
+Git object loading and protection remain later work. Keep private validated
+constructors and OID memoization. Update memory as implementation evolves.
+Obtain applicable node-2 build/check authorization; node-1 command approval was
+scoped to that node's snapshot. Do not stage or commit project files automatically.
+Preserve both independent archive snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
