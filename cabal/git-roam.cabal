@@ -8,12 +8,15 @@ build-type:    Simple
 library
   hs-source-dirs:   src
   exposed-modules:
+    GitRoam.Application.Inspect
     GitRoam.Cli
     GitRoam.Git
+    GitRoam.Git.Objects
     GitRoam.ObjectId
     GitRoam.Protocol.History
     GitRoam.Protocol.Identity
     GitRoam.Protocol.Objects
+    GitRoam.Protocol.Repository
     GitRoam.Repository
 
   other-modules:
@@ -26,6 +29,7 @@ library
     , base              >=4.16 && <5
     , bytestring
     , containers
+    , directory
     , process
     , template-haskell
     , text
@@ -94,3 +98,21 @@ test-suite protocol-tests
 
   default-language: Haskell2010
   ghc-options:      -Wall
+
+test-suite inspection-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Inspection.hs
+  other-modules:      TestSupport
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , git-roam
+    , text
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded

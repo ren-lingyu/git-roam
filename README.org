@@ -27,9 +27,25 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam --help
   git roam help version
   git roam version
+  git roam check
+  git roam status
 #+end_src
 
 Help and version queries do not require a Git repository. Successful queries write to standard output and exit with status 0. Invalid commands, help topics, or arguments write a diagnostic to standard error and exit with status 2.
+
+* Read-only repository inspection
+=check= validates stored Node histories and the managed local branch dependency closure. =status= shows tip type, latest Checkpoint, unconfirmed Content, retained Checkpoint count, exact dependencies, and Git-recorded worktree paths. Dependencies displayed for a Content tip belong to its latest Checkpoint; Content itself has no formal dependency declaration. Main worktrees are distinguished from linked deployments, and detached worktrees are not Node deployments.
+
+Both commands accept =--node <uuid>=. Otherwise they infer a Node from the current Node worktree, or use repository scope. Node scope also checks the persistent branches required by that Node's retained history. Ordinary branches, tags, and remote-tracking refs do not count as managed Node branches. These commands work before protection has been enabled.
+
+#+begin_src sh
+  git roam check --node 11111111-1111-4111-8111-111111111111
+  git roam status --node 11111111-1111-4111-8111-111111111111
+#+end_src
+
+Inspection does not fetch or modify refs, index, worktrees or history. It reads stored parents without replace-object or graft interpretation and reports missing reachable objects or shallow history as incomplete evidence. It compares managed refs before and after inspection; a changed observation is reported separately from a confirmed protocol or closure violation. This comparison does not provide isolation from arbitrary concurrent Git writers.
+
+Exit status is 0 for a successful check or status, 1 for a protocol or managed-state violation, 2 for invalid arguments, and 3 for unavailable evidence, Git read failure or a changing observation. Diagnostics distinguish a missing dependency branch from a branch that does not retain the required Checkpoint. No repair or protection installation is performed.
 
 * Native Git and tests
 The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal builds use =git= from =PATH= unless =GIT_ROAM_GIT= selects another executable at compile time. The adapter retains ordinary Git configuration and passes arguments directly to the native process API.
@@ -45,4 +61,4 @@ A Checkpoint has parents =[q, w, ...]=. Its first parent =q= is the same Node's 
 
 The library projects Checkpoints to their content tree, formal predecessors =H= and complete dependencies =D=. Root and Content do not project to formal knowledge versions. Empty dependencies differ from Content having no formal dependency declaration. Formal-history traversal follows all same-Node formal predecessors; combined knowledge ancestry also follows external dependencies. Ordinary Git ancestry cannot substitute for the former.
 
-Protocol tests include malformed graphs, same-Node history convergence, empty-diff Content, dependency replacement and removal, and generated SHA-1/SHA-256 graphs comparing projected knowledge ancestry with raw Git ancestry. This library layer does not yet load objects from a repository or validate managed branch closure; the CLI currently exposes help and version only.
+Protocol tests include malformed graphs, same-Node history convergence, empty-diff Content, dependency replacement and removal, and generated SHA-1/SHA-256 graphs comparing projected knowledge ancestry with raw Git ancestry. The native object reader and shared managed-state validator power =check= and =status=. A pure transition validator checks Root consistency and preservation of all existing formal Checkpoints; installing realtime reference protection remains a later implementation step.

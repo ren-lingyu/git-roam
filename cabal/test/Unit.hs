@@ -29,7 +29,7 @@ main =
         ,
             ( "version entry points agree"
             , mapM_
-                (\args -> assertEqual (CliResponse ExitSuccess "git-roam 0.1.0\n" "") (runCli args))
+                (\args -> runCli args >>= assertEqual (CliResponse ExitSuccess "git-roam 0.1.0\n" ""))
                 [["version"], ["--version"]]
             )
         ,
@@ -47,13 +47,15 @@ main =
             )
         ,
             ( "argument diagnostics escape newlines"
-            , assertTrue "A raw newline leaked into the command name diagnostic" $
-                "bad\\ncommand" `Text.isInfixOf` responseStderr (runCli ["bad\ncommand"])
+            , do
+                response <- runCli ["bad\ncommand"]
+                assertTrue "A raw newline leaked into the command name diagnostic" $
+                    "bad\\ncommand" `Text.isInfixOf` responseStderr response
             )
         ,
             ( "help advertises only available commands"
             , do
-                let output = responseStdout (runCli [])
+                output <- responseStdout <$> runCli []
                 assertTrue "help missing" ("help [command]" `Text.isInfixOf` output)
                 assertTrue "unimplemented command advertised" $
                     not ("node create" `Text.isInfixOf` output)
@@ -95,7 +97,7 @@ main =
         ]
   where
     checkInvalid args = do
-        let response = runCli args
+        response <- runCli args
         assertEqual (ExitFailure 2) (responseExitCode response)
         assertEqual "" (responseStdout response)
         assertTrue "Missing diagnostic prefix" ("git-roam: " `Text.isPrefixOf` responseStderr response)

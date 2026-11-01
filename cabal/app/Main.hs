@@ -9,7 +9,7 @@ import System.IO (stderr, stdout)
 
 main :: IO ()
 main = do
-    response <- runCli <$> getArgs
+    response <- getArgs >>= runCli
     BS.hPut stdout (Text.encodeUtf8 (responseStdout response))
     BS.hPut stderr (Text.encodeUtf8 (responseStderr response))
     exitWith (responseExitCode response)

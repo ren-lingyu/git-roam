@@ -17,8 +17,8 @@ Unchecked items describe planned work, not a claim of available functionality.
 - [ ] Edit and revise unconfirmed Content with ordinary Git, preserving editing history without automatic squash.
 - [ ] Create Checkpoints from committed Content with complete, exact-version external dependencies.
 - [ ] Add, remove, replace, or clear dependencies without including or changing uncommitted index and worktree content.
-- [ ] Check Node identities, history structure, formal history retention, and managed dependency closure.
-- [ ] Show Node history, Checkpoint dependencies, worktree locations, and diagnostic states.
+- [X] Check Node identities, history structure, formal history retention, and managed dependency closure.
+- [X] Show Node history, Checkpoint dependencies, worktree locations, and diagnostic states.
 
 *** Full worktree deployment
 - [ ] Deploy all Nodes after clone or fetch, establishing missing local tracking branches without advancing existing local branches.
