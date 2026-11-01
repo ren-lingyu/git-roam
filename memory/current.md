@@ -6,10 +6,15 @@ The user accepted the revised v0.1.0 plan and requested implementation on
 2026-11-01. Execute serially, one independently reviewable/buildable/testable
 project commit at a time, with user-performed project staging and commits.
 
-Current work is the mandatory GAW design consolidation/checkpoint, followed by
-project commit 0 (CHANGELOG feature roadmap only). No application implementation,
-new native-Git experiment, build, formatter, or test run has occurred in this
-phase. Do not skip ahead to milestone 1 before the user commits node 0.
+The mandatory GAW design consolidation/checkpoint is complete. Project commit 0
+is drafted: only root CHANGELOG.org is modified in the project, without staging
+or committing. Its diff passes git diff --check. The user authorized the three
+listed Nix commands in sequence: formatting and package build passed, but the
+path:. flake check failed in treefmt when its Git transaction invoked the GAW
+Hook and git-gaw was unavailable. A Git-source check retry needs fresh command
+authorization, which has been requested; it has not run yet.
+No application implementation or new native-Git experiment has occurred.
+Do not skip ahead to experiments or milestone 1 before the user commits node 0.
 
 ## Navigation and authority
 
@@ -63,9 +68,11 @@ No experimental or patched Git is wired into the application.
 
 README.org still contains only the user's title/author. The new task authorizes
 README growth alongside verified implementation; preserve the user's existing
-text rather than restoring old agent prose. CHANGELOG.org currently has its
-canonical Org header, TODO 0.1.0 and empty Added. Commit 0 will add explicitly
-planned real user-facing features, not no-op/scaffolding claims.
+text rather than restoring old agent prose. The uncommitted CHANGELOG.org draft
+preserves its canonical Org header and TODO 0.1.0, and adds unchecked planned
+user-facing features under Added. It explicitly separates optional naming and
+acceleration candidates from the current batch, and makes no no-op/scaffolding
+claims. No product feature checkbox is marked complete.
 
 ## Verification and provenance limits
 
@@ -74,6 +81,25 @@ or around the user's README correction; those are not fresh checks of every
 later tree. Other declared platforms were not thereby validated. The formal
 design consolidation is supported by user decisions and current small-file
 inspection, not by a new protocol implementation or native-Git experiment.
+
+For the current CHANGELOG worktree, timeout 120s nix fmt --no-write-lock-file
+completed and changed only CHANGELOG.org's Org spacing. Then timeout 120s nix
+build --no-link --no-write-lock-file -L path:.#default succeeded (exit 0; this
+does not establish a fresh compile or new product tests). Its first sandboxed
+attempt could not access the Nix daemon; the same authorized command succeeded
+with host access. No other platform was built.
+
+The authorized timeout 120s nix flake check --no-write-lock-file -L path:.
+failed with exit 1 in checks.x86_64-linux.treefmt. The relevant builder output was
+git-gaw --reference-transaction: command not found, followed by Git aborting its
+preparing transaction. Read-only git config confirmed the matching named Hook
+command in local .git/config. Explicit path: source including Git metadata is
+the suspected cause; the corrected Git-source check is not yet verified.
+The proposed retry is timeout 120s nix flake check --no-write-lock-file -L .,
+which includes tracked worktree edits without copying .git as source. Do not
+disable real protection or edit flake/config to conceal this failure. This tracked
+CHANGELOG needs no staging for that source selection. Native Git experiments and
+product tests have not started.
 
 The completed independent reproduction remains separately archived. Its source-
 pinned 2.54 and nixpkgs-patched 2.56 no-checkout results do not establish product
@@ -88,11 +114,13 @@ current HEAD or a future commit.
 
 ## Next action and authorization
 
-Finish reviewing/staging/checkpointing the coherent declared GAW workspace through
-public interfaces. Then change only root CHANGELOG.org for project commit 0;
-verify its diff and obtain any required formatter/check command authorization.
-Present the reviewable result and suggested commit intent, await the user's
-project staging/commit, and read-only confirm it before new experiments.
+Obtain the pending authorization for the one corrected Git-source flake check;
+do not repeat the original three commands or assume repeated-run permission.
+Review its result while keeping project commit 0 limited to CHANGELOG.org.
+Present the verified result and the accepted commit intent, await the user's
+project staging/commit, and read-only confirm it before new experiments. Current
+memory's progress update follows the completed design checkpoint; checkpoint
+again only when the resulting verification/handoff state has recovery value.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

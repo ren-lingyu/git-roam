@@ -233,6 +233,20 @@ increase a timed-out command. Old experiment approvals do not cover this task.
 Adding dependencies uses the locked nixpkgs foundation and minimal required
 changes; do not update locks without the applicable authorization.
 
+Current node-0 validation finding: fmt and the path:. package build passed, but
+the path:. treefmt check attempted to invoke the project's local GAW Hook inside
+its isolated build, where git-gaw was absent. Git aborted the transaction. Local
+.git/config contains the matching command; path source metadata leakage is the
+working diagnosis. A corrected check using Git-source . has been requested but
+not run. See current.md for exact command authorization and results. Do not
+blindly repeat path:. checks or disable live protection. Git-source . includes
+tracked worktree edits, but future new untracked files need an explicitly chosen
+source/staging strategy; this is not authorization to stage project files.
+
+The [Nix flake reference manual](https://nix.dev/manual/nix/2.24/command-ref/new-cli/nix3-flake.html)
+documents local Git-source selection and inclusion of tracked worktree changes.
+The proposed retry still needs actual validation in this repository.
+
 README always describes that node's actual implementation, preserving the user's
 authorship and Org conventions. CHANGELOG stays TODO 0.1.0; use headlines and
 checkboxes for planned user capabilities, not internal scaffolding. No state,
