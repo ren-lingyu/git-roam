@@ -5,4 +5,35 @@
 #+property: TIMEZONE UTC
 
 * TODO 0.1.0
+Unchecked items describe planned work, not a claim of available functionality.
+
 ** Added
+*** Repository protection
+- [ ] Enable and disable repository protection independently of worktree deployment.
+- [ ] Protect all retained Checkpoints while allowing legal native Git Content edits and formal history advancement.
+
+*** Node history and dependencies
+- [ ] Create a UUID-identified Node and an editable linked worktree under an explicit deployment path.
+- [ ] Edit and revise unconfirmed Content with ordinary Git, preserving editing history without automatic squash.
+- [ ] Create Checkpoints from committed Content with complete, exact-version external dependencies.
+- [ ] Add, remove, replace, or clear dependencies without including or changing uncommitted index and worktree content.
+- [ ] Check Node identities, history structure, formal history retention, and managed dependency closure.
+- [ ] Show Node history, Checkpoint dependencies, worktree locations, and diagnostic states.
+
+*** Full worktree deployment
+- [ ] Deploy all Nodes after clone or fetch, establishing missing local tracking branches without advancing existing local branches.
+- [ ] Recognize existing Node linked worktrees, including manually created and moved worktrees.
+- [ ] Safely undeploy all Node linked worktrees while retaining Node branches and repository protection.
+- [ ] Detect path conflicts and unsafe worktree states, and protect uncommitted, untracked, and ignored user data.
+- [ ] Report partial failures and preserve user changes during conservative compensation, maintaining dependency closure when branches are involved.
+
+*** Explicit history removal
+- [ ] Preview Checkpoint discard targets, their complete collateral effects, and affected Content history with =--dry-run=.
+- [ ] Explicitly discard only the minimal required Checkpoint successor closure after impact confirmation, rejecting results that cannot retain all remaining formal history in one branch per Node.
+- [ ] Delete an unchecked-out Node only when no other retained Node history depends on it, without cascading history removal.
+
+*** Candidates outside the current implementation batch
+Whether these candidates belong in 0.1.0 will be decided after the standard Git foundation is complete.
+
+- [ ] Selectable deployment directory naming strategies.
+- [ ] Optional deployment acceleration.
