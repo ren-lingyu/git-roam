@@ -13,7 +13,8 @@ Git Roam represents independent knowledge bundles and their exact dependencies.
 Knowledge construction, dependency changes, integration, and discard are local
 Git repository operations. Clone/fetch/push transmit existing objects and refs;
 synchronization does not automatically construct, merge, or rewrite knowledge.
-No product behavior in this file is already implemented by the empty executable.
+This document defines the intended design; current.md records the implemented
+subset and its verification limits.
 The product protocol does not redefine GAW or extend execution authorization.
 
 ## Standard knowledge model

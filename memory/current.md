@@ -21,8 +21,11 @@ Nix Git selection and README. Formatting, build, all 12 unit and nine integratio
 cases, and flake check passed on x86_64-linux. The user committed node 1 as
 feat(git-roam): add CLI and native Git foundations. Read-only comparison confirmed
 all 20 committed source files match the verified GHC 9.12 snapshot, and the project
-worktree is clean. Start node 2: pure permanent history protocol and projection,
-with corresponding tests and README. No Node lifecycle command is advertised yet.
+worktree was clean at transition. Node 2 is now implemented and verified, awaiting
+user review/staging/commit: pure permanent history protocol and projection, with
+corresponding tests and README. Its final build passed 36 protocol cases and the
+existing 21 cases, with no compiler warnings, and flake check passed. No new CLI
+command is advertised; do not start node 3 before the user's node-2 commit.
 
 ## Navigation and authority
 
@@ -170,18 +173,62 @@ all 20 committed files were directly compared with the tested manifest and match
 That observed committed baseline now supplies provenance for the node-2 transition;
 no claim of fresh post-commit test execution is implied.
 
+## Node-2 implementation and verification
+
+New modules GitRoam.Protocol.Identity/Objects/History validate decoded native
+commit/tree objects through an injectable monadic HistorySource. ValidatedHistory
+and ValidatedCommit constructors are private, with non-record accessors. Trees,
+commits and parsed identities are memoized by OID, including tree objects shared
+by different Nodes. Object lookup/type/incomplete-evidence failures remain
+distinct from structural protocol violations. Payload blob bodies are not
+interpreted; repository object decoding and complete-store evidence remain node 3.
+
+Implemented canonical UUID labels, one UUID directory and ordinary marker, exact
+Root shape, same-Node Content chains, ordered Checkpoint parent roles and exact
+tree equality, distinct parent OIDs, same-UUID merge predecessors, one direct
+external version per UUID, and consistent Roots over every visited history.
+Content and Root do not project to formal versions. Formal projection preserves
+H/D/T, formalHistory follows q/M rather than external edges, and combined
+knowledge ancestry follows H union D. Empty Content and dependency-only history
+are legal; complete dependencies never implicitly inherit. No model change.
+
+The new Cabal protocol-tests suite passes 36 named cases, including 48 generated
+graphs over SHA-1/SHA-256, all-pairs combined-ancestry comparisons with an
+independent raw-parent traversal, merged formal histories, cross-Node ancestry
+traps, malformed/missing evidence, dependency replacement/removal, and memoization.
+The existing 12 unit and nine native Git integration cases also pass (57 total).
+Initial tests passed but compiler warnings prompted local name/type cleanup;
+shared-subtree caching and additional semantic cases were then verified again.
+The final build emitted no compiler warnings. README describes the implemented
+library and later CLI/object-loading boundary. CHANGELOG stays unchanged: its
+user-facing feature boxes are not completed by this internal protocol layer.
+
+The user separately authorized on-demand repetition, in order, of these exact
+commands for node 2, all now passed with exit 0 on x86_64-linux:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone2-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone2-source
+
+Build uses GHC 9.12.3 and Cabal 3.14.2.0; the fresh formatting check reported no
+changes. aarch64-linux/aarch64-darwin were omitted. No lockfile change was needed;
+containers is declared in Cabal for maps/sets. The final package derivation is
+/nix/store/m09c2n1paqrz65q4iz9dpfmrbqspgkgc-git-roam-0.1.0.drv.
+All 24 source files match the tested clean snapshot. Its manifest SHA-256 is
+996a9b883a838002f2f68b99906173a61ed374fd2610ae8ad5489759816b0463.
+The bounded helper and snapshot are tmp/prepare-milestone2-source.py and
+tmp/git-roam-milestone2-source/, separate from node 1. Project index is empty;
+diff --check passes. Results describe uncommitted node-2 source and do not
+justify a new project parent for this handoff checkpoint.
+
 ## Next action and authorization
 
-The user confirmed node 1 committed and requested continuation. Implement node 2
-in cabal/src/GitRoam/Protocol and its Cabal tests, updating README for actual
-library capabilities. Validate UUID/tree identity, the complete recursive encoding,
-H/D projection and same-Node formal history, including legal extra same-UUID
-Checkpoint parents and cross-Node Git-ancestry traps. Ref closure, public check,
-Git object loading and protection remain later work. Keep private validated
-constructors and OID memoization. Update memory as implementation evolves.
-Obtain applicable node-2 build/check authorization; node-1 command approval was
-scoped to that node's snapshot. Do not stage or commit project files automatically.
-Preserve both independent archive snapshots.
+Present node 2 for user review and staging. After staging, review the actual index
+and prepare the commit message; wait for the user's commit before node 3. Then
+confirm exact committed provenance. Do not stage or commit project files.
+No additional verification repetition is needed absent changes or new concerns.
+Preserve both independent archives and earlier source snapshots. Node 3 implements
+repository object loading, shared managed-state validation, check and status.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

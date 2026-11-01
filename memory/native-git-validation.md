@@ -69,7 +69,8 @@ roadmap tree, reusing available results (zero checks needing execution), omittin
 aarch64-linux/aarch64-darwin. Do not copy .git into treefmt source or disable live
 protection. This project result is distinct from independent fixture results.
 
-Next implement CLI/library/native Git foundation and tests. New untracked modules
-need an explicit clean source snapshot or user staging for checks. The root check
-and lock approvals were one-shot; isolated-check repetition covers this completed
-experiment, not product builds. Obtain new applicable commands' authorization.
+The experiment gate was satisfied before the CLI/library foundation. Subsequent
+application progress and active next steps are in current.md. New untracked
+modules need an explicit clean source snapshot or user staging for checks.
+Experiment repetition covers this completed experiment, not product builds;
+obtain applicable product command authorization.
