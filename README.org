@@ -68,7 +68,7 @@ Ordinary Git updates may edit or replace unconfirmed Content and add valid Check
 
 =disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Use =undeploy= to remove Node linked worktrees before disabling protection.
 
-Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook. Destructive history operations remain later work.
+Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook. Node deletion remains later work.
 
 The current build uses Git 2.56.0. Protection requires configured named Hook support and enforces a Git 2.54 version floor; the full behavior on that minimum version and on other platforms remains unverified. Hook configuration identifies the enabled executable, so a different executable or divergent configuration requires an explicit lifecycle/configuration review. Configuration writes use Git's own locking; a failed installation is not claimed to be an atomic configuration transaction.
 
@@ -172,9 +172,25 @@ For each affected Node, the candidate tip is its unique maximal remaining Checkp
 
 The report lists old/new tips, per-Node Checkpoint counts and OIDs, Content commits losing their managed branch entry, and actual affected worktrees. Content still reachable through retained history is excluded from the loss report. If no candidate is representable, actual Content loss is reported as unavailable rather than guessed. Other refs or reflogs may retain Git objects; the preview neither deletes objects nor promises future recovery.
 
-Affected linked worktrees use the existing conservative safety preflight, including dirty, ignored, locked, in-progress and nested-worktree checks. Main worktrees are reported as an execution blocker in this implementation. Unrelated worktrees are left alone. Ref and worktree registrations are rechecked before returning; a preview is an observation, not a frozen execution plan or authorization.
+Affected linked worktrees use the conservative safety preflight, including dirty, ignored, locked and in-progress checks. Main worktrees, affected parents containing nested worktrees, and worktrees with private configuration or refs block execution in this implementation. These require prior safe handling or undeployment. Unrelated worktrees are left alone. Ref and worktree registrations are rechecked before returning; a preview is an observation, not a frozen execution plan or authorization.
 
-Exit status is 0 for a preview without detected blockers, 1 for a blocked preview or invalid/unavailable evidence, and 2 for invalid command arguments. Blocked previews retain their impact report on stdout and return failure. No refs, objects, configuration, index or working files are changed. Actual discard execution and confirmation remain unimplemented; =--dry-run= is currently required.
+Exit status is 0 for a preview without detected blockers, 1 for a blocked preview or invalid/unavailable evidence, and 2 for invalid command arguments. Blocked previews retain their impact report on stdout and return failure. Dry runs change no refs, objects, configuration, index or working files. An unblocked preview prints a 64-character plan identifier.
+
+* Explicitly discard confirmed history
+Review the entire dry-run report, then pass its exact identifier with the same targets:
+
+#+begin_src sh
+  git roam discard --dry-run <checkpoint-ref-or-oid>
+  git roam discard --confirm <plan-id> <checkpoint-ref-or-oid>
+#+end_src
+
+Alternatively, =git roam discard <checkpoint-ref-or-oid>...= displays the complete preview on a terminal and requires typing its plan identifier. A different reply declines. Noninteractive execution requires =--confirm=; there is no force or blanket yes option. Execution requires matching enabled protection. The plan identifier binds the repository, current managed refs, exact formal and Content impact, and worktree registrations. It is derived rather than stored; changed refs, moved worktrees, unsafe contents or changed targets require a fresh review. Cleanliness and administration state are rechecked independently of the identifier.
+
+Under the common-directory operation lock, Git-roam recomputes and validates the plan, safely removes affected clean linked worktrees, then commits all changed Node refs in one conditional transaction. Other managed refs are verified at their expected OIDs. Only Git-roam's own named Hook is bypassed. Affected worktrees are recreated at their original paths, with the new branch tips and fresh Git worktree administration; objects and branch tracking configuration remain in place. Existing private worktree configuration/refs are refused because recreation cannot preserve them. Restoration paths are checked before the transaction and again before checkout; occupied paths and new user files are never overwritten or force-cleaned.
+
+The discarded formal set is exactly the previewed minimal successor closure. Affected Nodes keep their unique maximal remaining Checkpoint or Root; unaffected Nodes keep their original tips. This withdraws managed history retention, leaves Git objects immutable, and does not guarantee recovery of discarded Checkpoints or Content.
+
+Failure is reported even if refs were already committed. Before a successful transaction, confirmed removals can be restored at the unchanged original refs. If the candidate refs are observed after a failed or lost transaction response, safe restoration uses that candidate state. Other or unverifiable ref states prevent automatic restoration. No committed formal history is rolled back. Diagnostics report transaction confirmation, actual refs, worktree restoration and remaining registrations; some worktrees may remain undeployed. A failed checkout may leave a registered worktree or newly created user data, which are retained for inspection. Success requires validated final history and all original target paths restored. Ref transactions and worktree operations do not form a filesystem transaction or provide isolation from arbitrary external Git processes.
 
 * Full undeployment
 #+begin_src sh

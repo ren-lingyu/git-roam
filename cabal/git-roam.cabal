@@ -249,6 +249,8 @@ test-suite discard-tests
     , directory
     , filepath
     , git-roam
+    , process
+    , unix
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded

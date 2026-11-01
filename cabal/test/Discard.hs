@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import Control.Exception (bracket)
 import Control.Monad (forM_, unless)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -10,6 +11,7 @@ import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GitRoam.Application.Discard
+import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
 import GitRoam.Cli (Command (..), HelpTopic (..), parseCommand)
 import GitRoam.Git
 import GitRoam.Git.Objects
@@ -19,10 +21,15 @@ import GitRoam.Protocol.Discard
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Objects
 import GitRoam.Protocol.Repository
-import System.Directory (removeFile)
+import System.Directory (createDirectory, doesDirectoryExist, doesFileExist, removeFile)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
 import System.FilePath
+import System.IO (BufferMode (NoBuffering), hClose, hFlush, hGetChar, hPutStrLn, hSetBuffering)
+import System.Posix.IO (fdToHandle)
+import System.Posix.Terminal (openPseudoTerminal)
+import System.Process (CreateProcess (..), StdStream (..), proc, waitForProcess, withCreateProcess)
+import System.Timeout (timeout)
 import TestSupport
 import WorktreeFixture
 
@@ -92,12 +99,32 @@ main =
                , ("concurrent reference changes invalidate the observation", fixture "files" Sha1 changedRefs)
                , ("CLI reports collateral effects and blocked previews", fixture "files" Sha1 cliPreview)
                ]
+            ++ [("confirmed discard and original-path restoration " ++ backend ++ " " ++ show format, fixture backend format execution) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [ ("cross-Node discard commits the exact full closure", fixture "files" Sha1 executeDependencies)
+               , ("stale reference plans refuse before mutation", fixture "files" Sha1 stalePlan)
+               , ("dirty worktrees invalidate prior confirmation", fixture "files" Sha1 staleDirty)
+               , ("execution requires matching enabled protection", fixture "files" Sha1 disabledExecution)
+               , ("moved worktrees invalidate prior confirmation", fixture "files" Sha1 staleMoved)
+               , ("transaction failure restores old deployment only", fixture "files" Sha1 rejectedTransaction)
+               , ("partial removal failure restores confirmed old worktrees", fixture "files" Sha1 partialRemoval)
+               , ("other named Hooks can reject discard", fixture "files" Sha1 otherHook)
+               , ("failed restoration preserves user data and committed refs", fixture "files" Sha1 failedRestoration)
+               , ("lost transaction response never rolls discarded history back", fixture "files" Sha1 lostTransaction)
+               , ("dependency verify rejects a competing ref update", fixture "files" Sha1 verifyRace)
+               , ("private worktree configuration blocks recreation", fixture "files" Sha1 privateConfig)
+               , ("private worktree refs block recreation", fixture "files" Sha1 privateRefs)
+               , ("nested affected worktrees require prior undeployment", fixture "files" Sha1 nestedExecution)
+               , ("noninteractive execution requires complete plan confirmation", fixture "files" Sha1 cliExecution)
+               , ("interactive confirmation executes the displayed plan", fixture "files" Sha1 (interactive True))
+               , ("interactive refusal leaves history and deployment unchanged", fixture "files" Sha1 (interactive False))
+               ]
 
 arguments :: IO ()
 arguments = do
     assertEqual (Right (PreviewDiscard ["A", "B"])) (parseCommand ["discard", "A", "--dry-run", "B"])
     forM_ [["help", "discard"], ["discard", "--help"], ["discard", "-h"]] $ assertEqual (Right (ShowHelp DiscardHelp)) . parseCommand
-    forM_ [["discard"], ["discard", "A"], ["discard", "--dry-run"], ["discard", "--dry-run", "A", "--force"], ["discard", "--dry-run", "A", "--dry-run"], ["discard", "--dry-run", "A", "--confirm", "id"]] $ expectLeft . parseCommand
+    assertEqual (Right (ExecuteDiscard ["A"] Nothing)) (parseCommand ["discard", "A"])
+    forM_ [["discard"], ["discard", "--dry-run"], ["discard", "--dry-run", "A", "--force"], ["discard", "--dry-run", "A", "--dry-run"], ["discard", "--dry-run", "A", "--confirm", "id"]] $ expectLeft . parseCommand
 
 linear :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 linear git _ repo _ = do
@@ -368,3 +395,308 @@ cliPreview git executable repo parent = do
     assertTrue "Blocked preview lost its impact report" (("discard " <> objectIdBytes k1) `BS.isInfixOf` gitStdout blocked)
     assertTrue "No blocker reported" ("blocked " `BS.isInfixOf` gitStdout blocked)
     tip git repo nodeA >>= assertEqual k1
+
+identifier :: DiscardPreview -> IO BS.ByteString
+identifier report = do
+    assertEqual [] (previewProblems report)
+    maybe (fail "No plan identifier") pure (previewPlanId report)
+
+payloadVersion :: Git IO -> FilePath -> NodeId -> ObjectId -> BS.ByteString -> IO ObjectId
+payloadVersion git repo node base text = do
+    let object bytes = expectRight (parseObjectId (if BS.length bytes == 40 then Sha1 else Sha256) bytes)
+    marker <- BSC.init <$> ok git repo ["hash-object", "-w", "--stdin"] ""
+    blob <- BSC.init <$> ok git repo ["hash-object", "-w", "--stdin"] text
+    inner <- BSC.init <$> ok git repo ["mktree"] ("100644 blob " <> marker <> "\t.roam\n100644 blob " <> blob <> "\tnote.org\n")
+    tree <- (BSC.init <$> ok git repo ["mktree"] ("040000 tree " <> inner <> "\t" <> nodeIdBytes node <> "\n")) >>= object
+    w <- commit git repo tree [base] (text <> " editing")
+    commit git repo tree [base, w] text
+
+executionSetup :: Git IO -> FilePath -> FilePath -> FilePath -> IO (ObjectId, ObjectId, ObjectId, FilePath)
+executionSetup git executable repo parent = do
+    r <- newRoot git repo nodeA
+    k0 <- payloadVersion git repo nodeA r "keep\n"
+    k1 <- payloadVersion git repo nodeA k0 "discard\n"
+    putTip git repo nodeA k1
+    let path = parent </> "node"
+    manual git repo path nodeA
+    _ <- ok git repo ["config", "user.name", "Fixture"] ""
+    _ <- ok git repo ["config", "user.email", "fixture@example.invalid"] ""
+    enable git executable repo
+    pure (r, k0, k1, path)
+
+execution :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+execution git executable repo parent = do
+    (r, k0, k1, original) <- executionSetup git executable repo parent
+    let path = parent </> "moved\nnode"
+        note = path </> BSC.unpack (nodeIdBytes nodeA) </> "note.org"
+    _ <- ok git repo ["worktree", "move", original, path] ""
+    token <- preview git repo [k1] >>= identifier
+    result <- executeDiscard executable git repo [oidText k1] token >>= expectRight
+    assertEqual (Set.singleton k1) (resultDiscarded result)
+    assertEqual token (resultPlanId result)
+    tip git repo nodeA >>= assertEqual k0
+    readFile note >>= assertEqual "keep\n"
+    _ <- ok git repo ["cat-file", "-e", oidText k1] ""
+    check <- snapshot git repo
+    assertEqual (Just (Set.singleton k0)) (Map.lookup nodeA (retainedCheckpoints check))
+    forM_ (resultWorktrees result) $ \record -> assertEqual (Just k0) (treeHead record)
+    requireProtectionFor executable repo >>= expectRight
+    next <- preview git repo [k0] >>= identifier
+    _ <- executeDiscard executable git repo [oidText k0] next >>= expectRight
+    tip git repo nodeA >>= assertEqual r
+    doesFileExist note >>= assertEqual False
+    doesFileExist (path </> BSC.unpack (nodeIdBytes nodeA) </> ".roam") >>= assertEqual True
+
+executeDependencies :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+executeDependencies git executable repo parent = do
+    ra <- newRoot git repo nodeA
+    rb <- newRoot git repo nodeB
+    _ <- newRoot git repo nodeC
+    (b0, _) <- version git repo rb [] "B0"
+    (b1, _) <- version git repo b0 [] "B1"
+    (a0, _) <- version git repo ra [b1] "A0 dependent"
+    (a1, _) <- version git repo a0 [] "A1 drops dependency"
+    putTip git repo nodeA a1
+    putTip git repo nodeB b1
+    manual git repo (parent </> "A") nodeA
+    manual git repo (parent </> "B") nodeB
+    enable git executable repo
+    token <- preview git repo [b1] >>= identifier
+    result <- executeDiscard executable git repo [oidText b1] token >>= expectRight
+    assertEqual (Set.fromList [a0, a1, b1]) (resultDiscarded result)
+    tip git repo nodeA >>= assertEqual ra
+    tip git repo nodeB >>= assertEqual b0
+    assertEqual 2 (length (resultWorktrees result))
+    _ <- snapshot git repo
+    pure ()
+
+stalePlan :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+stalePlan git executable repo parent = do
+    (_, k0, k1, path) <- executionSetup git executable repo parent
+    old <- preview git repo [k1] >>= identifier
+    duplicate <- preview git repo [k1, k1] >>= identifier
+    assertEqual old duplicate
+    executeDiscard executable git repo [oidText k1] (BSC.replicate 64 '0') >>= expectLeft
+    executeDiscard executable git repo [oidText k0] old >>= expectLeft
+    tip git repo nodeA >>= assertEqual k1
+    doesDirectoryExist path >>= assertEqual True
+    newer <- content git repo k1 "new unconfirmed Content"
+    putTip git repo nodeA newer
+    executeDiscard executable git repo [oidText k1] old >>= expectLeft
+    tip git repo nodeA >>= assertEqual newer
+    doesDirectoryExist path >>= assertEqual True
+    fresh <- preview git repo [k1] >>= identifier
+    assertTrue "Reference change did not invalidate the plan ID" (old /= fresh)
+
+staleDirty :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+staleDirty git executable repo parent = do
+    (_, _, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    let note = path </> BSC.unpack (nodeIdBytes nodeA) </> "note.org"
+    writeFile note "unsaved\n"
+    executeDiscard executable git repo [oidText k1] token >>= expectLeft
+    readFile note >>= assertEqual "unsaved\n"
+    tip git repo nodeA >>= assertEqual k1
+
+disabledExecution :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+disabledExecution git executable repo parent = do
+    (_, _, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    _ <- ok git repo ["config", "hook.git-roam-reference-transaction.enabled", "false"] ""
+    executeDiscard executable git repo [oidText k1] token >>= expectLeft
+    tip git repo nodeA >>= assertEqual k1
+    doesDirectoryExist path >>= assertEqual True
+
+staleMoved :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+staleMoved git executable repo parent = do
+    (_, _, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    let moved = parent </> "moved"
+    _ <- ok git repo ["worktree", "move", path, moved] ""
+    executeDiscard executable git repo [oidText k1] token >>= expectLeft
+    tip git repo nodeA >>= assertEqual k1
+    doesDirectoryExist moved >>= assertEqual True
+
+isTransaction :: GitInvocation -> Bool
+isTransaction invocation = "update-ref" `elem` gitArguments invocation && "--stdin" `elem` gitArguments invocation
+
+rejectedTransaction :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+rejectedTransaction git executable repo parent = do
+    (_, _, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    let failing = Git $ \invocation -> if isTransaction invocation then pure (Right (GitResult (ExitFailure 1) "" "fixture transaction refusal")) else runGit git invocation
+    executeDiscard executable failing repo [oidText k1] token >>= expectLeft
+    tip git repo nodeA >>= assertEqual k1
+    readFile (path </> BSC.unpack (nodeIdBytes nodeA) </> "note.org") >>= assertEqual "discard\n"
+
+otherHook :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+otherHook git executable repo _ = do
+    r <- newRoot git repo nodeA
+    (k, _) <- version git repo r [] "K"
+    putTip git repo nodeA k
+    enable git executable repo
+    _ <- ok git repo ["config", "hook.audit.event", "reference-transaction"] ""
+    _ <- ok git repo ["config", "hook.audit.command", "false"] ""
+    token <- preview git repo [k] >>= identifier
+    executeDiscard executable git repo [oidText k] token >>= expectLeft
+    tip git repo nodeA >>= assertEqual k
+    ok git repo ["config", "--get", "hook.audit.command"] "" >>= assertEqual "false\n"
+
+failedRestoration :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+failedRestoration git executable repo parent = do
+    (_, k0, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    let failing = Git $ \invocation ->
+            if "worktree" `elem` gitArguments invocation && "add" `elem` gitArguments invocation
+                then do
+                    createDirectory path
+                    writeFile (path </> "user-data") "keep"
+                    pure (Right (GitResult (ExitFailure 1) "" "fixture checkout failure"))
+                else runGit git invocation
+    outcome <- executeDiscard executable failing repo [oidText k1] token
+    case outcome of
+        Left (DiscardFailure _ details) -> assertTrue "Committed transaction not reported" (any (isInfixOf "confirmed: True") details)
+        Right result -> fail (show result)
+    tip git repo nodeA >>= assertEqual k0
+    readFile (path </> "user-data") >>= assertEqual "keep"
+    _ <- snapshot git repo
+    pure ()
+
+lostTransaction :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+lostTransaction git executable repo parent = do
+    (_, k0, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    let losing = Git $ \invocation -> do
+            result <- runGit git invocation
+            pure (if isTransaction invocation then Left (GitTransportError "fixture lost transaction response") else result)
+    executeDiscard executable losing repo [oidText k1] token >>= expectLeft
+    tip git repo nodeA >>= assertEqual k0
+    readFile (path </> BSC.unpack (nodeIdBytes nodeA) </> "note.org") >>= assertEqual "keep\n"
+
+verifyRace :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+verifyRace git executable repo parent = do
+    (_, _, k1, path) <- executionSetup git executable repo parent
+    -- Fixture-only controlled setup of another Node, before re-enabling normal
+    -- protection. The competing writer explicitly simulates an uncoordinated ref.
+    _ <- ok git repo ["config", "hook.git-roam-reference-transaction.enabled", "false"] ""
+    rb <- newRoot git repo nodeB
+    _ <- ok git repo ["config", "hook.git-roam-reference-transaction.enabled", "true"] ""
+    enable git executable repo
+    wb <- content git repo rb "Concurrent B Content"
+    token <- preview git repo [k1] >>= identifier
+    let racing = Git $ \invocation -> do
+            if isTransaction invocation
+                then do
+                    _ <- ok git repo (ownHookBypass ++ ["update-ref", BSC.unpack ("refs/heads/" <> nodeIdBytes nodeB), oidText wb, oidText rb]) ""
+                    pure ()
+                else pure ()
+            runGit git invocation
+    executeDiscard executable racing repo [oidText k1] token >>= expectLeft
+    tip git repo nodeA >>= assertEqual k1
+    tip git repo nodeB >>= assertEqual wb
+    doesDirectoryExist path >>= assertEqual False
+
+partialRemoval :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+partialRemoval git executable repo parent = do
+    ra <- newRoot git repo nodeA
+    rb <- newRoot git repo nodeB
+    (b, _) <- version git repo rb [] "B"
+    (a, _) <- version git repo ra [b] "A depends on B"
+    putTip git repo nodeA a
+    putTip git repo nodeB b
+    let pa = parent </> "A"
+        pb = parent </> "B"
+    manual git repo pa nodeA
+    manual git repo pb nodeB
+    enable git executable repo
+    before <- snapshot git repo
+    token <- preview git repo [b] >>= identifier
+    count <- newIORef (0 :: Int)
+    let failing = Git $ \invocation -> do
+            number <- if "worktree" `elem` gitArguments invocation && "remove" `elem` gitArguments invocation then atomicModifyIORef' count (\n -> (n + 1, n + 1)) else pure 0
+            if number == 2 then pure (Right (GitResult (ExitFailure 1) "" "fixture second removal failure")) else runGit git invocation
+    executeDiscard executable failing repo [oidText b] token >>= expectLeft
+    snapshot git repo >>= assertEqual before
+    mapM_ (\path -> doesDirectoryExist path >>= assertEqual True) [pa, pb]
+
+privateConfig :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+privateConfig git executable repo parent = do
+    (_, _, k1, path) <- executionSetup git executable repo parent
+    _ <- ok git repo ["config", "extensions.worktreeConfig", "true"] ""
+    _ <- ok git path ["config", "--worktree", "user.note", "private"] ""
+    report <- preview git repo [k1]
+    assertEqual Nothing (previewPlanId report)
+    assertTrue "Private configuration omitted" (any (isInfixOf "private configuration") (previewProblems report))
+
+privateRefs :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+privateRefs git executable repo parent = do
+    (_, _, k1, path) <- executionSetup git executable repo parent
+    _ <- ok git path ["update-ref", "refs/worktree/private", oidText k1] ""
+    report <- preview git repo [k1]
+    assertEqual Nothing (previewPlanId report)
+    assertTrue "Private refs omitted" (any (isInfixOf "private refs") (previewProblems report))
+
+nestedExecution :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+nestedExecution git executable repo parent = do
+    ra <- newRoot git repo nodeA
+    rb <- newRoot git repo nodeB
+    (b, _) <- version git repo rb [] "B"
+    (a, _) <- version git repo ra [b] "A depends on B"
+    putTip git repo nodeA a
+    putTip git repo nodeB b
+    let path = parent </> "outer"
+    writeFile (repo </> ".git/info/exclude") "child/\n"
+    manual git repo path nodeA
+    manual git repo (path </> "child") nodeB
+    enable git executable repo
+    report <- preview git repo [b]
+    assertEqual Nothing (previewPlanId report)
+    assertTrue "Nested target layout not diagnosed" (any (isInfixOf "nested worktree") (previewProblems report))
+
+cliEnvironment :: IO [(String, Maybe String)]
+cliEnvironment = do
+    inherited <- getEnvironment
+    pure ([(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name] ++ [("GIT_CONFIG_NOSYSTEM", Just "1"), ("GIT_CONFIG_GLOBAL", Just "/dev/null")])
+
+cliExecution :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+cliExecution git executable repo parent = do
+    (_, k0, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    environment <- cliEnvironment
+    let call args location = runGit (nativeGit executable) (GitInvocation location args "" environment) >>= expectRight
+    refused <- call ["discard", oidText k1] repo
+    assertEqual (ExitFailure 1) (gitExitCode refused)
+    tip git repo nodeA >>= assertEqual k1
+    result <- call ["discard", "--confirm", BSC.unpack token, oidText k1] (path </> BSC.unpack (nodeIdBytes nodeA))
+    assertEqual ExitSuccess (gitExitCode result)
+    assertTrue "No successful discard diagnostic" ("Discarded 1 Checkpoints" `BS.isInfixOf` gitStdout result)
+    tip git repo nodeA >>= assertEqual k0
+
+interactive :: Bool -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+interactive accept git executable repo parent = do
+    (_, k0, k1, path) <- executionSetup git executable repo parent
+    token <- preview git repo [k1] >>= identifier
+    environment <- cliEnvironment
+    -- A real PTY exercises the terminal guard, full preview, prompt and reply.
+    bracket (openPseudoTerminal >>= \(a, b) -> (,) <$> fdToHandle a <*> fdToHandle b) (\(a, b) -> hClose a >> hClose b) $ \(master, slave) -> do
+        hSetBuffering master NoBuffering
+        hSetBuffering slave NoBuffering
+        inherited <- getEnvironment
+        let apply values (key, value) = (maybe id (\text -> ((key, text) :)) value) (filter ((/= key) . fst) values)
+            command = (proc executable ["discard", oidText k1]){cwd = Just repo, env = Just (foldl apply inherited environment), std_in = UseHandle slave, std_err = UseHandle slave, std_out = CreatePipe}
+            prompt = "Type this plan ID to discard: "
+            readPrompt text = if prompt `isInfixOf` text then pure text else if length text > 30000 then fail "Oversized interactive preview" else hGetChar master >>= \c -> readPrompt (text ++ [c])
+        withCreateProcess command $ \_ output _ process -> do
+            observed <- timeout (10 * 1000000) (readPrompt "") >>= maybe (fail "Interactive prompt timed out") pure
+            assertTrue "Interactive preview omitted the plan ID" (BSC.unpack token `isInfixOf` observed)
+            assertTrue "Interactive preview omitted worktree recreation" ("fresh Git administration" `isInfixOf` observed)
+            hPutStrLn master (if accept then BSC.unpack token else "decline")
+            hFlush master
+            bytes <- maybe (fail "Missing CLI stdout") BS.hGetContents output
+            code <- waitForProcess process
+            assertEqual (if accept then ExitSuccess else ExitFailure 1) code
+            whenAccepted bytes
+    tip git repo nodeA >>= assertEqual (if accept then k0 else k1)
+    doesDirectoryExist path >>= assertEqual True
+  where
+    whenAccepted bytes = if accept then assertTrue "Interactive discard did not finish" ("Discarded 1 Checkpoints" `BS.isInfixOf` bytes) else pure ()

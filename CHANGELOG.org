@@ -29,7 +29,7 @@ Unchecked items describe planned work, not a claim of available functionality.
 
 *** Explicit history removal
 - [X] Preview Checkpoint discard targets, their complete collateral effects, and affected Content history with =--dry-run=.
-- [ ] Explicitly discard only the minimal required Checkpoint successor closure after impact confirmation, rejecting results that cannot retain all remaining formal history in one branch per Node.
+- [X] Explicitly discard only the minimal required Checkpoint successor closure after impact confirmation, rejecting results that cannot retain all remaining formal history in one branch per Node.
 - [ ] Delete an unchecked-out Node only when no other retained Node history depends on it, without cascading history removal.
 
 *** Candidates outside the current implementation batch

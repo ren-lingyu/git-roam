@@ -36,13 +36,14 @@ import GitRoam.Protocol.Repository
 import System.Directory (getCurrentDirectory)
 import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
+import System.IO (hFlush, hIsTerminalDevice, stderr, stdin)
 
 data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp | CheckpointHelp | DiscardHelp
     deriving (Eq, Show)
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDiscard [String]
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDiscard [String] | ExecuteDiscard [String] (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -79,7 +80,7 @@ parseCommand arguments = case arguments of
     ["help", "discard"] -> help DiscardHelp
     ["discard", "--help"] -> help DiscardHelp
     ["discard", "-h"] -> help DiscardHelp
-    "discard" : args -> discardArgs False [] args
+    "discard" : args -> discardArgs False Nothing [] args
     ["help", "node"] -> help NodeHelp
     ["help", "node", "create"] -> help NodeCreateHelp
     ["node"] -> help NodeHelp
@@ -127,11 +128,13 @@ parseCommand arguments = case arguments of
     validValue value = not (null value) && take 1 value /= "-" && '\0' `notElem` value
     quoted = Text.pack . show
     uuid node = either (const (Left ("Invalid Node UUID: " <> quoted node))) Right (parseNodeId (Encoding.encodeUtf8 (Text.pack node)))
-    discardArgs dry targets args = case args of
+    discardArgs dry confirmation targets args = case args of
         [] | dry && not (null targets) -> Right (PreviewDiscard (reverse targets))
-        "--dry-run" : rest | not dry -> discardArgs True targets rest
-        value : rest | validValue value -> discardArgs dry (value : targets) rest
-        _ -> Left "Usage: git roam discard --dry-run <ref-or-oid>...; execution is not yet available"
+        [] | not dry && not (null targets) -> Right (ExecuteDiscard (reverse targets) confirmation)
+        "--dry-run" : rest | not dry && confirmation == Nothing -> discardArgs True confirmation targets rest
+        "--confirm" : value : rest | not dry && confirmation == Nothing && length value == 64 && all (`elem` ("0123456789abcdef" :: String)) value -> discardArgs False (Just value) targets rest
+        value : rest | validValue value -> discardArgs dry confirmation (value : targets) rest
+        _ -> Left "Usage: git roam discard [--dry-run | --confirm <plan-id>] <ref-or-oid>..."
     checkpointArgs node message clear drops adds args = case args of
         [] -> case message of
             Nothing -> Left "Checkpoint requires exactly one -m or -F message"
@@ -161,7 +164,7 @@ renderHelp topic = case topic of
             , "  undeploy        Safely remove all Node linked worktrees"
             , "  node create     Create a Node and editable linked worktree"
             , "  checkpoint      Confirm committed Content and complete dependencies"
-            , "  discard         Preview explicit Checkpoint discard (--dry-run only)"
+            , "  discard         Preview or explicitly confirm Checkpoint discard"
             , ""
             , "Options:"
             , "  -h, --help      Show general help"
@@ -178,7 +181,7 @@ renderHelp topic = case topic of
     NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path>  Create a UUIDv4 Node with an editable linked worktree"]
     NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path>", "", "Create a UUIDv4 identity, empty-marker Root, persistent local branch and linked worktree.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID and actual path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
     CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       [--depend <ref-or-oid>] [--drop-dependency <uuid>] [--clear-dependencies]", "", "Select an explicit Node or infer its worktree; Root requires committed Content first.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Inherit the previous full dependency set; --depend adds/replaces one external Checkpoint per UUID.", "Dependencies accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "Repeat --depend/--drop-dependency for different Nodes. Clear may combine with additions, not removals.", "Conflicting edits, self dependencies and unretained/non-Checkpoint inputs are refused.", "Uses the committed tree, preserving all Content history and uncommitted index/worktree data."]
-    DiscardHelp -> Text.unlines ["usage: git roam discard --dry-run <ref-or-oid>...", "", "Read-only preview of explicit Checkpoint targets and their exact minimal successor closure.", "Accepts refs and unambiguous commit OIDs; targets must be currently retained Checkpoints.", "Reports collateral causes, old/new Node tips, Content loss, worktrees and execution blockers.", "Multiple remaining formal maxima refuse a candidate; no extra history is discarded.", "Protection need not be enabled. No refs, objects, index, configuration or worktrees are written.", "Actual discard execution and confirmation are not yet available."]
+    DiscardHelp -> Text.unlines ["usage: git roam discard --dry-run <ref-or-oid>...", "       git roam discard --confirm <plan-id> <ref-or-oid>...", "       git roam discard <ref-or-oid>...", "", "Preview the exact minimal successor closure, old/new tips, Content loss and affected worktrees.", "Refs or unambiguous commit OIDs must identify currently retained Checkpoints.", "--dry-run is read-only and prints a plan ID only when all preconditions pass.", "Execution requires matching enabled protection and confirmation of that complete plan ID.", "Without --confirm, terminal input/stderr are required: review the preview and type its plan ID.", "Stale plans, multiple remaining maxima and unsafe worktrees refuse; there is no force option.", "Affected clean linked worktrees are recreated at their original paths around one ref transaction.", "Main/nested target worktrees and private worktree configuration/refs require prior manual handling.", "Failures report actual state; committed discards are never rolled back and recovery is not promised."]
   where
     inspectionHelp command description =
         Text.unlines
@@ -194,6 +197,7 @@ renderDiscard :: Discard.DiscardPreview -> Text
 renderDiscard preview =
     Text.unlines $
         ["Read-only Checkpoint discard preview; no changes were made."]
+            ++ ["plan " <> Text.pack (BSC.unpack identifier) | Just identifier <- [Discard.previewPlanId preview]]
             ++ ["target " <> oid value | value <- Set.toList (discardTargets impact)]
             ++ concat
                 [ ["discard " <> oid value] ++ map reason (Set.toList causes)
@@ -201,8 +205,9 @@ renderDiscard preview =
                 ]
             ++ concatMap node (discardNodes impact)
             ++ ["worktree " <> maybe "unknown" uuid (Worktrees.worktreeNode record) <> " " <> Text.pack (show (Worktrees.treePath record)) <> if Worktrees.treeMain record then " (main)" else " (linked)" | record <- Discard.previewWorktrees preview]
+            ++ ["Affected linked worktrees will be recreated at the same paths with fresh Git administration." | any (not . Worktrees.treeMain) (Discard.previewWorktrees preview)]
             ++ ["blocked " <> Text.pack problem | problem <- Discard.previewProblems preview]
-            ++ [if null (Discard.previewProblems preview) then "Preview complete. Actual discard execution is not yet available." else "Preview blocked. No executable candidate is authorized."]
+            ++ [if null (Discard.previewProblems preview) then "Preview complete. Execution requires explicit confirmation of this plan ID; recovery is not guaranteed." else "Preview blocked. No executable candidate is authorized."]
   where
     impact = Discard.previewImpact preview
     oid = Text.pack . BSC.unpack . objectIdBytes
@@ -221,6 +226,28 @@ renderDiscard preview =
             ++ case discardLostContent change of
                 Nothing -> ["  Content impact unavailable: remaining formal history is not representable."]
                 Just values -> ["  Content commits losing managed entry: " <> Text.pack (show (Set.size values))] ++ ["  content " <> oid value | value <- Set.toList values]
+
+interactiveDiscard :: FilePath -> [String] -> IO (Either String BS.ByteString)
+interactiveDiscard directory references = do
+    outcome <- try $ do
+        inputTerminal <- hIsTerminalDevice stdin
+        outputTerminal <- hIsTerminalDevice stderr
+        if not (inputTerminal && outputTerminal)
+            then pure (Left "Noninteractive discard requires --dry-run review followed by --confirm <plan-id>")
+            else do
+                outcome <- Discard.previewDiscard (nativeGit defaultGitExecutable) directory references
+                case outcome of
+                    Left problem -> pure (Left problem)
+                    Right preview -> do
+                        BS.hPut stderr (Encoding.encodeUtf8 (renderDiscard preview))
+                        case Discard.previewPlanId preview of
+                            Nothing -> pure (Left "Discard preview is blocked")
+                            Just identifier -> do
+                                BSC.hPutStr stderr "Type this plan ID to discard: "
+                                hFlush stderr
+                                answer <- BSC.hGetLine stdin
+                                pure (if answer == identifier then Right identifier else Left "Discard confirmation declined; no changes were made")
+    pure $ either (Left . show) id (outcome :: Either IOException (Either String BS.ByteString))
 
 runCli :: [String] -> IO CliResponse
 runCli ["--reference-transaction", phase] | phase `elem` ["preparing", "prepared", "committed", "aborted"] = do
@@ -244,6 +271,19 @@ runCli arguments = case parseCommand arguments of
         pure $ case result of
             Left problem -> failure 1 (Text.pack problem)
             Right preview -> CliResponse (if null (Discard.previewProblems preview) then ExitSuccess else ExitFailure 1) (renderDiscard preview) (if null (Discard.previewProblems preview) then "" else "git-roam: discard preview is blocked; no changes were made.\n")
+    Right (ExecuteDiscard references confirmation) -> do
+        directory <- getCurrentDirectory
+        executable <- getExecutablePath
+        authorized <- case confirmation of
+            Just identifier -> pure (Right (BSC.pack identifier))
+            Nothing -> interactiveDiscard directory references
+        case authorized of
+            Left problem -> pure (failure 1 (Text.pack problem))
+            Right identifier -> do
+                outcome <- Discard.executeDiscard executable (nativeGit defaultGitExecutable) directory references identifier
+                pure $ case outcome of
+                    Left (Discard.DiscardFailure reason details) -> failure 1 (Text.unlines (map Text.pack (reason : details)))
+                    Right result -> success (Text.unlines (["Discarded " <> decimal (Set.size (Discard.resultDiscarded result)) <> " Checkpoints.", "plan " <> Text.pack (BSC.unpack (Discard.resultPlanId result))] ++ ["node " <> nodeText node <> " " <> oidText oid | (node, oid) <- Map.toList (Discard.resultRefs result)] ++ ["restored " <> Text.pack (show (Worktrees.treePath r)) | r <- Discard.resultWorktrees result]))
     Right (CreateCheckpoint node source edits) -> do
         loaded <-
             try
