@@ -43,9 +43,37 @@ project history, confirmed against all 40 verified files. The project worktree
 was clean at transition. Node 9 is committed and confirmed against its 42-file
 verified source snapshot, with all 177 cases passing. Node 10 implements read-only
 discard preview, committed and confirmed against its 45-file snapshot, with all
-195 cases and final format/build/flake checks passing. Node 11 is implemented and
-verified in the worktree with 216 cases and final format/build/flake checks.
-It awaits user review/staging/commit.
+195 cases and final format/build/flake checks passing. Node 11 is committed by
+the user; all 45 committed files match its verified snapshot, with 216 cases
+and final format/build/flake checks passing. The project was clean at transition.
+Node 12 (non-cascading Node deletion) now has application/CLI code, README and
+a dedicated Cabal test suite written. The user ran `nix flake check`: compilation
+succeeded and 10 of 11 suites passed. Four deletion matrix cases failed because
+their fixture incorrectly used Content as a Checkpoint main parent. The fixture
+now keeps Root as first parent and its Content chain as second-parent history;
+new unused-result/shadowing/redundant-pattern warnings were also corrected.
+The user reran `nix flake check` successfully on x86_64-linux. Read-only build-log
+inspection confirms all 11 suites and 240 cases pass, including 24 deletion cases;
+the derivation is /nix/store/qg2myym4mngk5xlrzy5z36sihyjraxg8-git-roam-0.1.0.drv.
+The user staged the six implementation/test/README files. Staged review and
+diff --cached --check passed. The user subsequently explicitly requested fixing
+the missing deletion CHANGELOG checkbox and drafting the message against the
+entire diff without staging. The checkbox is now checked and TODO 0.1.0 is
+unchanged. The user committed the intended seven-file change as
+`feat(git-roam): add confirmed non-cascading Node deletion`; read-only inspection
+confirms that change and a clean project worktree. Prior successful checks predate
+the one-character documentation update. No new build/check was performed merely
+to duplicate the user's verification.
+Deletion requires an explicit UUID and preview-bound confirmation;
+all other retained historical incoming edges and any target checkout block it.
+The implementation uses one expected-old deletion plus verifies for other managed
+refs, full candidate/result validation and exact reviewed local config cleanup.
+Cleanup is separate from ref deletion; failures report actual refs without rollback.
+The milestone-12 helper/snapshot under tmp/ predates the user's final check;
+do not mistake it for the tested source. Verification came from the user's
+ordinary Git-source flake check. Further agent build/format/check executions
+still need explicit authorization. Minimum Git/other platforms remain untested.
+Node 13 end-to-end acceptance and documentation remain after node 12.
 
 ## Navigation and authority
 
@@ -104,17 +132,16 @@ No patched Git is integrated.
 
 The committed baseline also includes node-2 Protocol.Identity/Objects/History,
 its 36 protocol cases and README, plus committed node-3 inspection and 79 tests.
-Node-4 protection lifecycle and Hook changes remain uncommitted; mutating Node
-history/worktree commands are still later work.
+Protection lifecycle, worktree deployment/removal, Node creation, Checkpoint
+creation and confirmed discard are now committed through node 11. Their later
+verification sections below supersede the earlier milestone descriptions.
 
 README.org retains the user's title/author and now documents the implementation's actual
 help/version and inspection interfaces, build/check commands, native Git selection and tests.
-The committed CHANGELOG.org roadmap
-preserves its canonical Org header and TODO 0.1.0, and adds unchecked planned
-user-facing features under Added. It explicitly separates optional naming and
-acceleration candidates from the current batch, and makes no no-op/scaffolding
-claims. At the node-2 committed baseline no product checkbox was complete; the
-node-3 worktree marks only inspection/status complete, as detailed below.
+The committed CHANGELOG.org preserves its canonical Org header and TODO 0.1.0.
+Implemented and verified capabilities are checked through node 12, including
+Node deletion. Optional naming and acceleration candidates remain separate
+from the current batch. No no-op/scaffolding claims are included.
 
 ## Verification and provenance limits
 
@@ -832,12 +859,21 @@ needed for ordinary source implementation/testing.
 
 ## Next action and authorization
 
-The user committed node 10 as 55a4bc89e8d99190e5d3aa9c53aa96084108b8be. All 45
-committed files match its verified snapshot, and the project was clean.
-Present node 11 for user review/staging. Draft the message from the actual staged
-diff when requested and wait for the user's commit. Confirm its source against
-the 45-file node-11 snapshot before node 12 (non-cascading Node delete). No further
-tests absent source changes or new concerns. Never stage/commit project files or
+The user's node-11 commit was confirmed against all 45 verified source files;
+the project was clean at transition. Node 12 implements non-cascading Node
+deletion, including all historical incoming dependency checks, checkout refusal,
+impact preview/explicit confirmation, conditional ref deletion and result checks.
+Node-12 code and tests are verified by the user's successful flake check, with
+all 240 cases passing. The user committed the implementation and corrected
+CHANGELOG; project status is clean. Continue node 13: real CLI end-to-end
+multi-Node lifecycle and local clone/fetch/safe native advancement, executable
+README tutorial, compatibility/failure-limit review and final CHANGELOG audit.
+The full standard-Git loop is not yet accepted end to end. Deployment acceleration
+is deferred. New per-node build/format/check authorization is required.
+Node-11 build/format/check authorization does not authorize node-12 commands.
+Do not rerun checks merely to duplicate the user's successful verification.
+After node-13 checks, report overall progress as the user requested, then stop
+at its project review/commit boundary. Never stage/commit project files or
 install project protection. Preserve archives and prior snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for

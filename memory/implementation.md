@@ -18,8 +18,13 @@ against all 40 verified source files. Node 9 is committed and confirmed against
 all 42 verified files, with complete-dependency Checkpoints. Node 10 read-only
 discard preview is committed and confirmed against all 45 verified files, with
 195 cases and final format/build/flake checks. Node 11 confirmed discard execution
-is implemented and verified in the worktree with 216 cases and final checks,
-awaiting user review/staging/commit.
+is committed and confirmed against all 45 verified files, with 216 cases and
+final checks. Node 12 application/CLI code, README and a dedicated Cabal test
+suite are committed by the user. After correcting an invalid Checkpoint fixture,
+the user's flake check passed all 11 suites / 240 cases on x86_64-linux, including
+24 deletion cases. The subsequently corrected deletion CHANGELOG checkbox is
+included in the user's seven-file commit, with TODO 0.1.0 unchanged. The project
+worktree is clean. Node 13 end-to-end acceptance and documentation are next.
 See current.md for evidence,
 actual progress and authorization boundaries.
 
@@ -160,8 +165,12 @@ post-warning-cleanup build passed 216 cases, including real PTY interaction and
 both Git formats/backends. The initial two 120s timeouts were reported and each
 continuation explicitly authorized; the user then authorized 180s builds. Final
 format/flake checks pass, and all 45 snapshot files match. README and the execution
-CHANGELOG checkbox are synchronized; Node deletion remains unimplemented.
-Wait for user review/staging/commit before node 12.
+CHANGELOG checkbox are synchronized. Node 12 subsequently implemented and
+verified non-cascading deletion in the user's committed project history.
+The user committed node 11 and its source matched the tested snapshot. Node 12
+is also committed with verified tests; continue node 13 end-to-end acceptance.
+Obtain new per-node build/format/check authorization; previous approvals do not
+carry over. Report overall progress after the upcoming checks, as requested.
 See current.md for evidence and limits.
 
 After commit 0, use a new isolated directory such as
