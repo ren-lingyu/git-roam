@@ -73,7 +73,33 @@ The milestone-12 helper/snapshot under tmp/ predates the user's final check;
 do not mistake it for the tested source. Verification came from the user's
 ordinary Git-source flake check. Further agent build/format/check executions
 still need explicit authorization. Minimum Git/other platforms remain untested.
-Node 13 end-to-end acceptance and documentation remain after node 12.
+Node 13 now has a verified public-CLI end-to-end suite and expanded README
+tutorial, synchronization and diagnostic/compatibility boundaries, awaiting the
+user's project review/staging/commit.
+Four matrix cases cover SHA-1/SHA-256 and files/reftable, CLI Node creation and
+exact old dependencies, push to local bare remotes, clone/fetch/deploy/tracking, unsafe and safe native FF,
+native complete multi-ref updates under the ordinary Hook, discard, deletion,
+full undeploy and disable. The 48-file milestone-13 snapshot/helper is prepared
+under tmp/; prior milestone snapshots are untouched. The user authorized on-demand
+repetition of root 120s formatter, milestone-13 snapshot 240s build and 120s flake
+check. The first build passed all 244 cases / 12 suites with the four full CLI
+lifecycle cases. Documentation review then added explicit local bare-remote push
+coverage; the final source also passed all 244 cases / 12 suites (check phase
+2m16s), then its flake check passed. The final treefmt check processed all 46
+eligible files with zero changes. Only the inherited Undeployment.hs unused
+import warning was observed; no new warnings. The standard-Git loop is accepted
+on the pinned x86_64-linux environment; minimum Git and other systems are not.
+The source has three project changes: README.org, cabal/git-roam.cabal and the
+new cabal/test/EndToEnd.hs. No production code, lockfile or protection config
+changes were needed. CHANGELOG's current-batch boxes were already completed by
+node 12 and remain unchanged, as does TODO 0.1.0. No release/tag is implied.
+Final derivation: /nix/store/isbwc7vsz74h5m83rman5labsbqzs73m-git-roam-0.1.0.drv.
+All 48 current/snapshot files match manifest SHA-256
+f791412a9a958b339d3293f33b25c611378ee87c240941688429919be37601db.
+Snapshot/helper: tmp/git-roam-milestone13-source/ and
+tmp/prepare-milestone13-source.py. Tests used uncommitted source, so this handoff
+does not add a guessed project parent. Ordinary test work has no independent
+archival requirement.
 
 ## Navigation and authority
 
@@ -865,11 +891,15 @@ deletion, including all historical incoming dependency checks, checkout refusal,
 impact preview/explicit confirmation, conditional ref deletion and result checks.
 Node-12 code and tests are verified by the user's successful flake check, with
 all 240 cases passing. The user committed the implementation and corrected
-CHANGELOG; project status is clean. Continue node 13: real CLI end-to-end
-multi-Node lifecycle and local clone/fetch/safe native advancement, executable
-README tutorial, compatibility/failure-limit review and final CHANGELOG audit.
-The full standard-Git loop is not yet accepted end to end. Deployment acceleration
-is deferred. New per-node build/format/check authorization is required.
+CHANGELOG; project status was clean at transition. Node 13 passed final build,
+all 244 tests and flake/format checks. Present the three-file acceptance/test/docs
+change for user review/staging; draft a message only from the eventual selected
+diff and wait for the user's project commit. Then confirm committed source
+against the verified 48-file snapshot. No extra checks absent new changes or
+concerns. The standard-Git loop is accepted on x86_64-linux/Git 2.56.0; report
+minimum-version and other-platform gaps. Deployment acceleration and optional
+naming remain deferred. Preserve TODO 0.1.0; do not release/tag or choose whether
+the deferred candidates belong in this version without a user decision.
 Node-11 build/format/check authorization does not authorize node-12 commands.
 Do not rerun checks merely to duplicate the user's successful verification.
 After node-13 checks, report overall progress as the user requested, then stop
