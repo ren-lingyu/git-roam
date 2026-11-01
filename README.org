@@ -4,6 +4,8 @@
 * Development status
 Version 0.1.0 is under development. Planned capabilities and their completion status are recorded in [[file:CHANGELOG.org][CHANGELOG.org]].
 
+Git-roam represents local knowledge versions and exact dependencies in standard Git commit objects. Node branches persist independently of their optional linked worktrees. Git transports existing history; it does not decide or reconstruct knowledge dependencies. The current implementation provides the standard Git workflow; release finalization, deployment acceleration and alternative directory naming remain separate decisions.
+
 * Build and check
 The Nix flake provides the executable and runs the Cabal test suites and formatting checks.
 
@@ -32,6 +34,7 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam enable
   git roam disable
   git roam node create --path /path/to/worktrees
+  git roam node delete --node <uuid> --dry-run
   git roam checkpoint -m 'Confirm this knowledge version'
   git roam discard --dry-run <checkpoint-ref-or-oid>
   git roam deploy --path /path/to/worktrees
@@ -59,7 +62,107 @@ The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal
 
 The test suites cover CLI behavior, SHA-1 and SHA-256 object IDs, native Git failures, binary input/output, argument boundaries, and repository discovery for ordinary, bare, and linked worktrees. Git integration tests use dedicated temporary repositories and isolated configuration.
 
+The end-to-end suite runs the public CLI through the tutorial lifecycle below on SHA-1/SHA-256 and files/reftable repositories. It checks exact historical dependencies, explicit push to a local bare remote, clone/fetch, missing tracking branches, safe and refused native fast-forwards, complete multi-ref updates, full deployment/removal, explicit discard and non-cascading deletion. This is a local-repository test matrix, not a claim of all-platform or minimum-version compatibility.
+
 Cabal declares the CLI test dependency through =build-tool-depends=. The tests locate the resulting executable on =PATH=. The Nix package selects the GHC 9.12 package set, including its Cabal build driver. No test executable path is injected by Nix.
+
+* Multi-Node walkthrough
+Use an existing Git repository with an ordinary main branch and configured Git author/committer identity. Choose a new empty deployment directory outside the repository, or an appropriately ignored child directory. The following commands run inside that repository; replace =<A>= and =<B>= with the complete UUIDs printed by each creation command and use the reported worktree paths. Short directory names are deployment conveniences, never Node identifiers.
+
+#+begin_src sh
+  git roam enable
+  git roam node create --path /path/to/nodes
+  git roam node create --path /path/to/nodes
+#+end_src
+
+First edit B. The UUID directory and its =.roam= marker must remain present. Record Content with ordinary Git, then create B's first formal Checkpoint:
+
+#+begin_src sh
+  cd <B-worktree>/<B>
+  printf '* B version zero\n' > note.org
+  git add note.org
+  git commit -m 'Write a note'
+  git roam checkpoint -m 'Confirm B0'
+#+end_src
+
+Copy the printed =checkpoint= OID as =<B0>=. Write A and explicitly declare its dependency on that exact B version:
+
+#+begin_src sh
+  cd <A-worktree>/<A>
+  printf '* A uses B0\n' > note.org
+  git add note.org
+  git commit -m 'Write a note'
+  git roam checkpoint -m 'Confirm A0' --depend <B0>
+  git roam status
+  git roam check
+#+end_src
+
+New B Content and Checkpoints do not move A's dependency: A still refers to B0 until an explicit new A Checkpoint replaces that declaration. Run the following from the ordinary main worktree to share existing history with a local second clone:
+
+#+begin_src sh
+  git clone /path/to/source /path/to/second-clone
+  cd /path/to/second-clone
+  git roam enable
+  git roam deploy --path /path/to/second-nodes
+  git roam check
+#+end_src
+
+Clone obtains the existing objects and remote-tracking refs. Deploy validates the final Node set, creates missing local tracking branches together and checks out all Nodes. It does not create new knowledge versions. The synchronization section below describes subsequent updates.
+
+Deletion and discard have different effects. While A's retained history depends on B0, deleting B is refused even if a newer A Checkpoint drops that dependency. To withdraw B0 and every retained formal successor that depends on it, review =git roam discard --dry-run <B0>= and execute only with the displayed plan ID. This can affect both Nodes and their Content history. It leaves each affected branch at its unique remaining formal maximum or Root, with its clean linked worktree recreated. It does not erase Git objects or change the source clone.
+
+After reviewing the result, whole-set undeployment allows explicit Node deletion. From the main worktree:
+
+#+begin_src sh
+  git roam undeploy
+  git roam node delete --node <A> --dry-run
+  git roam node delete --node <A> --confirm <A-deletion-plan-id>
+  git roam node delete --node <B> --dry-run
+  git roam node delete --node <B> --confirm <B-deletion-plan-id>
+  git roam check
+  git roam disable
+#+end_src
+
+Each plan ID must come from its own immediately preceding preview; deleting A changes the repository state and invalidates older B plans. These destructive steps are optional. Keeping the branches and only undeploying is the normal way to stop editing. Remote-tracking refs remain after local deletion, so a later deploy can recreate fetched Nodes.
+
+* Synchronize existing history with Git
+Git-roam does not provide =pull=, =push= or =adopt= commands. Use Git to transfer the canonical UUID branches explicitly. Pushing an ordinary main branch alone does not transfer all Node branches. For known Nodes A and B, use explicit refspecs such as =git push origin refs/heads/<A>:refs/heads/<A> refs/heads/<B>:refs/heads/<B>=, replacing each placeholder with its canonical UUID. Include all needed Node branches, review the destination and avoid force. Publishing is a separate user action.
+
+Fetch never automatically advances existing local Node branches, and deploy leaves those tips unchanged. When the candidate's dependencies are already retained locally, a clean deployed Node worktree can use:
+
+#+begin_src sh
+  git fetch origin
+  cd <Node-worktree>
+  git merge --ff-only refs/remotes/origin/<uuid>
+  git roam check
+#+end_src
+
+=git pull --ff-only= is another native option when tracking is configured. Avoid an unconstrained pull that could merge or rebase formal history. Git handles index and working-directory updates; the Git-roam Hook independently validates formal history and closure. Unsafe updates refuse without discarding local changes. Divergence requires a separate local history decision; no automatic merge/rebase is provided.
+
+When several existing Node branches must advance together to satisfy closure, undeploy first and propose their complete updates in one native transaction. Resolve and review all old/local and new/fetched OIDs before running this template; every named branch must already exist:
+
+#+begin_src sh
+  git roam undeploy
+  git fetch origin
+  git update-ref --stdin <<EOF
+  start
+  update refs/heads/<A> <new-A-oid> <old-A-oid>
+  update refs/heads/<B> <new-B-oid> <old-B-oid>
+  prepare
+  commit
+  EOF
+  git roam check
+  git roam deploy --path /path/to/nodes
+#+end_src
+
+The Hook validates the whole candidate set and preserves all old formal Checkpoints; expected-old values reject stale updates. Do not bypass protection or use unconditional updates to resolve a refusal. Native transactions do not synchronize all worktree filesystems or freeze arbitrary concurrent readers/writers. A failed post-operation check requires inspection of actual refs, not an assumed rollback.
+
+* Verification and recovery limits
+The pinned build uses ordinary Git 2.56.0 with GHC 9.12.3 and Cabal 3.14.2.0. x86_64-linux is the verified execution platform. aarch64-linux and aarch64-darwin remain declared outputs, not tested compatibility claims. The enforced Git 2.54 floor is not a complete test result for that version; there is no fallback protection implementation for older Git.
+
+Use =git roam check= to distinguish invalid history, incomplete local dependency branches, branches missing a required formal version, identity conflicts and unavailable evidence. Fetching objects does not itself repair local branch retention. =enable= can install protection in an incomplete repository, and a valid complete deploy candidate can establish missing branches. Missing source tips, shallow/missing objects, ambiguous remotes or divergent histories require explicit review. Neither =check= nor =enable= repairs them.
+
+Conditional updates, application locks, safety preflight and post-checks reduce or diagnose races; they do not guarantee arbitrary-process serializability. After failure, inspect the reported actual refs and =git worktree list --porcelain=, preserve residual files, and rerun the read-only check when a stable observation is possible. Do not assume every error means no changes occurred. Git-roam does not promise recovery of discarded history or a lost original branch tip, and it does not automatically force-clean, stash, reset or rewrite history to recover.
 
 * Repository protection
 =enable= configures this executable's named =reference-transaction= Hook in the common repository configuration. It can run before knowledge history or dependency closure is valid, creates no Node or worktree, and is idempotent when the installed configuration matches. Conflicting, inherited or incomplete configuration is refused rather than overwritten. Other Hooks remain configured and active.
