@@ -19,6 +19,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import qualified GitRoam.Application.Checkpoint as Checkpoints
 import qualified GitRoam.Application.Create as Creation
+import qualified GitRoam.Application.Delete as Deletion
 import qualified GitRoam.Application.Deploy as Deployment
 import qualified GitRoam.Application.Discard as Discard
 import GitRoam.Application.Inspect
@@ -38,12 +39,12 @@ import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, hIsTerminalDevice, stderr, stdin)
 
-data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp | CheckpointHelp | DiscardHelp
+data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp | NodeDeleteHelp | CheckpointHelp | DiscardHelp
     deriving (Eq, Show)
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDiscard [String] | ExecuteDiscard [String] (Maybe String)
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDiscard [String] | ExecuteDiscard [String] (Maybe String) | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -83,6 +84,10 @@ parseCommand arguments = case arguments of
     "discard" : args -> discardArgs False Nothing [] args
     ["help", "node"] -> help NodeHelp
     ["help", "node", "create"] -> help NodeCreateHelp
+    ["help", "node", "delete"] -> help NodeDeleteHelp
+    ["node", "delete", "--help"] -> help NodeDeleteHelp
+    ["node", "delete", "-h"] -> help NodeDeleteHelp
+    "node" : "delete" : args -> deleteArgs Nothing False Nothing args
     ["node"] -> help NodeHelp
     ["node", "--help"] -> help NodeHelp
     ["node", "-h"] -> help NodeHelp
@@ -124,6 +129,14 @@ parseCommand arguments = case arguments of
     option : _ | take 1 option == "-" -> Left ("Unknown option: " <> quoted option)
     command : _ -> Left ("Unknown command: " <> quoted command)
   where
+    deleteArgs node dry confirmation args = case args of
+        "--node" : value : rest | node == Nothing -> case uuid value of
+            Right parsed -> deleteArgs (Just parsed) dry confirmation rest
+            Left _ -> Left "Node deletion requires a canonical UUID"
+        "--dry-run" : rest | not dry && confirmation == Nothing -> deleteArgs node True confirmation rest
+        "--confirm" : value : rest | not dry && confirmation == Nothing && length value == 64 && all (`elem` ("0123456789abcdef" :: String)) value -> deleteArgs node False (Just value) rest
+        [] | Just selected <- node -> Right (if dry then PreviewDelete selected else ExecuteDelete selected confirmation)
+        _ -> Left "Usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]"
     help = Right . ShowHelp
     validValue value = not (null value) && take 1 value /= "-" && '\0' `notElem` value
     quoted = Text.pack . show
@@ -163,6 +176,7 @@ renderHelp topic = case topic of
             , "  deploy          Deploy all local and fetched candidate Nodes"
             , "  undeploy        Safely remove all Node linked worktrees"
             , "  node create     Create a Node and editable linked worktree"
+            , "  node delete     Explicitly delete an unchecked-out, unreferenced Node"
             , "  checkpoint      Confirm committed Content and complete dependencies"
             , "  discard         Preview or explicitly confirm Checkpoint discard"
             , ""
@@ -178,7 +192,8 @@ renderHelp topic = case topic of
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
-    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path>  Create a UUIDv4 Node with an editable linked worktree"]
+    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path>  Create a UUIDv4 Node with an editable linked worktree", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
+    NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Every other Node's retained historical dependency is checked; incoming edges block deletion.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
     NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path>", "", "Create a UUIDv4 identity, empty-marker Root, persistent local branch and linked worktree.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID and actual path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
     CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       [--depend <ref-or-oid>] [--drop-dependency <uuid>] [--clear-dependencies]", "", "Select an explicit Node or infer its worktree; Root requires committed Content first.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Inherit the previous full dependency set; --depend adds/replaces one external Checkpoint per UUID.", "Dependencies accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "Repeat --depend/--drop-dependency for different Nodes. Clear may combine with additions, not removals.", "Conflicting edits, self dependencies and unretained/non-Checkpoint inputs are refused.", "Uses the committed tree, preserving all Content history and uncommitted index/worktree data."]
     DiscardHelp -> Text.unlines ["usage: git roam discard --dry-run <ref-or-oid>...", "       git roam discard --confirm <plan-id> <ref-or-oid>...", "       git roam discard <ref-or-oid>...", "", "Preview the exact minimal successor closure, old/new tips, Content loss and affected worktrees.", "Refs or unambiguous commit OIDs must identify currently retained Checkpoints.", "--dry-run is read-only and prints a plan ID only when all preconditions pass.", "Execution requires matching enabled protection and confirmation of that complete plan ID.", "Without --confirm, terminal input/stderr are required: review the preview and type its plan ID.", "Stale plans, multiple remaining maxima and unsafe worktrees refuse; there is no force option.", "Affected clean linked worktrees are recreated at their original paths around one ref transaction.", "Main/nested target worktrees and private worktree configuration/refs require prior manual handling.", "Failures report actual state; committed discards are never rolled back and recovery is not promised."]
@@ -249,6 +264,48 @@ interactiveDiscard directory references = do
                                 pure (if answer == identifier then Right identifier else Left "Discard confirmation declined; no changes were made")
     pure $ either (Left . show) id (outcome :: Either IOException (Either String BS.ByteString))
 
+renderDelete :: Deletion.DeletePreview -> Text
+renderDelete report =
+    Text.unlines $
+        [ "Read-only Node deletion preview; no changes were made."
+        , "node " <> node (Deletion.deleteNode report)
+        , "old " <> oid (Deletion.deleteOldTip report)
+        , "root " <> oid (Deletion.deleteRoot report)
+        ]
+            ++ ["plan " <> Text.pack (BSC.unpack identifier) | Just identifier <- [Deletion.deletePlanId report]]
+            ++ ["withdraw checkpoint " <> oid value | value <- Set.toList (Deletion.deleteVersions report)]
+            ++ ["lose managed Content entry " <> oid value | value <- Set.toList (Deletion.deleteContent report)]
+            ++ ["incoming " <> node other <> " " <> oid from <> " depends on " <> oid required | (other, from, required) <- Deletion.deleteIncoming report]
+            ++ ["checked out " <> Text.pack (show (Worktrees.treePath record)) <> if Worktrees.treeMain record then " (main)" else " (linked)" | record <- Deletion.deleteWorktrees report]
+            ++ ["remove local config " <> Text.pack (BSC.unpack key) | key <- Deletion.deleteConfigKeys report]
+            ++ ["blocked " <> Text.pack problem | problem <- Deletion.deleteProblems report]
+            ++ ["No cascading removal, object erasure or recovery guarantee. Remote refs remain; deploy may recreate this Node."]
+  where
+    node = Text.pack . BSC.unpack . nodeIdBytes
+    oid = Text.pack . BSC.unpack . objectIdBytes
+
+interactiveDelete :: FilePath -> NodeId -> IO (Either String BS.ByteString)
+interactiveDelete directory node = do
+    result <- try $ do
+        inputTerminal <- hIsTerminalDevice stdin
+        outputTerminal <- hIsTerminalDevice stderr
+        if not (inputTerminal && outputTerminal)
+            then pure (Left "Noninteractive Node deletion requires --dry-run review followed by --confirm <plan-id>")
+            else do
+                outcome <- Deletion.previewDelete (nativeGit defaultGitExecutable) directory node
+                case outcome of
+                    Left problem -> pure (Left problem)
+                    Right report -> do
+                        BS.hPut stderr (Encoding.encodeUtf8 (renderDelete report))
+                        case Deletion.deletePlanId report of
+                            Nothing -> pure (Left "Node deletion preview is blocked")
+                            Just identifier -> do
+                                BSC.hPutStr stderr "Type this plan ID to delete the Node: "
+                                hFlush stderr
+                                answer <- BSC.hGetLine stdin
+                                pure (if answer == identifier then Right identifier else Left "Node deletion declined; no changes were made")
+    pure $ either (Left . show) id (result :: Either IOException (Either String BS.ByteString))
+
 runCli :: [String] -> IO CliResponse
 runCli ["--reference-transaction", phase] | phase `elem` ["preparing", "prepared", "committed", "aborted"] = do
     directory <- getCurrentDirectory
@@ -265,6 +322,23 @@ runCli arguments = case parseCommand arguments of
     Right (StatusNode node) -> inspect True node
     Right EnableProtection -> lifecycle Protection.enableProtection "Repository protection enabled.\n"
     Right DisableProtection -> lifecycle Protection.disableProtection "Repository protection disabled.\n"
+    Right (PreviewDelete node) -> do
+        directory <- getCurrentDirectory
+        result <- Deletion.previewDelete (nativeGit defaultGitExecutable) directory node
+        pure $ case result of
+            Left problem -> failure 1 (Text.pack problem)
+            Right report -> CliResponse (if null (Deletion.deleteProblems report) then ExitSuccess else ExitFailure 1) (renderDelete report) ""
+    Right (ExecuteDelete node confirmation) -> do
+        directory <- getCurrentDirectory
+        executable <- getExecutablePath
+        authorized <- maybe (interactiveDelete directory node) (pure . Right . BSC.pack) confirmation
+        case authorized of
+            Left problem -> pure (failure 1 (Text.pack problem))
+            Right identifier -> do
+                result <- Deletion.executeDelete executable (nativeGit defaultGitExecutable) directory node identifier
+                pure $ case result of
+                    Left (Deletion.DeleteFailure reason details) -> failure 1 (Text.unlines (map Text.pack (reason : details)))
+                    Right report -> success ("Deleted local Node branch " <> Text.pack (BSC.unpack (nodeIdBytes (Deletion.deleteNode report))) <> ". Git objects and remote refs were not erased.\n")
     Right (PreviewDiscard references) -> do
         directory <- getCurrentDirectory
         result <- Discard.previewDiscard (nativeGit defaultGitExecutable) directory references

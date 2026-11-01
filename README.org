@@ -68,7 +68,7 @@ Ordinary Git updates may edit or replace unconfirmed Content and add valid Check
 
 =disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Use =undeploy= to remove Node linked worktrees before disabling protection.
 
-Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook. Node deletion remains later work.
+Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook.
 
 The current build uses Git 2.56.0. Protection requires configured named Hook support and enforces a Git 2.54 version floor; the full behavior on that minimum version and on other platforms remains unverified. Hook configuration identifies the enabled executable, so a different executable or divergent configuration requires an explicit lifecycle/configuration review. Configuration writes use Git's own locking; a failed installation is not claimed to be an atomic configuration transaction.
 
@@ -158,6 +158,20 @@ Messages use exactly one =-m= or =-F=. =-F -= reads standard input. Nonempty UTF
 The tree always equals the previous branch tip's committed tree. Staged, unstaged, untracked and ignored data are excluded and retained, including in a main worktree. The command never runs =write-tree= or creates a commit from the working index. Shared protocol, normal-state and formal-retention checks validate the final candidate before a ref transaction with expected-old and dependency-ref verification. Other reference Hooks remain active. Missing author/committer configuration or conflicting edits prevent installation.
 
 Failed attempts may leave unreachable objects. Once a ref update succeeds, follow-up failure is reported without rolling back formal history. Failure diagnostics include any constructed candidate OID and distinguish confirmed installation from an uncertain update result. The command does not claim isolation from arbitrary external writers; inspect actual refs and run =check= after an uncertain outcome.
+
+* Delete an unreferenced Node
+#+begin_src sh
+  git roam node delete --node <uuid> --dry-run
+  git roam node delete --node <uuid> --confirm <plan-id>
+#+end_src
+
+Deletion requires an explicit canonical UUID. The read-only preview lists the Root, old branch tip, withdrawn Checkpoints, Content losing its managed entry, incoming historical dependencies, checked-out worktrees, and local branch configuration keys to remove. It produces an executable plan ID only when all preconditions pass. Execution requires matching enabled protection. With neither flag, a terminal preview requires typing the complete plan ID; noninteractive execution requires =--confirm=.
+
+Any incoming dependency from another Node's retained Checkpoint blocks deletion, including older versions and non-first-parent formal history. The target's own history and outgoing dependencies do not block it. Deletion never cascades: explicitly discard the blocking history first. Any main or linked worktree checking out the target branch also blocks deletion. No worktree is implicitly undeployed or modified.
+
+The plan binds the complete managed refs, exact impact, worktree registrations and reviewed local branch configuration. One conditional ref transaction deletes the target and verifies the other managed refs. Other Nodes retain their exact tips and formal history. The shared validator checks the actual result. Reviewed local =branch.<uuid>.*= values are then removed by exact value; included, global and unrelated configuration remain untouched. Valueless local branch entries require prior manual handling. Configuration cleanup is separate from the ref transaction: failure reports the committed deletion and residual state without recreating the branch.
+
+Git objects, tags and remote-tracking refs are retained; deletion does not erase a UUID globally or guarantee recovery. A later full deploy can recreate the local Node branch from fetched remote candidates. Arbitrary external concurrent writers remain outside the transaction guarantee.
 
 * Preview explicit Checkpoint discard
 #+begin_src sh
