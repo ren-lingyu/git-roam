@@ -9,7 +9,8 @@ This file retains the accepted plan so recovery does not depend on a chat or
 ignored temporary file. Node 1 is committed and its exact source was compared
 with the verified GHC 9.12 snapshot. Node 2 is implemented and verified in the
 project history, confirmed equal to its tested snapshot. Node 3 is implemented and
-verified in the worktree, awaiting user staging/commit. See current.md for evidence,
+committed and confirmed against its 28-file tested snapshot. Node 4 is drafted
+and awaits separate validation. See current.md for evidence,
 actual progress and authorization boundaries.
 
 Use serial milestones, not parallel agents. Each project commit must independently
@@ -79,7 +80,8 @@ reading and current/candidate managed-state validation, while the pure ordinary
 transition relation preserves Root and every old K. Actual Hook enforcement and
 controlled creation remain node 4. The user-facing inspection/status CHANGELOG
 boxes are complete; repository protection is not. README records scope, codes,
-no-repair behavior and unstable-observation limits. Await the user node-3 commit.
+no-repair behavior and unstable-observation limits. The user committed node 3,
+and its exact source was confirmed before beginning protection lifecycle work.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.

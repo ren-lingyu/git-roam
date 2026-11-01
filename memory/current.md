@@ -26,10 +26,11 @@ protocol and projection, with
 corresponding tests and README. Its final build passed 36 protocol cases and the
 existing 21 cases, with no compiler warnings, and flake check passed. No new CLI
 command was advertised by node 2. Its user commit was confirmed against all 24
-files in the tested snapshot. Node 3 is implemented and verified in the worktree,
-awaiting user review/staging/commit. Its final build passed all 79 cases with no
+files in the tested snapshot. Node 3 is committed by the user, and all 28
+committed source files match the verified snapshot.
+Its final pre-commit build passed all 79 cases with no
 compiler warnings, and flake check passed on x86_64-linux. check/status are now
-available. Do not begin node 4 until the user commits node 3.
+available. Node 4 is now drafted and awaiting its separately authorized validation.
 
 ## Navigation and authority
 
@@ -299,20 +300,34 @@ All 28 project/snapshot source files match manifest SHA-256
 f9f42c24320bb8cbfc6e673a2f6ef90ce7f35a667d754fd6954817217e86292d.
 The bounded helper and snapshot use tmp/prepare-milestone3-source.py and
 tmp/git-roam-milestone3-source/, preserving earlier snapshots. diff --check passes
-and the project index is empty. README describes current commands and boundaries.
+and the staged candidate matches all 28 verified source files. README describes current commands and boundaries.
 CHANGELOG remains TODO 0.1.0 and marks only inspection/status capabilities complete;
 all protection and modifying-operation boxes remain unchecked. The tested source
 is uncommitted, so no new project parent is justified for this handoff checkpoint.
 
 ## Next action and authorization
 
-Present node 3 for user review and staging, review its actual index and prepare
-the commit message, then wait for the user's commit. Confirm its committed source
-against the tested snapshot before node 4 (enable/disable, named realtime Hook,
-coordination, modification prerequisites). Do not stage/commit project files or
-start node 4 now. No additional checks are needed absent source changes or a new
-concern. Preserve archives and earlier snapshots. GAW maintenance is separate
-from project commits and continues through its public authorized loop.
+The user committed node 3 and requested continuation. All 28 committed files were
+confirmed equal to the tested snapshot before node 4 edits. Node 4 now drafts
+enable/disable, matching-executable named Hook configuration and health checks,
+common-directory operation locking, prepared transaction validation against real
+old refs, local formal-set-preserving Content checks, and complete candidate ref
+validation for formal changes. Ordinary creation/deletion/discard are refused;
+controlled callers can disable only their own named Hook after independent checks.
+The library compiled, but the initial test source needed a final do-block result.
+The next run passed lifecycle/conflict/coexistence cases and exposed Git 2.56's
+preparing phase before prepared; the private CLI now accepts preparing as a
+no-op and validates in prepared. The four native protection matrix cases then
+passed, bringing the total to 86 cases. Final native amend/reset/lock assertions
+and documentation are being verified. Do not claim the whole node verified yet.
+Native fixture cases cover lifecycle,
+coexistence, main/linked cleanup prerequisites, ordinary editing/formal progression,
+multi-ref dependency closure and all four object-format/ref-backend combinations.
+The user separately authorized formatting and build/check against
+path:./tmp/git-roam-milestone4-source, timeout 120s, in order and repeated as needed.
+Do not install Git-roam protection in the real project repository: only fixture
+repositories are used for lifecycle/Hook tests. Keep project staging/commit with
+the user, preserve previous snapshots/archives, and update progress after checks.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
