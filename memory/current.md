@@ -34,8 +34,10 @@ available. Node 4 is committed by the user, and all 29 committed source files
 match its tested snapshot. Its pre-commit 86 cases, build and flake check passed
 on x86_64-linux. The project worktree was clean at transition. Node 5 is now
 committed by the user. All 33 committed files match its tested snapshot; the
-project worktree was clean at transition to node 6. Node 6 is now implemented and
-verified in the worktree, awaiting user review/staging/commit.
+project worktree was clean at transition to node 6. Node 6 is committed by the
+user and all 36 committed files match its tested snapshot. The project worktree
+was clean at transition to node 7. Node 7 is implemented and user-verified,
+awaiting staging of its final CHANGELOG checkbox and the user's project commit.
 
 ## Navigation and authority
 
@@ -503,20 +505,66 @@ Package derivation: /nix/store/sv0b4104s6nad85fzld11v9ld188sp6w-git-roam-0.1.0.d
 Git 2.56.0, GHC 9.12.3/Cabal 3.14.2.0, x86_64-linux only; other declared platforms
 remain unverified. The 36 worktree and clean-snapshot files match manifest SHA-256
 26519c9c3c589d62e4f143338b5aa9b5c3bded6e144d80f033cef6365fc38385.
-Snapshot helper: tmp/prepare-milestone6-source.py. diff --check passes; project
-index is empty. No lockfile changes. README describes actual deployment usage and
+Snapshot helper: tmp/prepare-milestone6-source.py. diff --check passes; the user
+staged node 6 and all 36 index/worktree files match the verified snapshot. No
+lockfile changes. README describes actual deployment usage and
 failure limits. CHANGELOG remains TODO 0.1.0 and checks four deployment-related
 items, leaving full undeploy unchecked. No project parent represents this as-yet
 uncommitted implementation; do not attach its baseline as though tests ran there.
 
+## Node-7 implementation and user verification
+
+The user committed node 6; its 36 committed files matched the tested snapshot
+before new edits. Application.Undeploy now exposes full undeploy with enabled
+matching protection, shared complete-history validation and whole-target safety
+preflight. Native removals run deepest first and stop on failure. Linked Node
+worktrees include manually created/moved ones. Main Node worktrees are reported
+and retained; detached and ordinary worktrees stay outside the removal set.
+Refs, objects, tracking and protection configuration are retained. Partial failure
+reports confirmed removals and available actual remaining state, without recreating
+worktrees or resetting user changes. Absolute path checks avoid getcwd so commands
+can continue after the invocation worktree has been removed.
+
+Seventeen new Cabal test groups bring the declared total to 134. They cover
+files/reftable x SHA-1/SHA-256, whole-input dirty/ignored/locked refusal, main and
+non-target boundaries, nested CLI invocation from a removed directory, native
+failure, lost completion, late user edits, changed refs, invalid history and
+empty/repeated operation. README documents actual usage and execution limits.
+
+The user initially staged the unformatted source and requested a message. Static
+review found a coherent staged change; the draft was written with the explicit
+warning that validation had not occurred. The pending request for agent-executed
+node-7 format/build/check commands was not answered. Instead the user supplied
+their actual shell results: initial nix flake check failed treefmt; nix fmt then
+formatted six files, changing four; subsequent nix flake check passed (exit 0,
+55.97s), building both package and formatting check; nix build passed (exit 0,
+1.46s, reusing the result). Package derivation:
+/nix/store/q7niv55lf451lnqg6ps3f07wdk2vihn3-git-roam-0.1.0.drv.
+These are user-executed verification results, not agent-executed tests or new
+authorization. Individual test logs/compiler warnings were not provided; the
+package's doCheck=true and successful flake package check cover its Cabal tests.
+Only x86_64-linux was checked; other declared platforms remain unverified.
+
+Read-only inspection confirmed the formatted implementation and README were
+already restaged with no unstaged project changes. After that verification, only
+the undeploy checkbox was checked in CHANGELOG, retaining TODO 0.1.0. This one-line
+progress update has not been included in a new build/check run. All 38 current
+worktree/source-snapshot files match manifest SHA-256
+f152231d31c36a02610c0cd96dc5f2222368731f38ccb1ce5c6dc3af893189d9;
+all 37 files other than that new CHANGELOG edit match the index. The bounded helper
+is tmp/prepare-milestone7-source.py, with earlier snapshots preserved. The user
+needs to stage CHANGELOG. The existing commit message remains semantically valid:
+feat(git-roam): add full Node worktree undeployment. No project parent represents
+this uncommitted source; do not attach a baseline as though it was tested.
+
 ## Next action and authorization
 
-Present node 6 for user review/staging, prepare its commit message from the actual
-staged diff when requested, then wait for the user's project commit. Confirm the
-committed source against the snapshot before node 7 (public full undeploy).
-Do not begin node 7, stage/commit project files or install project protection.
-No further tests are needed absent changes or new concerns. Preserve archives,
-earlier snapshots and the actual project's GAW Hook.
+Wait for the user to stage the final CHANGELOG change and commit node 7. Confirm
+the committed source against the final 38-file snapshot before node 8 (node create
+with immediate linked worktree). No fresh code tests are needed unless source
+changes or new concerns arise. Do not stage/commit project files, begin node 8,
+or install protection in the project. Preserve archives, earlier snapshots and
+the actual project's GAW Hook.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
