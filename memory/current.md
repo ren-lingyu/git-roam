@@ -6,15 +6,20 @@ The user accepted the revised v0.1.0 plan and requested implementation on
 2026-11-01. Execute serially, one independently reviewable/buildable/testable
 project commit at a time, with user-performed project staging and commits.
 
-The mandatory GAW design consolidation/checkpoint is complete. Project commit 0
-is drafted: only root CHANGELOG.org is modified in the project, without staging
-or committing. Its diff passes git diff --check. The user authorized the three
-listed Nix commands in sequence: formatting and package build passed, but the
-path:. flake check failed in treefmt when its Git transaction invoked the GAW
-Hook and git-gaw was unavailable. A Git-source check retry needs fresh command
-authorization, which has been requested; it has not run yet.
-No application implementation or new native-Git experiment has occurred.
-Do not skip ahead to experiments or milestone 1 before the user commits node 0.
+The mandatory GAW design consolidation/checkpoint is complete. The user committed
+project node 0, and read-only review confirmed CHANGELOG.org exactly matches the
+previously reviewed staged content. The project worktree and index are clean.
+Formatting and package build passed before the commit, but the path:. flake check
+failed in treefmt when git-gaw was unavailable for the copied GAW Hook. The
+corrected Git-source check remains unexecuted pending its command authorization.
+
+The next isolated native-Git experiment has been prepared, not run, in
+tmp/git-roam-v0.1.0-native-git/. It contains flake.nix, validate.py and README.md;
+the new flake.lock has not been generated. There are 66 planned cases: 31 detailed
+scenarios on each of files/reftable with SHA-1, and four object/ref/Hook/worktree
+matrix smoke cases including SHA-256. No result, syntax execution, minimum-Git
+compatibility or product implementation is claimed. Do not start project node 1
+until the required experimental findings and execution choices are reviewed.
 
 ## Navigation and authority
 
@@ -68,7 +73,7 @@ No experimental or patched Git is wired into the application.
 
 README.org still contains only the user's title/author. The new task authorizes
 README growth alongside verified implementation; preserve the user's existing
-text rather than restoring old agent prose. The uncommitted CHANGELOG.org draft
+text rather than restoring old agent prose. The committed CHANGELOG.org roadmap
 preserves its canonical Org header and TODO 0.1.0, and adds unchecked planned
 user-facing features under Added. It explicitly separates optional naming and
 acceleration candidates from the current batch, and makes no no-op/scaffolding
@@ -106,21 +111,21 @@ pinned 2.54 and nixpkgs-patched 2.56 no-checkout results do not establish produc
 protocol, Hook, real checkout or minimum-Git support. The new plan requires a
 separate flake-managed standard-Git experiment after project commit 0.
 
-No additional project parent is selected for this design/planning checkpoint:
-these semantic decisions and the execution plan were not derived from testing
-a new committed application implementation. Existing first-parent memory retains
-the original bootstrap/changelog provenance. Do not guess a project parent from
-current HEAD or a future commit.
+The earlier design/planning and pre-commit validation checkpoints had no new
+project parent: the semantic decisions were user-supplied and the validation
+used an uncommitted worktree. The present phase transition is grounded in the
+exact committed roadmap reviewed after the user's commit, whose CHANGELOG blob
+matches the earlier staged blob. Its project parent records this committed-tree
+review, not a claim that the earlier Nix runs were rerun on that commit. The
+new experiment uses independent fixtures and does not validate application code.
 
 ## Next action and authorization
 
-Obtain the pending authorization for the one corrected Git-source flake check;
-do not repeat the original three commands or assume repeated-run permission.
-Review its result while keeping project commit 0 limited to CHANGELOG.org.
-Present the verified result and the accepted commit intent, await the user's
-project staging/commit, and read-only confirm it before new experiments. Current
-memory's progress update follows the completed design checkpoint; checkpoint
-again only when the resulting verification/handoff state has recovery value.
+Obtain authorization for the corrected root check and the new isolated
+lock/check commands before execution. Do not repeat old commands on expired or
+one-shot authorization. Run the fixture suite, inspect findings and failures,
+record actual results/limits, then proceed to node 1 only when its experimental
+gate is satisfied. The project's implementation files remain unchanged.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

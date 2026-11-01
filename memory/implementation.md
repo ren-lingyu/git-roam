@@ -39,6 +39,23 @@ clear partial-failure/compensation reporting. Keep release state human-controlle
 
 ## Reproducible native Git experiments
 
+Current execution position: node 0 has been committed and its exact CHANGELOG
+blob was matched to the prior staged review. The independent experiment is now
+prepared in tmp/git-roam-v0.1.0-native-git/; no fixture test or Nix lock command has
+run. Its three files pin the application's nixpkgs revision and use unpatched
+pkgs.git/python3 with no Git source/version override. validate.py defines 31
+detailed scenarios per files/reftable SHA-1 backend and four SHA-1/SHA-256 smoke
+matrix cases, totaling 66. The flake checks execute only disposable local fixtures
+in build scratch space; result and command JSON are build outputs. Logging/
+rejection hooks are test fixtures, not a product protocol validator. The paired
+branch-presence guard only demonstrates complete-transaction coordination.
+
+The pending execution requests are a corrected root Git-source flake check, a
+one-shot isolated flake lock, and the isolated flake check. Each requires its
+applicable task authorization. Initial coverage is the pinned standard package;
+Git 2.54 minimum compatibility remains explicitly unverified. Preserve the old
+experiment and all ordinary project refs while performing these fixture tests.
+
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.
 Do not overwrite the old worktree-batch reproduction. Manage standard Git and
