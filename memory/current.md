@@ -40,8 +40,10 @@ was clean at transition to node 7. Node 7 is committed by the user; all 38
 committed files match its final snapshot, including CHANGELOG. The project
 worktree was clean at transition. Node 8 is implemented and verified in the
 project history, confirmed against all 40 verified files. The project worktree
-was clean at transition. Node 9 is implemented and verified in the worktree,
-awaiting user review/staging/commit, with all 172 cases passing.
+was clean at transition. Node 9 is committed and confirmed against its 42-file
+verified source snapshot, with all 177 cases passing. Node 10 implements read-only
+discard preview, with all 195 cases and final format/build/flake checks passing.
+It is awaiting user review/staging/commit.
 
 ## Navigation and authority
 
@@ -710,14 +712,74 @@ empty, no lockfile changes or project protection installation. README and both
 Checkpoint/dependency editing CHANGELOG boxes match actual capability; version
 stays TODO 0.1.0. This uncommitted tested source has no new project-parent edge.
 
+## Node-10 implementation
+
+The pure Protocol.Discard layer computes the retained Checkpoint successor closure
+using projected H/D edges and a per-call reverse graph. It reports exact targets,
+formal/dependency collateral reasons and per-Node removed versions. Remaining
+unique formal maxima determine candidate tips; empty formal sets use Root and
+multiple maxima refuse without enlarging the discard set. Unaffected tips retain
+their Content tails. Full candidate validation checks per-Node exact retained
+sets and dependency closure. Raw reachable Content set differences report commits
+losing managed entry, rather than treating all Content ancestors as deleted.
+If no complete candidate is representable, actual Content loss is unavailable.
+
+Application.Discard provides readonly preview without protection prerequisite or
+operation-lock writes. It validates initial and candidate states, reuses the
+conservative affected-worktree removal preflight, and rereads refs/worktree
+registration. Unsafe linked worktrees block; main checkouts are currently reported
+as unsupported execution targets, not automatically removed or switched. Unrelated
+dirty worktrees do not block. The report is diagnostic data, not a verified mutation
+plan or future authorization token. Node 11 must revalidate and bind authorization.
+
+CLI: discard --dry-run <ref-or-oid>..., explicit nonempty targets, duplicate target
+OIDs coalesce, shared native refs/OID resolution and raw tag peeling with checkpoint.
+No revision expressions. Help advertises only dry-run. Zero means no detected
+blocker; one means blocked/invalid/unavailable evidence; two is usage failure.
+Blocked reports retain the computed impact on stdout and a failure diagnostic.
+No actual discard, force option, confirmation interface or plan ID exists yet.
+
+The 18 new groups cover both formats/backends, linear/multi-target closures,
+historical/transitive/non-first-parent dependencies, ambiguous and unique remaining
+maxima, Content effects and unaffected tails, refs/tags/OID prefixes, invalid and
+unretained targets, incomplete state, dirty/ignored/locked/main worktrees,
+unchanged objects/config/index/files, no mutation calls, changing refs and CLI
+reporting. Initial compile failures from ambiguous/missing imports were corrected.
+The first full build passed all 195 cases; a new test-name shadowing warning was
+then corrected. The final source build reran and passed all 195 cases (10 suites),
+including the roadmap checkbox and final diagnostic text. Package derivation:
+/nix/store/kb5cmw604s7z6q5j8ymx19zb9lsr7y3m-git-roam-0.1.0.drv.
+Final formatting and flake check passed, with zero treefmt changes. Git 2.56.0,
+GHC 9.12.3/Cabal 3.14.2.0, x86_64-linux only; other declared platforms remain
+unverified. The inherited unused import in Undeployment.hs remains outside scope.
+
+All 45 worktree/source-snapshot files match manifest SHA-256
+97833580951cb586ee8c830100e8b10dc57d4fa49b4391d24702538194be7ccb.
+The bounded helper is tmp/prepare-milestone10-source.py and the snapshot is
+tmp/git-roam-milestone10-source/. Previous snapshots are retained. diff --check
+passes, the project index is empty, no lockfile changed and no Git-roam protection
+was installed in the actual project. README documents the real dry-run interface
+and limits; only its CHANGELOG preview box is newly checked. TODO 0.1.0 remains.
+Node-10 verification used uncommitted source, so no project-parent edge represents
+this tested snapshot. No independent archive is needed for ordinary source work.
+
 ## Next action and authorization
 
-Present node 9 for user review/staging. Prepare the commit message from the actual
-staged diff when requested, then wait for the user's project commit. Confirm its
-source against the 42-file snapshot before node 10 (read-only explicit-discard
-impact preview). Do not begin node 10, stage/commit project files or install project
-protection. No further tests absent source changes or new concerns. Preserve
-archives and earlier snapshots.
+The user committed node 9 as e2bcc341c07abe773cfefce99af0033db45b4792. All 42
+committed source files match its verified snapshot and the project was clean.
+Node 10 is implemented and verified under user authorization
+for on-demand repetition, in order, of:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone10-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone10-source
+
+Present node 10 for user review/staging. Generate the commit message from the
+actual staged diff when requested, then wait for the user's project commit.
+Confirm the committed source against the 45-file snapshot before node 11.
+No further tests absent source changes or new concerns. Execution and impact-bound
+authorization remain node 11. Do not stage/commit project files or install project
+protection. Preserve archives and earlier snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

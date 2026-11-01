@@ -14,8 +14,10 @@ and verified in project history, confirmed against its tested source. Node 5 is
 committed and confirmed against its 33-file verified snapshot. Node 6 is committed
 and confirmed against all 36 verified source files. Node 7 is committed and
 confirmed against its final 38-file snapshot. Node 8 is committed and confirmed
-against all 40 verified source files. Node 9 is implemented and verified in the
-worktree, awaiting review/staging/commit, with complete-dependency Checkpoints.
+against all 40 verified source files. Node 9 is committed and confirmed against
+all 42 verified files, with complete-dependency Checkpoints. Node 10 read-only
+discard preview is implemented and verified with 195 cases and final
+format/build/flake checks. It awaits user review/staging/commit.
 See current.md for evidence,
 actual progress and authorization boundaries.
 
@@ -144,7 +146,15 @@ graft/replace/payload regressions pass. No temporary repository view was introdu
 Final format,
 build and flake checks pass on x86_64-linux, with 42 worktree/snapshot files equal.
 README and both Checkpoint/dependency editing CHANGELOG boxes are synchronized.
-Wait for the user commit before node 10; see current.md for evidence and limits.
+The user's node-9 commit matched all 42 verified files before node 10. Node 10
+implements discard --dry-run, exact H/D successor impact and causal reasons,
+unique-maximum/Root candidates, Content loss and conservative worktree blockers.
+It reuses a shared refs/OIDs resolver with checkpoint and performs no writes.
+The 18 new groups pass with the prior 177 cases. Final checks pass on x86_64-linux,
+and all 45 source/snapshot files match. README and the preview CHANGELOG checkbox
+are synchronized; actual discard/delete remain unchecked. Wait for user
+staging/commit before node 11 execution work.
+See current.md for evidence and limits.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.
