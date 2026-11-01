@@ -73,9 +73,12 @@ The milestone-12 helper/snapshot under tmp/ predates the user's final check;
 do not mistake it for the tested source. Verification came from the user's
 ordinary Git-source flake check. Further agent build/format/check executions
 still need explicit authorization. Minimum Git/other platforms remain untested.
-Node 13 now has a verified public-CLI end-to-end suite and expanded README
-tutorial, synchronization and diagnostic/compatibility boundaries, awaiting the
-user's project review/staging/commit.
+Node 13's verified public-CLI end-to-end suite and expanded README tutorial,
+synchronization and diagnostic/compatibility boundaries are now committed by
+the user as `test(git-roam): verify the standard Git lifecycle end to end`.
+Read-only comparison confirms all 48 committed files match the final verified
+snapshot; the project worktree is clean. Nodes 0 through 13 are complete and
+user-committed. The current standard-Git implementation batch is finished.
 Four matrix cases cover SHA-1/SHA-256 and files/reftable, CLI Node creation and
 exact old dependencies, push to local bare remotes, clone/fetch/deploy/tracking, unsafe and safe native FF,
 native complete multi-ref updates under the ordinary Hook, discard, deletion,
@@ -89,17 +92,19 @@ coverage; the final source also passed all 244 cases / 12 suites (check phase
 eligible files with zero changes. Only the inherited Undeployment.hs unused
 import warning was observed; no new warnings. The standard-Git loop is accepted
 on the pinned x86_64-linux environment; minimum Git and other systems are not.
-The source has three project changes: README.org, cabal/git-roam.cabal and the
+The acceptance commit has three project changes: README.org, cabal/git-roam.cabal and the
 new cabal/test/EndToEnd.hs. No production code, lockfile or protection config
 changes were needed. CHANGELOG's current-batch boxes were already completed by
 node 12 and remain unchanged, as does TODO 0.1.0. No release/tag is implied.
 Final derivation: /nix/store/isbwc7vsz74h5m83rman5labsbqzs73m-git-roam-0.1.0.drv.
-All 48 current/snapshot files match manifest SHA-256
+All 48 committed/current/snapshot files match manifest SHA-256
 f791412a9a958b339d3293f33b25c611378ee87c240941688429919be37601db.
 Snapshot/helper: tmp/git-roam-milestone13-source/ and
-tmp/prepare-milestone13-source.py. Tests used uncommitted source, so this handoff
-does not add a guessed project parent. Ordinary test work has no independent
-archival requirement.
+tmp/prepare-milestone13-source.py. Tests originally used uncommitted source;
+post-commit read-only blob comparison now grounds the completed state in the
+exact committed snapshot. This is source equivalence verification, not a new
+post-commit test run or retrospective provenance for earlier test sessions.
+Ordinary test work has no independent archival requirement.
 
 ## Navigation and authority
 
@@ -892,19 +897,16 @@ impact preview/explicit confirmation, conditional ref deletion and result checks
 Node-12 code and tests are verified by the user's successful flake check, with
 all 240 cases passing. The user committed the implementation and corrected
 CHANGELOG; project status was clean at transition. Node 13 passed final build,
-all 244 tests and flake/format checks. Present the three-file acceptance/test/docs
-change for user review/staging; draft a message only from the eventual selected
-diff and wait for the user's project commit. Then confirm committed source
-against the verified 48-file snapshot. No extra checks absent new changes or
-concerns. The standard-Git loop is accepted on x86_64-linux/Git 2.56.0; report
-minimum-version and other-platform gaps. Deployment acceleration and optional
-naming remain deferred. Preserve TODO 0.1.0; do not release/tag or choose whether
-the deferred candidates belong in this version without a user decision.
-Node-11 build/format/check authorization does not authorize node-12 commands.
-Do not rerun checks merely to duplicate the user's successful verification.
-After node-13 checks, report overall progress as the user requested, then stop
-at its project review/commit boundary. Never stage/commit project files or
-install project protection. Preserve archives and prior snapshots.
+all 244 tests and flake/format checks, and its user commit matches all 48 verified
+files. The project worktree is clean; the standard-Git batch is complete and
+there is no next implementation milestone in this accepted plan. Report completion
+and wait for the user's next objective. Do not start deferred acceleration,
+alternative naming, minimum-version/platform work or release preparation by
+default. The standard-Git loop is accepted on x86_64-linux/Git 2.56.0; report
+minimum-version and other-platform gaps. Preserve TODO 0.1.0; do not release/tag
+or choose whether deferred candidates belong in this version without a user
+decision. No extra checks absent new changes or concerns. Never stage/commit
+project files or install project protection. Preserve archives and prior snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

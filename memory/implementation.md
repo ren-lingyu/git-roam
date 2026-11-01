@@ -25,8 +25,11 @@ the user's flake check passed all 11 suites / 240 cases on x86_64-linux, includi
 24 deletion cases. The subsequently corrected deletion CHANGELOG checkbox is
 included in the user's seven-file commit, with TODO 0.1.0 unchanged. The project
 worktree was clean at transition. Node 13 public-CLI end-to-end tests and README
-tutorial/synchronization/diagnostic limits are verified, awaiting user project
-review/staging/commit. All 244 cases / 12 suites and final format/flake checks
+tutorial/synchronization/diagnostic limits are verified and user-committed.
+All 48 committed files match the verified snapshot, with a clean project worktree.
+Nodes 0 through 13 of the accepted standard-Git batch are complete. No further
+implementation work is authorized by that batch; wait for the next user objective.
+All 244 cases / 12 suites and final format/flake checks
 passed on x86_64-linux. The four matrix cases cover both object formats and ref
 backends, explicit push to a local bare remote, clone/fetch/tracking, safe native
 FF and multi-ref updates, discard/delete and lifecycle completion. Current-batch
