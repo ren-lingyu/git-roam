@@ -8,6 +8,7 @@ build-type:    Simple
 library
   hs-source-dirs:   src
   exposed-modules:
+    GitRoam.Application.Deploy
     GitRoam.Application.Inspect
     GitRoam.Application.Protection
     GitRoam.Application.Worktree
@@ -94,7 +95,10 @@ test-suite worktree-tests
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
   main-is:            Worktree.hs
-  other-modules:      TestSupport
+  other-modules:
+    TestSupport
+    WorktreeFixture
+
   build-tool-depends: git-roam:git-roam
   build-depends:
     , base        >=4.16 && <5
@@ -104,6 +108,26 @@ test-suite worktree-tests
     , filepath
     , git-roam
     , unix
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded
+
+test-suite deployment-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Deployment.hs
+  other-modules:
+    TestSupport
+    WorktreeFixture
+
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , git-roam
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded

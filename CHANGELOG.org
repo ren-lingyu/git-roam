@@ -21,11 +21,11 @@ Unchecked items describe planned work, not a claim of available functionality.
 - [X] Show Node history, Checkpoint dependencies, worktree locations, and diagnostic states.
 
 *** Full worktree deployment
-- [ ] Deploy all Nodes after clone or fetch, establishing missing local tracking branches without advancing existing local branches.
-- [ ] Recognize existing Node linked worktrees, including manually created and moved worktrees.
+- [X] Deploy all Nodes after clone or fetch, establishing missing local tracking branches without advancing existing local branches.
+- [X] Recognize existing Node linked worktrees, including manually created and moved worktrees.
 - [ ] Safely undeploy all Node linked worktrees while retaining Node branches and repository protection.
-- [ ] Detect path conflicts and unsafe worktree states, and protect uncommitted, untracked, and ignored user data.
-- [ ] Report partial failures and preserve user changes during conservative compensation, maintaining dependency closure when branches are involved.
+- [X] Detect path conflicts and unsafe worktree states, and protect uncommitted, untracked, and ignored user data.
+- [X] Report partial failures and preserve user changes during conservative compensation, maintaining dependency closure when branches are involved.
 
 *** Explicit history removal
 - [ ] Preview Checkpoint discard targets, their complete collateral effects, and affected Content history with =--dry-run=.

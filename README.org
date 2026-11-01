@@ -31,6 +31,7 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam status
   git roam enable
   git roam disable
+  git roam deploy --path /path/to/worktrees
 #+end_src
 
 Help and version queries do not require a Git repository. Successful queries write to standard output and exit with status 0. Invalid commands, help topics, or arguments write a diagnostic to standard error and exit with status 2.
@@ -61,7 +62,7 @@ Cabal declares the CLI test dependency through =build-tool-depends=. The tests l
 
 Ordinary Git updates may edit or replace unconfirmed Content and add valid Checkpoints. They must retain the Root and every already retained formal Checkpoint. Ordinary Node branch creation, deletion and Checkpoint discard are refused. The Hook validates the complete candidate set of a multi-ref transaction in =prepared=; Content updates that keep the same formal history use a local history check rather than a full repository scan.
 
-=disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Full deployment and undeployment commands are not yet implemented; existing worktrees can be managed with native Git.
+=disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Full undeployment is not yet implemented; existing worktrees can be removed safely with native Git.
 
 Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook. History-modifying public commands remain later work.
 
@@ -77,10 +78,30 @@ The library projects Checkpoints to their content tree, formal predecessors =H= 
 Protocol tests include malformed graphs, same-Node history convergence, empty-diff Content, dependency replacement and removal, and generated SHA-1/SHA-256 graphs comparing projected knowledge ancestry with raw Git ancestry. The native object reader and shared managed-state validator power =check= and =status=. A pure transition validator checks Root consistency and preservation of all existing formal Checkpoints and is shared with realtime reference protection.
 
 * Internal worktree foundation
-The library provides whole-set worktree planning and protected native add/remove primitives. Public =deploy=, =undeploy= and =node create= commands remain future work. Planning preserves existing manual or moved Node linked worktrees, distinguishes main and detached worktrees, and refuses locked, missing or prunable targets. Main worktrees are never removal targets.
+The library provides whole-set worktree planning and protected native add/remove primitives. Public =undeploy= and =node create= commands remain future work. Planning preserves existing manual or moved Node linked worktrees, distinguishes main and detached worktrees, and refuses locked, missing or prunable targets. Main worktrees are never removal targets.
 
 Default directory names hash the canonical UUID's ASCII bytes with SHA-256, encode the first five digest bytes using standard Base32, and use eight lowercase characters without padding. Names are derived paths, with explicit collision checks; no mapping or deployment-root registry is stored.
 
 Deployment roots must be empty or contain only existing Node linked worktrees. Nested roots must be wholly ignored by their outer Git repository and contain no tracked outer paths. Symlink path components, occupied targets and Git administration directories are refused. Existing deployments are not relocated when a different root is supplied.
 
 Removal planning checks all targets before execution, including staged, unstaged, untracked and ignored data, empty untracked directories, special files, unfinished Git operations and nested worktrees. Assume-unchanged or skip-worktree index entries and submodules are conservatively refused. Only selected nested Node linked worktrees may be removed, deepest first. Execution rechecks the plan under the repository operation lock and never uses force, stash or clean. These primitives do not modify Node branches or claim filesystem atomicity; a failed Git operation can leave residual state for its caller to report and handle conservatively.
+
+* Full deployment after clone or fetch
+Enable protection, fetch the desired history with ordinary Git, then deploy:
+
+#+begin_src sh
+  git roam enable
+  git fetch origin
+  git roam deploy --path /path/to/worktrees
+  git roam check
+#+end_src
+
+=deploy= targets every local UUID Node branch and every selected canonical fetched Node candidate missing a local branch. It does not select Node subsets, fetch objects, advance existing local branches, merge histories or move existing worktrees. Existing local tips always take precedence over remote candidates. A Node checked out in the main worktree is reported as a conflict; deployment does not switch that worktree.
+
+Candidate discovery uses =refs/remotes/<remote>/<uuid>=. One source is usable; sources with the same OID coalesce deterministically. Different OIDs are refused even when =checkout.defaultRemote= would choose one. Use =--remote origin= to restrict missing-Node discovery to that remote; all existing local Nodes remain included. Candidates must have matching UUID identities and complete legal histories. Dependencies must be retained by branches in the complete final set; deployment never guesses a missing source's latest tip from an old dependency Checkpoint.
+
+The complete candidate set and paths are checked before structural writes. Missing local branches are established together using a conditional Git ref transaction, then Git's native =branch --set-upstream-to= configures tracking and =worktree add= performs checkout. Existing local branch configuration for a missing Node causes refusal. This supports fetched histories whose dependencies cannot be established one branch at a time. New worktrees use =<path>/<short(uuid)>=; already deployed Nodes keep their actual paths. Relative =--path= is resolved from the invocation directory. A relative root inside an existing worktree must already be wholly ignored; Git-roam does not edit ignore rules.
+
+On failure, the command reports failure and actual residual state. Compensation only attempts worktrees newly created by this operation, with unchanged planned tips and safe contents. New branches can be removed only if unchanged, unchecked-out, and unnecessary to the dependency closure of retained histories. Changed or required branches stay together. Preexisting branches and worktrees are retained. A failed compensation stops conservatively, and the deployment root may remain empty. Neither multi-worktree filesystem atomicity nor isolation from arbitrary external writers is promised. Concurrent changes or incomplete observations require inspection, not automatic repair.
+
+Tests exercise actual local clone/fetch, tracking setup, both object formats and reference backends, equivalent and divergent sources, incomplete-to-complete dependency closure, stale conditional updates, and checkout-Hook failures with and without new user data.

@@ -6,8 +6,11 @@ module GitRoam.Application.Worktree (
     RemovalPlan,
     ProtectedSession,
     planDeployment,
+    planDeploymentCandidate,
     planRemoval,
+    planRemovalFor,
     deploymentRoot,
+    deploymentRefs,
     pendingDeployments,
     existingDeployments,
     removalTargets,
@@ -53,6 +56,8 @@ data ProtectedSession = ProtectedSession (Git IO) FilePath (IORef (Set.Set BS.By
 
 deploymentRoot :: DeploymentPlan -> FilePath
 deploymentRoot (DeploymentPlan root _ _ _) = root
+deploymentRefs :: DeploymentPlan -> Map NodeId ObjectId
+deploymentRefs (DeploymentPlan _ state _ _) = managedRefs state
 existingDeployments :: DeploymentPlan -> Map NodeId FilePath
 existingDeployments (DeploymentPlan _ _ existing _) = existing
 pendingDeployments :: DeploymentPlan -> [(NodeId, FilePath)]
@@ -97,6 +102,10 @@ exists path = do
 
 observation :: Git IO -> FilePath -> ManagedState -> IO (Either String (Repository, [Worktree]))
 observation git directory state = runExceptT $ do
+    ExceptT (observeRefs git directory (managedRefs state))
+
+observeRefs :: Git IO -> FilePath -> Map NodeId ObjectId -> IO (Either String (Repository, [Worktree]))
+observeRefs git directory expected = runExceptT $ do
     found <- lift (inspectRepository git directory pathEnvironment)
     repository <- either (throwE . show) pure found
     bytes <- ExceptT (command git directory ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/"] BS.empty)
@@ -108,7 +117,7 @@ observation git directory state = runExceptT $ do
                 object <- either throwE pure (parseObjectId (repositoryObjectFormat repository) oid)
                 pure [(node, object)]
         _ -> throwE "Malformed ref observation"
-    unless (Map.fromList pairs == managedRefs state) (throwE "Managed refs changed or the supplied snapshot is not repository-wide")
+    unless (Map.fromList pairs == expected) (throwE "Managed refs changed or the supplied snapshot is not repository-wide")
     records <- ExceptT (listWorktrees git directory (repositoryObjectFormat repository))
     pure (repository, records)
 
@@ -131,8 +140,13 @@ registered git repository record = runExceptT $ do
     pure checkedPath
 
 planDeployment :: Git IO -> FilePath -> ManagedState -> FilePath -> IO (Either String DeploymentPlan)
-planDeployment git directory state requestedRoot = guardIO $ runExceptT $ do
-    (repository, records) <- ExceptT (observation git directory state)
+planDeployment git directory state = planDeploymentCandidate git directory (managedRefs state) state
+
+-- Preflight the complete target before creating missing local branches. Current
+-- refs may lack dependency branches; only the supplied final state is validated.
+planDeploymentCandidate :: Git IO -> FilePath -> Map NodeId ObjectId -> ManagedState -> FilePath -> IO (Either String DeploymentPlan)
+planDeploymentCandidate git directory current state requestedRoot = guardIO $ runExceptT $ do
+    (repository, records) <- ExceptT (observeRefs git directory current)
     root <- ExceptT (safeAbsolutePath (if isAbsolute requestedRoot then requestedRoot else directory </> requestedRoot))
     common <- lift (decodePath (repositoryCommonDirectory repository))
     unless (not (within common root)) (throwE "Deployment root is inside Git administration data")
@@ -193,9 +207,14 @@ outerIgnore git root = runExceptT $ do
             else if takeDirectory path == path then pure False else hasMetadata (takeDirectory path)
 
 planRemoval :: Git IO -> FilePath -> ManagedState -> IO (Either String RemovalPlan)
-planRemoval git directory state = guardIO $ runExceptT $ do
+planRemoval git directory state = planRemovalFor git directory state (Map.keysSet (managedRefs state))
+
+-- Internal compensation only: callers restrict this set to their own new,
+-- unchanged worktrees. This is not a public partial-undeploy interface.
+planRemovalFor :: Git IO -> FilePath -> ManagedState -> Set.Set NodeId -> IO (Either String RemovalPlan)
+planRemovalFor git directory state selected = guardIO $ runExceptT $ do
     (repository, records) <- ExceptT (observation git directory state)
-    let managed record = maybe False (`Map.member` managedRefs state) (worktreeNode record)
+    let managed record = maybe False (`Set.member` selected) (worktreeNode record)
         targets = sortOn (Down . BS.length . treePath) [r | r <- records, managed r, not (treeMain r)]
         mains = [r | r <- records, managed r, treeMain r]
         nodes = [node | record <- records, managed record, Just node <- [worktreeNode record]]
