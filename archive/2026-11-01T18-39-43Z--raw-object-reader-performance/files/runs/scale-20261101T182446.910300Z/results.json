@@ -1,0 +1,53 @@
+{
+  "stage": "scale",
+  "project_commit": "c1789363356cc3c7117ada31ceba6b647f6fb525",
+  "source_manifest_sha256": "726c2e440aa9ae9690f686715b67ff23ef240461bc80a23468f6a41cd39f8d5f",
+  "git": "git version 2.56.0",
+  "platform": "linux",
+  "workload": "Full inspectState with fresh per-call caches; no CLI rendering",
+  "cache_policy": "OS caches are not flushed; raw repeats retained, no cold-cache claim",
+  "rss_policy": "GNU time max RSS, not the sum of simultaneous process RSS",
+  "resource_policy": "Sequential cases/repeats/modes, GHC -N1 -M512m, pack.threads=1; heap limit is not an RSS limit",
+  "fixtures": [
+    {
+      "nodes": 10000,
+      "checkpoints_per_node": 1,
+      "fanout": 0,
+      "generation_seconds": 0.9360903280321509,
+      "stream_sha256": "7b289549edaf6a0974c22980987eecbd23fda35fd08f49c7435c214bb4445313",
+      "objects": "count: 0\nsize: 0\nin-pack: 70002\npacks: 1\nsize-pack: 8407\nprune-packable: 0\ngarbage: 0\nsize-garbage: 0\n",
+      "case": "n10000-k1-d0"
+    }
+  ],
+  "measurements": [
+    {
+      "case": "n10000-k1-d0",
+      "mode": "persistent",
+      "repeat": 1,
+      "exit_code": 0,
+      "driver_seconds": 2.5704007880412973,
+      "nodes": 10000,
+      "checkpoints": 10000,
+      "validator_seconds": 2.549695996,
+      "logical_batch_requests": 60001,
+      "metadata_processes": 1,
+      "other_processes": 9,
+      "physical_git_processes": 11,
+      "result_digest": "16bd3d5e590b290be1b79e2cf95135570a326ba4a6bda9a441bd4dfae79f0c68",
+      "ghc": "9.12",
+      "wall_seconds": 2.56,
+      "user_seconds": 2.09,
+      "system_seconds": 0.89,
+      "max_rss_kib": 190124
+    },
+    {
+      "case": "n10000-k1-d0",
+      "mode": "oneshot",
+      "repeat": 1,
+      "exit_code": 251,
+      "driver_seconds": 120.89453048101859,
+      "incomplete": true
+    }
+  ],
+  "complete": false
+}

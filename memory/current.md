@@ -112,6 +112,8 @@ Ordinary test work has no independent archival requirement.
   encoding/projection, managed closure, lifecycle, deployment, discard and delete.
 - [implementation.md](implementation.md): accepted plan, experiment gate, serial
   project commits, execution defaults, validation and authorization boundaries.
+- [object-reader-performance.md](object-reader-performance.md): completed isolated
+  full-validator performance comparison, resource budgets, raw evidence and limits.
 - [native-git-validation.md](native-git-validation.md): actual standard-Git results,
   native failure hazards, verified adapter choices and the independent archive.
 - [experiment.md](experiment.md): completed independent batch-patch experiment,
@@ -889,6 +891,32 @@ parent represents this tested uncommitted snapshot; no independent archive is
 needed for ordinary source implementation/testing.
 
 ## Next action and authorization
+
+The user subsequently requested an isolated flake-managed raw-object performance
+measurement for potential 10,000-Node use. Follow
+[object-reader-performance.md](object-reader-performance.md) for the confirmed
+per-object process behavior, experiment design, actual command authorizations,
+results and limits. The user authorized commands 1–4 and requested bounded parallelism.
+Experiment files/source are under tmp/object-read-performance/. Corrected locking,
+single-job/core build and all pilot measurements passed. At 1,000 Nodes the
+baseline median is 12.2585s / 6,011 Git processes versus 0.1846s / 11 for the
+experimental persistent adapter; digests agree. The original 10,000-Node stage ran
+serially with one GHC capability and a 512 MiB managed heap limit. Its first
+persistent run passed in 2.5497s / 11 processes. The baseline then exhausted that
+configured heap after 120.89s (exit 251) and the stage stopped without retry or
+OS OOM. No 10,000-Node paired median follows from that run. The user asked about
+raising the cap and then explicitly authorized the new 1 GiB command on demand.
+That stage completed all six runs with unchanged 180s child deadlines and matching
+result digests. At 10,000 Nodes the medians are 121.2960s / 60,011 Git launches
+for baseline and 1.7260s / 11 for the persistent prototype (~70.3x). Median max
+RSS is ~346.8 MiB / ~185.2 MiB. Pilot and both scale budgets are preserved; no
+further measurements or cap changes are needed. The completed report and 14
+byte-verified small evidence files are preserved in
+archive/2026-11-01T18-39-43Z--raw-object-reader-performance/. Report the measured
+scalability problem, budget distinction and prototype limits, then wait for the
+user's next decision. Project status remains clean and no product change follows.
+This task does not authorize a production reader change, DAG change or permanent
+cache. Prior implementation command approvals do not transfer to the experiment.
 
 The user's node-11 commit was confirmed against all 45 verified source files;
 the project was clean at transition. Node 12 implements non-cascading Node
