@@ -8,7 +8,8 @@ model; [current.md](current.md) distinguishes actual work from intended features
 This file retains the accepted plan so recovery does not depend on a chat or
 ignored temporary file. Node 1 is committed and its exact source was compared
 with the verified GHC 9.12 snapshot. Node 2 is implemented and verified in the
-project history, confirmed equal to its tested snapshot; node 3 is active. See current.md for evidence,
+project history, confirmed equal to its tested snapshot. Node 3 is implemented and
+verified in the worktree, awaiting user staging/commit. See current.md for evidence,
 actual progress and authorization boundaries.
 
 Use serial milestones, not parallel agents. Each project commit must independently
@@ -71,6 +72,14 @@ formats and distinguish H-only ancestry from combined H/D Git ancestry. Shared
 subtrees across Nodes are cached once. The user committed node 2 and its 24
 committed source files were confirmed equal to the tested snapshot before node 3.
 Refresh snapshots after source changes; approvals remain scoped to their node.
+
+Node 3 now passes all 79 cases (22 native inspection cases plus the existing 57),
+build and flake checks on x86_64-linux. check/status share native stored-object
+reading and current/candidate managed-state validation, while the pure ordinary
+transition relation preserves Root and every old K. Actual Hook enforcement and
+controlled creation remain node 4. The user-facing inspection/status CHANGELOG
+boxes are complete; repository protection is not. README records scope, codes,
+no-repair behavior and unstable-observation limits. Await the user node-3 commit.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.

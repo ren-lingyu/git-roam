@@ -26,9 +26,10 @@ protocol and projection, with
 corresponding tests and README. Its final build passed 36 protocol cases and the
 existing 21 cases, with no compiler warnings, and flake check passed. No new CLI
 command was advertised by node 2. Its user commit was confirmed against all 24
-files in the tested snapshot. Node 3 is drafted in the worktree. Its initial
-build passed all 77 cases; final diagnostic/observation refinements are being
-verified under the separately granted node-3 command authorization.
+files in the tested snapshot. Node 3 is implemented and verified in the worktree,
+awaiting user review/staging/commit. Its final build passed all 79 cases with no
+compiler warnings, and flake check passed on x86_64-linux. check/status are now
+available. Do not begin node 4 until the user commits node 3.
 
 ## Navigation and authority
 
@@ -85,13 +86,18 @@ GIT_ROAM_GIT at compile time and keeps doCheck enabled. Version is still 0.1.0;
 locked inputs and declared x86_64-linux/aarch64-linux/aarch64-darwin are unchanged.
 No patched Git is integrated.
 
+The committed baseline also includes node-2 Protocol.Identity/Objects/History,
+its 36 protocol cases and README. The uncommitted node-3 changes are described
+below; no protection lifecycle or mutating Node command is implemented yet.
+
 README.org retains the user's title/author and now documents the implementation's actual
-help/version interface, build/check commands, native Git selection and tests.
+help/version and inspection interfaces, build/check commands, native Git selection and tests.
 The committed CHANGELOG.org roadmap
 preserves its canonical Org header and TODO 0.1.0, and adds unchecked planned
 user-facing features under Added. It explicitly separates optional naming and
 acceleration candidates from the current batch, and makes no no-op/scaffolding
-claims. No product feature checkbox is marked complete.
+claims. At the node-2 committed baseline no product checkbox was complete; the
+node-3 worktree marks only inspection/status complete, as detailed below.
 
 ## Verification and provenance limits
 
@@ -225,24 +231,88 @@ node 2. All 24 committed files match the tested snapshot; the worktree is clean.
 The pre-commit tests were not rerun merely to create provenance. This direct
 committed-source comparison grounds the node-3 transition in the actual baseline.
 
+## Node-3 implementation and verification
+
+GitRoam.Git.Objects decodes stored commit headers and binary tree entries through
+cat-file --batch for SHA-1/SHA-256. Per-call inspection uses --no-replace-objects,
+GIT_NO_LAZY_FETCH=1, GIT_OPTIONAL_LOCKS=0 and GIT_GRAFT_FILE=/dev/null. The latter
+keeps rev-list connectivity aligned with raw stored parents: an integration case
+confirms a graft cannot hide a missing older marker blob. No payload bodies are
+needed for protocol interpretation; rev-list --objects --missing=print checks
+reachable object evidence, while shallow repositories report incomplete history.
+The Git source identifies GIT_GRAFT_FILE in environment.h; native fixture behavior
+is the verification basis, not a claim about an untested Git release.
+
+Protocol.Repository provides private ManagedState, validation of branch UUID/tip
+identity and every retained Checkpoint's dependency branch/version membership,
+and a pure Root/formal-history preservation relation between validated states.
+The relation rejects existing branch removal, Root changes and loss of any old K,
+while allowing non-FF replacement of unconfirmed Content. Creation authorization
+and realtime enforcement still belong to node 4; this pure relation alone does
+not grant ordinary Git permission to create managed branches.
+
+Application.Inspect shares these functions between public check/status and later
+operations. It enumerates only canonical local UUID heads as managed candidates,
+keeps symbolic targets in before/after observations, diagnoses unsupported Node
+symbolic refs, and does not silently drop broken-ref warnings. Explicit Node scope
+expands to the persistent branches required by all of that Node's retained formal
+history; unrelated malformed histories need not block that selected scope.
+Repository scope checks every managed Node. Required missing branches differ from
+present branches lacking the required formal version. Old and same-UUID merged
+formal history dependencies are included, not only the latest/first-parent path.
+
+CLI exposes check/status [--node <uuid>]. Without --node it infers an actual Node
+worktree, otherwise falls back to repository scope. Read-only commands need no
+enabled protection. Status shows Root/Content/Checkpoint tip, latest K, unconfirmed
+Content, formal count, exact dependencies and actual Git-recorded worktree paths.
+Content dependencies are explicitly labelled as the latest K's, not Content's own;
+no Checkpoint means no formal declaration. Main, linked/moved and detached records
+are distinguished. No deployment registration or Node lifecycle is introduced.
+
+Exit codes: 0 successful; 1 protocol/management violation; 2 argument error;
+3 unavailable evidence, Git read failure or refs changing during observation.
+Before/after comparison also runs after an unsuccessful history/state inspection;
+a changed observation takes precedence over a transient closure diagnosis. It
+does not provide a global atomic snapshot or arbitrary-writer serializability.
+Neither inspection nor failure diagnosis repairs refs/history/worktrees.
+
+Cabal inspection-tests passed 22 cases, including real native histories for both
+files/reftable and SHA-1/SHA-256, raw decoders, identity/Root conflicts, historical
+and merged dependency closure, scope, missing blobs/commits, replace/grafts/shallow,
+dirty-index/file/ref preservation, main/moved/detached and bare worktrees, symbolic
+refs, changing observations, native Content retention and actual CLI diagnostics.
+The existing 36 protocol, 12 unit and nine adapter cases also pass: 79 total.
+Final build has no compiler warnings. Initial success was followed by an unused-
+import cleanup, stronger actual CLI failure assertions and stored-history checks.
+
+The user separately authorized on-demand repetition, in order, of these exact
+commands for node 3, each now passed with exit 0:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone3-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone3-source
+
+GHC 9.12.3/Cabal 3.14.2.0, standard Git 2.56.0, x86_64-linux; aarch64-linux and
+aarch64-darwin were omitted. No lockfile or Nix packaging changes. Final derivation:
+/nix/store/3csvw0wmgh74kfngr3y6jm09rygs5fj8-git-roam-0.1.0.drv.
+All 28 project/snapshot source files match manifest SHA-256
+f9f42c24320bb8cbfc6e673a2f6ef90ce7f35a667d754fd6954817217e86292d.
+The bounded helper and snapshot use tmp/prepare-milestone3-source.py and
+tmp/git-roam-milestone3-source/, preserving earlier snapshots. diff --check passes
+and the project index is empty. README describes current commands and boundaries.
+CHANGELOG remains TODO 0.1.0 and marks only inspection/status capabilities complete;
+all protection and modifying-operation boxes remain unchecked. The tested source
+is uncommitted, so no new project parent is justified for this handoff checkpoint.
+
 ## Next action and authorization
 
-The user confirmed node 2 committed and requested continuation under the standing
-serial plan. Implement node 3: stored object decoding and missing-evidence checks,
-shared current/candidate managed-state validation, check/status, explicit --node
-or current Node worktree selection with repository fallback, and actual worktree
-locations. Distinguish protocol violations, incomplete management, unavailable
-evidence and changing observations. Read-only commands require no protection.
-The user separately authorized on-demand repetition, in order, of root formatting
-and build/check against path:./tmp/git-roam-milestone3-source, each timeout 120s.
-The bounded source copy helper is tmp/prepare-milestone3-source.py and preserves
-earlier snapshots. Current draft adds native stored-object decoding, pure managed
-state/ordinary-transition validation, read-only check/status and integration cases.
-An initial build passed 20 new inspection cases and the existing 57 cases;
-one unused-import warning was fixed, then symbolic-ref snapshot handling and
-actual CLI failure diagnostics were strengthened. Final verification is pending.
-Do not stage or commit project
-files. Preserve both independent archives and earlier source snapshots.
+Present node 3 for user review and staging, review its actual index and prepare
+the commit message, then wait for the user's commit. Confirm its committed source
+against the tested snapshot before node 4 (enable/disable, named realtime Hook,
+coordination, modification prerequisites). Do not stage/commit project files or
+start node 4 now. No additional checks are needed absent source changes or a new
+concern. Preserve archives and earlier snapshots. GAW maintenance is separate
+from project commits and continues through its public authorized loop.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
