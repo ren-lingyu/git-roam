@@ -9,8 +9,8 @@ Unchecked items describe planned work, not a claim of available functionality.
 
 ** Added
 *** Repository protection
-- [ ] Enable and disable repository protection independently of worktree deployment.
-- [ ] Protect all retained Checkpoints while allowing legal native Git Content edits and formal history advancement.
+- [X] Enable and disable repository protection independently of worktree deployment.
+- [X] Protect all retained Checkpoints while allowing legal native Git Content edits and formal history advancement.
 
 *** Node history and dependencies
 - [ ] Create a UUID-identified Node and an editable linked worktree under an explicit deployment path.

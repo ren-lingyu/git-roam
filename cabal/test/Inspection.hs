@@ -11,6 +11,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import GitRoam.Application.Inspect
+import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Git
 import GitRoam.Git.Objects
 import GitRoam.ObjectId
@@ -18,7 +19,7 @@ import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Objects
 import GitRoam.Protocol.Repository
-import System.Directory (doesFileExist, findExecutable, makeAbsolute, removeFile)
+import System.Directory (createDirectory, doesFileExist, findExecutable, makeAbsolute, removeDirectory, removeFile)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
@@ -145,11 +146,113 @@ main = do
         , ("changed refs override a transient closure failure", changingRefsTest environment)
         , ("ordinary transitions preserve every formal Checkpoint", transitionTest environment)
         , ("CLI check/status and Node inference", cliTest environment)
+        , ("protection lifecycle accepts invalid history and detects conflicts", lifecycleTest environment)
+        , ("disable refuses manually deployed Node worktrees", disableWorktreeTest environment)
+        , ("own Hook bypass retains other named Hooks", hookCoexistenceTest environment)
         ]
             ++ [ ("real history matrix " ++ backend ++ " " ++ show format, matrixTest environment backend format)
                | backend <- ["files", "reftable"]
                , format <- [Sha1, Sha256]
                ]
+            ++ [ ("native protection " ++ backend ++ " " ++ show format, protectionTest environment backend format)
+               | backend <- ["files", "reftable"]
+               , format <- [Sha1, Sha256]
+               ]
+
+lifecycleTest :: [(String, Maybe String)] -> IO ()
+lifecycleTest environment = initialized environment "files" Sha1 $ \directory -> do
+    empty <- line <$> ok environment directory ["mktree"] BS.empty
+    malformed <- makeCommit environment directory empty [] "malformed Node"
+    setRef environment directory uuidA malformed
+    forM_ ["enable", "enable", "disable", "disable"] $ \command -> do
+        result <- invokeCli environment directory [command]
+        assertEqual ExitSuccess (gitExitCode result)
+    let lock = directory </> ".git/git-roam.operation.lock"
+    createDirectory lock
+    BS.writeFile (lock </> "owner") "existing lock"
+    busy <- invokeCli environment directory ["enable"]
+    assertEqual (ExitFailure 1) (gitExitCode busy)
+    BS.readFile (lock </> "owner") >>= assertEqual "existing lock"
+    removeFile (lock </> "owner")
+    removeDirectory lock
+    _ <- ok environment directory ["config", "hook.git-roam-reference-transaction.command", "foreign command"] BS.empty
+    conflict <- invokeCli environment directory ["enable"]
+    assertEqual (ExitFailure 1) (gitExitCode conflict)
+    value <- ok environment directory ["config", "--get", "hook.git-roam-reference-transaction.command"] BS.empty
+    assertEqual "foreign command\n" value
+
+disableWorktreeTest :: [(String, Maybe String)] -> IO ()
+disableWorktreeTest environment = initialized environment "files" Sha1 $ \directory -> withTempDirectory $ \outside -> do
+    _ <- makeRoot environment directory uuidA "A"
+    let linked = outside </> "user-linked"
+    _ <- ok environment directory ["worktree", "add", "-q", linked, BSC.unpack uuidA] BS.empty
+    enabled <- invokeCli environment directory ["enable"]
+    assertEqual ExitSuccess (gitExitCode enabled)
+    refused <- invokeCli environment directory ["disable"]
+    assertEqual (ExitFailure 1) (gitExitCode refused)
+    _ <- ok environment directory ["worktree", "remove", linked] BS.empty
+    disabled <- invokeCli environment directory ["disable"]
+    assertEqual ExitSuccess (gitExitCode disabled)
+
+hookCoexistenceTest :: [(String, Maybe String)] -> IO ()
+hookCoexistenceTest environment = initialized environment "files" Sha1 $ \directory -> do
+    (a, at, _) <- makeRoot environment directory uuidA "A"
+    enabled <- invokeCli environment directory ["enable"]
+    assertEqual ExitSuccess (gitExitCode enabled)
+    _ <- ok environment directory ["config", "hook.audit.event", "reference-transaction"] BS.empty
+    _ <- ok environment directory ["config", "hook.audit.command", "false"] BS.empty
+    w <- makeCommit environment directory at [a] "Content"
+    rejected <- invoke environment directory (ownHookBypass ++ ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack w]) BS.empty
+    assertTrue "Bypass disabled another Hook" (gitExitCode rejected /= ExitSuccess)
+    disabled <- invokeCli environment directory ["disable"]
+    assertEqual ExitSuccess (gitExitCode disabled)
+    ok environment directory ["config", "--get", "hook.audit.command"] BS.empty >>= assertEqual "false\n"
+
+protectionTest :: [(String, Maybe String)] -> String -> ObjectFormat -> IO ()
+protectionTest environment backend format = initialized environment backend format $ \directory -> do
+    (a, at, _) <- makeRoot environment directory uuidA "A"
+    (b, bt, _) <- makeRoot environment directory uuidB "B"
+    enabled <- invokeCli environment directory ["enable"]
+    assertEqual ExitSuccess (gitExitCode enabled)
+    w <- makeCommit environment directory at [a] "Content"
+    setRef environment directory uuidA w
+    ak <- makeCommit environment directory at [a, w] "Checkpoint"
+    -- Native FF adds a Checkpoint without a dedicated application operation.
+    setRef environment directory uuidA ak
+    let refA = BSC.unpack ("refs/heads/" <> uuidA)
+        reject args = do
+            result <- invoke environment directory args BS.empty
+            assertTrue "Unsafe ordinary ref update succeeded" (gitExitCode result /= ExitSuccess)
+    reject ["update-ref", refA, BSC.unpack a]
+    reject ["update-ref", "-d", refA]
+    reject ["update-ref", "-d", BSC.unpack ("refs/heads/" <> uuidB)]
+    reject ["update-ref", BSC.unpack ("refs/heads/" <> uuidC), BSC.unpack ak]
+    w1 <- makeCommit environment directory at [ak] "editing 1"
+    w2 <- makeCommit environment directory at [ak] "editing 2"
+    setRef environment directory uuidA w1
+    setRef environment directory uuidA w2
+    empty <- line <$> ok environment directory ["mktree"] BS.empty
+    bad <- makeCommit environment directory empty [w2] "invalid Content"
+    reject ["update-ref", refA, BSC.unpack bad]
+    bk <- makeCheckpoint environment directory bt b []
+    next <- makeCheckpoint environment directory at ak [bk]
+    -- Only the final two-ref set closes the new exact dependency.
+    reject ["update-ref", refA, BSC.unpack next]
+    _ <-
+        ok
+            environment
+            directory
+            ["update-ref", "--stdin"]
+            ("start\nupdate refs/heads/" <> uuidA <> " " <> next <> "\nupdate refs/heads/" <> uuidB <> " " <> bk <> "\nprepare\ncommit\n")
+    report <- inspect environment directory Nothing
+    valid report
+    assertEqual [objectId format next] [viewTip node | node <- reportNodes report, viewNode node == nodeId uuidA]
+    -- Symbolic HEAD/no-op records coexist with ordinary Content commits.
+    _ <- ok environment directory ["switch", "-q", BSC.unpack uuidA] BS.empty
+    _ <- ok environment directory ["commit", "-q", "--allow-empty", "-m", "native editing"] BS.empty
+    _ <- ok environment directory ["commit", "-q", "--amend", "--allow-empty", "-m", "revised editing"] BS.empty
+    _ <- ok environment directory ["reset", "--soft", BSC.unpack next] BS.empty
+    pure ()
 
 decoderTest :: IO ()
 decoderTest = forM_ [Sha1, Sha256] $ \format -> do

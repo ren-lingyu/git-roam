@@ -14,6 +14,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import GitRoam.Application.Inspect
+import qualified GitRoam.Application.Protection as Protection
 import GitRoam.BuildInfo (packageVersion)
 import GitRoam.Git
 import GitRoam.ObjectId
@@ -24,10 +25,10 @@ import GitRoam.Protocol.Repository
 import System.Directory (getCurrentDirectory)
 import System.Exit (ExitCode (..))
 
-data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp
+data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp
     deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId)
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -53,6 +54,16 @@ parseCommand arguments = case arguments of
     ["help", "version"] -> help VersionHelp
     ["help", "check"] -> help CheckHelp
     ["help", "status"] -> help StatusHelp
+    ["help", "enable"] -> help EnableHelp
+    ["help", "disable"] -> help DisableHelp
+    ["enable", "--help"] -> help EnableHelp
+    ["disable", "--help"] -> help DisableHelp
+    ["enable", "-h"] -> help EnableHelp
+    ["disable", "-h"] -> help DisableHelp
+    ["enable"] -> Right EnableProtection
+    ["disable"] -> Right DisableProtection
+    "enable" : _ -> Left "Usage: git roam enable"
+    "disable" : _ -> Left "Usage: git roam disable"
     ["check", "--help"] -> help CheckHelp
     ["check", "-h"] -> help CheckHelp
     ["status", "--help"] -> help StatusHelp
@@ -84,6 +95,8 @@ renderHelp topic = case topic of
             , "  version         Print the package version"
             , "  check           Validate Node history and managed dependencies"
             , "  status          Show Node history, dependencies and worktrees"
+            , "  enable          Enable repository reference protection"
+            , "  disable         Disable protection after full undeployment"
             , ""
             , "Options:"
             , "  -h, --help      Show general help"
@@ -93,6 +106,8 @@ renderHelp topic = case topic of
     VersionHelp -> Text.unlines ["usage: git roam version", "       git roam --version", "", "Print the package version."]
     CheckHelp -> inspectionHelp "check" "Validate the complete protocol and managed dependency closure."
     StatusHelp -> inspectionHelp "status" "Show actual Node history, dependencies, worktrees and diagnostics."
+    EnableHelp -> Text.unlines ["usage: git roam enable", "", "Enable this executable's named repository Hook without changing knowledge history."]
+    DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
   where
     inspectionHelp command description =
         Text.unlines
@@ -105,13 +120,26 @@ renderHelp topic = case topic of
             ]
 
 runCli :: [String] -> IO CliResponse
+runCli ["--reference-transaction", phase] | phase `elem` ["preparing", "prepared", "committed", "aborted"] = do
+    directory <- getCurrentDirectory
+    input <- BSC.getContents
+    result <- Protection.evaluateTransaction directory phase input
+    pure $ case result of
+        Right () -> CliResponse ExitSuccess "" ""
+        Left problem -> CliResponse (ExitFailure 1) "" ("git-roam: reference update refused: " <> Text.pack problem <> "\n")
 runCli arguments = case parseCommand arguments of
     Left message -> pure (failure 2 (message <> "\nTry 'git roam --help' for usage."))
     Right (ShowVersion) -> pure (success ("git-roam " <> Text.pack packageVersion <> "\n"))
     Right (ShowHelp topic) -> pure (success (renderHelp topic))
     Right (CheckNode node) -> inspect False node
     Right (StatusNode node) -> inspect True node
+    Right EnableProtection -> lifecycle Protection.enableProtection "Repository protection enabled.\n"
+    Right DisableProtection -> lifecycle Protection.disableProtection "Repository protection disabled.\n"
   where
+    lifecycle operation message = do
+        directory <- getCurrentDirectory
+        result <- operation directory
+        pure $ either (failure 1 . Text.pack) (const (success message)) result
     inspect status requested = do
         directory <- getCurrentDirectory
         let git = nativeGit defaultGitExecutable

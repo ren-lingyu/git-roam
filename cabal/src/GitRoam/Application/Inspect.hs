@@ -8,6 +8,7 @@ module GitRoam.Application.Inspect (
     WorktreeView (..),
     inspectState,
     inferNode,
+    validateCandidate,
 ) where
 
 import Control.Monad (foldM, unless)
@@ -40,6 +41,7 @@ data InspectionError
     | HistoryFailure HistoryError
     | MissingReachableObjects [BS.ByteString]
     | ReferencesChanged
+    | CandidateStateInvalid [StateProblem]
     deriving (Eq, Show)
 
 data WorktreeView = WorktreeView
@@ -212,3 +214,23 @@ cachedSource provider = do
                     modifyIORef' cache (Map.insert oid value)
                     pure value
     pure (HistorySource (cached commits (loadCommit provider)) (cached trees (loadTree provider)))
+
+-- A caller-supplied final ref set; no ref writes or claim of a live snapshot.
+validateCandidate :: Git IO -> FilePath -> Map NodeId ObjectId -> IO (Either InspectionError ManagedState)
+validateCandidate git directory refs = runExceptT $ do
+    discovered <- lift (inspectRepository git directory readOnlyEnvironment)
+    repository <- either (throwE . RepositoryDiscoveryFailure) pure discovered
+    let format = repositoryObjectFormat repository
+    loaded <- lift (validateHistory format (nativeHistorySource git directory format []) (Map.elems refs))
+    history <- either (throwE . HistoryFailure) pure loaded
+    unless (Map.null refs) $ do
+        let arguments =
+                ["--no-replace-objects", "rev-list", "--objects", "--no-object-names", "--missing=print"]
+                    ++ map (BSC.unpack . objectIdBytes) (Map.elems refs)
+                    ++ ["--"]
+        outcome <- lift (runGit git (GitInvocation directory arguments BS.empty readOnlyEnvironment))
+        result <- either (throwE . InspectionTransportFailure arguments) pure outcome
+        unless (gitExitCode result == ExitSuccess) (throwE (InspectionGitFailure arguments result))
+        let missing = [BS.drop 1 row | row <- BSC.lines (gitStdout result), "?" `BS.isPrefixOf` row]
+        unless (null missing) (throwE (MissingReachableObjects missing))
+    either (throwE . CandidateStateInvalid) pure (validateManagedState history refs)

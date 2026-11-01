@@ -29,6 +29,8 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam version
   git roam check
   git roam status
+  git roam enable
+  git roam disable
 #+end_src
 
 Help and version queries do not require a Git repository. Successful queries write to standard output and exit with status 0. Invalid commands, help topics, or arguments write a diagnostic to standard error and exit with status 2.
@@ -53,6 +55,17 @@ The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal
 The test suites cover CLI behavior, SHA-1 and SHA-256 object IDs, native Git failures, binary input/output, argument boundaries, and repository discovery for ordinary, bare, and linked worktrees. Git integration tests use dedicated temporary repositories and isolated configuration.
 
 Cabal declares the CLI test dependency through =build-tool-depends=. The tests locate the resulting executable on =PATH=. The Nix package selects the GHC 9.12 package set, including its Cabal build driver. No test executable path is injected by Nix.
+
+* Repository protection
+=enable= configures this executable's named =reference-transaction= Hook in the common repository configuration. It can run before knowledge history or dependency closure is valid, creates no Node or worktree, and is idempotent when the installed configuration matches. Conflicting, inherited or incomplete configuration is refused rather than overwritten. Other Hooks remain configured and active.
+
+Ordinary Git updates may edit or replace unconfirmed Content and add valid Checkpoints. They must retain the Root and every already retained formal Checkpoint. Ordinary Node branch creation, deletion and Checkpoint discard are refused. The Hook validates the complete candidate set of a multi-ref transaction in =prepared=; Content updates that keep the same formal history use a local history check rather than a full repository scan.
+
+=disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Full deployment and undeployment commands are not yet implemented; existing worktrees can be managed with native Git.
+
+Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook. History-modifying public commands remain later work.
+
+The current build uses Git 2.56.0. Protection requires configured named Hook support and enforces a Git 2.54 version floor; the full behavior on that minimum version and on other platforms remains unverified. Hook configuration identifies the enabled executable, so a different executable or divergent configuration requires an explicit lifecycle/configuration review. Configuration writes use Git's own locking; a failed installation is not claimed to be an atomic configuration transaction.
 
 * History protocol library
 The Haskell library validates decoded commit and tree objects through an injectable object source. It checks canonical UUID directories and regular-file =.roam= markers, unique Roots, single-parent Content chains, and Checkpoint parent roles and tree equality. Required missing objects and incomplete history are reported as unavailable evidence.
