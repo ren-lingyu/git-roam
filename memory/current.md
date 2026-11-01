@@ -36,8 +36,10 @@ on x86_64-linux. The project worktree was clean at transition. Node 5 is now
 committed by the user. All 33 committed files match its tested snapshot; the
 project worktree was clean at transition to node 6. Node 6 is committed by the
 user and all 36 committed files match its tested snapshot. The project worktree
-was clean at transition to node 7. Node 7 is implemented and user-verified,
-awaiting staging of its final CHANGELOG checkbox and the user's project commit.
+was clean at transition to node 7. Node 7 is committed by the user; all 38
+committed files match its final snapshot, including CHANGELOG. The project
+worktree was clean at transition. Node 8 is implemented and verified in the
+worktree, awaiting user review/staging/commit, with all 153 cases passing.
 
 ## Navigation and authority
 
@@ -557,14 +559,80 @@ needs to stage CHANGELOG. The existing commit message remains semantically valid
 feat(git-roam): add full Node worktree undeployment. No project parent represents
 this uncommitted source; do not attach a baseline as though it was tested.
 
+## Node-8 implementation and verification
+
+The user committed node 7 and requested continuation if it matched expectations.
+All 38 committed files, including the final CHANGELOG checkbox, matched its source
+snapshot before new edits. Application.Create now implements node create --path:
+UUIDv4, empty-marker parentless Root, persistent local UUID branch and immediately
+editable linked worktree. It reports UUID, Root OID and actual short-name path.
+Only the new Node is deployed; other undeployed Nodes are not implicitly deployed.
+Internal plans carry an explicit operation target set: full deploy still targets
+all Nodes, while creation targets only the new one. Review found the original
+reuse of full-deploy planning incorrectly refused unrelated main/locked worktrees;
+that restriction is corrected and covered by two additional regression groups.
+Valid existing linked directories are still recognized for deployment-root reuse.
+
+Cabal adds uuid for UUIDv4 generation, selected from locked nixpkgs (1.3.16.1 in
+this build). The library accepts an injected identity generator for deterministic
+collision tests, but the CLI exposes no user-selected UUID. New identities must
+have v4/variant bits; historical identity parsing is unchanged. Current managed
+history must be valid. Local/fetched/tag/configuration or unborn-checkout identity conflicts, path
+conflicts and native author/committer availability are checked before object writes.
+Native hash-object, mktree and commit-tree construct exactly <uuid>/.roam with a
+zero-byte regular marker and no parents, without using the caller's index.
+The complete target is validated before conditional creation; existing refs are
+verified in the transaction, then the protected worktree primitive performs add.
+Git identity configuration remains authoritative. No tracking is invented for a
+brand-new identity and no existing Node history is advanced.
+
+Creation records confirmed ref establishment and issued worktree calls, validates
+the actual result, and compensates only proven new unchanged safe state. Dirty
+worktrees, changed Content history, changed branch configuration, competing same-
+OID results and uncertain observations are retained/reported. Deletion requires
+an unchanged unchecked-out Root branch and validated remaining closure, with
+expected-old checks. Objects are never manually deleted; failed attempts can leave
+unreachable objects or an empty deployment parent. Other hooks remain active.
+
+The 19 new creation groups cover both backends/formats, Root tree/parents/marker,
+generation bits, native editing, only-new-Node deployment, UUID/ref/configuration
+and path conflicts, missing author/committer, clean/dirty failures, changed Content,
+competing same-OID creation, stale existing refs, existing main/locked worktrees,
+unborn checkout conflicts and the actual CLI local loop.
+All 153 cases pass in the final successful build. The first variant compiled uncached uuid
+dependencies and passed 134 cases before timeout 120s during undeployment-tests.
+The agent stopped and reported it; the user separately authorized the exact same
+120s build command again, which passed. No timeout expansion or silent retry.
+An inherited unused-import warning in Undeployment.hs and dependency warnings were
+observed; no claim of warning-free compilation. No unrelated cleanup was applied.
+
+The user authorized on-demand repetition of these exact node-8 commands, and
+separately reconfirmed the build after timeout; all final commands exited 0:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone8-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone8-source
+
+Final package derivation: /nix/store/s8kxb3i8ly2qhh518s44adxc5hhj5av2-git-roam-0.1.0.drv.
+The final package build reused the successful 153-case result after the last README
+clarification, and the final flake treefmt check passed with zero changes.
+Git 2.56.0, GHC 9.12.3/Cabal 3.14.2.0, x86_64-linux; other declared platforms were
+omitted. All 40 current worktree/source-snapshot files match manifest SHA-256
+a0e5664d93049510076d8c4699607c6be6a85628b159be193849f7bade644e41.
+The helper is tmp/prepare-milestone8-source.py. diff --check passes; project index
+is empty, with no lockfile changes or project Hook installation. README records
+the create/edit loop and failure boundaries. CHANGELOG remains TODO 0.1.0 and now
+checks Node creation and ordinary Content editing. These tests used uncommitted
+source, so no additional project parent represents their snapshot.
+
 ## Next action and authorization
 
-Wait for the user to stage the final CHANGELOG change and commit node 7. Confirm
-the committed source against the final 38-file snapshot before node 8 (node create
-with immediate linked worktree). No fresh code tests are needed unless source
-changes or new concerns arise. Do not stage/commit project files, begin node 8,
-or install protection in the project. Preserve archives, earlier snapshots and
-the actual project's GAW Hook.
+Present node 8 for user review/staging. Prepare a message from the actual staged
+diff when requested, then wait for the user's project commit. Confirm its source
+against the 40-file snapshot before node 9 (Checkpoint construction with complete
+dependencies). Do not begin node 9, stage/commit project files or install project
+protection. No further tests are needed absent source changes or new concerns.
+Preserve archives and earlier snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
