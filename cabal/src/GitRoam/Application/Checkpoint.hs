@@ -17,7 +17,7 @@ import GitRoam.Application.Inspect (inferNode, inspectState, reportManagedState,
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
 import GitRoam.Application.Worktree (withProtectedSession)
 import GitRoam.Git
-import GitRoam.Git.Objects (peelStoredCommit, readOnlyEnvironment)
+import GitRoam.Git.Objects (readOnlyEnvironment, resolveCommitReference)
 import GitRoam.ObjectId
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
@@ -156,15 +156,7 @@ prepare git directory format state node edits = runExceptT $ do
     let base = if clearDependencies edits then Map.empty else inherited
     forM_ drops $ \dep -> unless (Map.member dep base) (throwE ("No inherited dependency to remove: " ++ show dep))
     additions <- forM (dependencyRevisions edits) $ \revision -> do
-        when (null revision || '\0' `elem` revision) (throwE "Invalid dependency revision")
-        -- Native ref-name validation excludes revision operators (~, ^, @{...},
-        -- paths and ranges). Hex abbreviations still use Git's ambiguity rules.
-        unless (length revision >= 4 && length revision <= objectIdLength format && all (`elem` ("0123456789abcdefABCDEF" :: String)) revision) $ do
-            _ <- ExceptT (query git directory ["check-ref-format", "--allow-onelevel", revision] "")
-            pure ()
-        bytes <- ExceptT (query git directory ["--no-replace-objects", "-c", "core.warnAmbiguousRefs=true", "rev-parse", "--verify", "--end-of-options", revision] "")
-        resolved <- either throwE pure (maybe (Left "Invalid dependency reference response") (parseObjectId format) (BS.stripSuffix "\n" bytes))
-        oid <- lift (peelStoredCommit git directory format environment resolved) >>= either (throwE . show) pure
+        oid <- ExceptT (resolveCommitReference git directory format environment revision)
         value <- maybe (throwE "Dependency must be a Checkpoint retained by a local Node branch") pure (lookupCommit history oid)
         case validatedKind value of
             Checkpoint _ -> pure ()

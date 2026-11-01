@@ -33,6 +33,7 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam disable
   git roam node create --path /path/to/worktrees
   git roam checkpoint -m 'Confirm this knowledge version'
+  git roam discard --dry-run <checkpoint-ref-or-oid>
   git roam deploy --path /path/to/worktrees
   git roam undeploy
 #+end_src
@@ -157,6 +158,23 @@ Messages use exactly one =-m= or =-F=. =-F -= reads standard input. Nonempty UTF
 The tree always equals the previous branch tip's committed tree. Staged, unstaged, untracked and ignored data are excluded and retained, including in a main worktree. The command never runs =write-tree= or creates a commit from the working index. Shared protocol, normal-state and formal-retention checks validate the final candidate before a ref transaction with expected-old and dependency-ref verification. Other reference Hooks remain active. Missing author/committer configuration or conflicting edits prevent installation.
 
 Failed attempts may leave unreachable objects. Once a ref update succeeds, follow-up failure is reported without rolling back formal history. Failure diagnostics include any constructed candidate OID and distinguish confirmed installation from an uncertain update result. The command does not claim isolation from arbitrary external writers; inspect actual refs and run =check= after an uncertain outcome.
+
+* Preview explicit Checkpoint discard
+#+begin_src sh
+  git roam discard --dry-run <checkpoint-ref-or-oid> [<another-checkpoint-ref-or-oid> ...]
+#+end_src
+
+This read-only command accepts explicit refs or unambiguous OIDs naming currently retained Checkpoints, including annotated tags and unique OID abbreviations. It does not infer a target from the current directory, interpret full revision expressions, or require enabled protection. Root, Content, unretained versions, and invalid or incomplete initial managed states are refused. Duplicate targets coalesce.
+
+The preview includes the targets themselves and exactly their retained Checkpoint successors through formal history and knowledge dependencies. Historical dependencies and non-first-parent formal branches count. Each discarded Checkpoint lists its direct causal relationships, distinguishing explicit targets, formal-history successors and external dependency successors. No extra formal versions are selected for convenience.
+
+For each affected Node, the candidate tip is its unique maximal remaining Checkpoint, or its Root if none remain. Unaffected branches keep their exact tips, including unconfirmed Content. Multiple remaining formal maxima block the candidate; the report keeps the exact discard set and lists those maxima. It never chooses a side branch or creates a replacement Checkpoint. For a representable candidate, the shared validator checks that each Node retains exactly its expected remaining formal history and that full dependency closure holds.
+
+The report lists old/new tips, per-Node Checkpoint counts and OIDs, Content commits losing their managed branch entry, and actual affected worktrees. Content still reachable through retained history is excluded from the loss report. If no candidate is representable, actual Content loss is reported as unavailable rather than guessed. Other refs or reflogs may retain Git objects; the preview neither deletes objects nor promises future recovery.
+
+Affected linked worktrees use the existing conservative safety preflight, including dirty, ignored, locked, in-progress and nested-worktree checks. Main worktrees are reported as an execution blocker in this implementation. Unrelated worktrees are left alone. Ref and worktree registrations are rechecked before returning; a preview is an observation, not a frozen execution plan or authorization.
+
+Exit status is 0 for a preview without detected blockers, 1 for a blocked preview or invalid/unavailable evidence, and 2 for invalid command arguments. Blocked previews retain their impact report on stdout and return failure. No refs, objects, configuration, index or working files are changed. Actual discard execution and confirmation remain unimplemented; =--dry-run= is currently required.
 
 * Full undeployment
 #+begin_src sh

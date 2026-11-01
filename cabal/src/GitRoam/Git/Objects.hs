@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module GitRoam.Git.Objects (decodeCommit, decodeTree, nativeHistorySource, readOnlyEnvironment, checkStoredConnectivity, peelStoredCommit) where
+module GitRoam.Git.Objects (decodeCommit, decodeTree, nativeHistorySource, readOnlyEnvironment, checkStoredConnectivity, peelStoredCommit, resolveCommitReference) where
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, unless, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.ByteString as BS
@@ -182,3 +182,23 @@ peelStoredCommit git directory format environment start = runExceptT (go Set.emp
                 [Nothing] -> throwE (oid, MissingObject)
                 [Just kind] -> throwE (oid, WrongObjectType kind)
                 _ -> throwE (oid, ObjectReadFailure "Invalid tag metadata")
+
+-- Shared input boundary for explicit knowledge-version selection. Git resolves
+-- refs and unique object prefixes; all subsequent history interpretation is raw.
+resolveCommitReference :: (Monad m) => Git m -> FilePath -> ObjectFormat -> [(String, Maybe String)] -> String -> m (Either String ObjectId)
+resolveCommitReference git directory format environment reference = runExceptT $ do
+    when (null reference || '\0' `elem` reference) (throwE "Expected a Git ref or unambiguous commit OID")
+    unless (length reference >= 4 && length reference <= objectIdLength format && all (`elem` ("0123456789abcdefABCDEF" :: String)) reference) $ do
+        _ <- query ["check-ref-format", "--allow-onelevel", reference]
+        pure ()
+    bytes <- query ["--no-replace-objects", "-c", "core.warnAmbiguousRefs=true", "rev-parse", "--verify", "--end-of-options", reference]
+    oid <- either throwE pure (maybe (Left "Invalid reference resolution output") (parseObjectId format) (BS.stripSuffix "\n" bytes))
+    result <- lift (peelStoredCommit git directory format environment oid)
+    either (throwE . show) pure result
+  where
+    query arguments = do
+        outcome <- lift (runGit git (GitInvocation directory arguments BS.empty (environment ++ readOnlyEnvironment)))
+        case outcome of
+            Left problem -> throwE (show problem)
+            Right result | gitExitCode result == ExitSuccess && BS.null (gitStderr result) -> pure (gitStdout result)
+            Right result -> throwE ("Expected an unambiguous Git ref or commit OID: " ++ show arguments ++ ": " ++ show (gitStderr result))

@@ -58,7 +58,7 @@ main =
                 output <- responseStdout <$> runCli []
                 assertTrue "help missing" ("help [command]" `Text.isInfixOf` output)
                 assertTrue "unimplemented command advertised" $
-                    not ("discard" `Text.isInfixOf` output)
+                    not ("node delete" `Text.isInfixOf` output)
             )
         ,
             ( "object formats"
