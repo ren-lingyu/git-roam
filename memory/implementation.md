@@ -53,6 +53,10 @@ nine integration cases, and flake check on x86_64-linux. It exposes only help/ve
 keeps Git configuration intact in production while isolating test configuration,
 uses direct argv/binary stdio and typed Git failures, preserves raw output path
 boundaries, and distinguishes SHA-1/SHA-256. Nix selects standard Git at build time.
+Tests declare the internal CLI dependency solely in Cabal and find it on PATH.
+Nix selects Cabal 3.14.2.0 for Setup: the bundled 3.12.1.0 reproduced a missing
+runtime tool despite correctly building it. No test executable path is injected;
+the earlier preCheck workaround was removed and both suites passed again.
 The user separately authorized its formatter and clean-snapshot build/check;
 experiment approvals were not reused. The tested clean snapshot includes all
 eight new untracked Haskell files; all 20 copied files still match the worktree

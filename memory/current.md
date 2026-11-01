@@ -131,25 +131,38 @@ clean-snapshot build/check for this node. All completed with exit 0:
 
 GHC 9.10.3 built the implementation. Both test suites passed (12 unit and nine
 integration cases). The fresh treefmt check reported zero changes; other declared
-platforms were omitted. The initial build exposed only a test executable lookup
-problem: Nix did not place the just-built CLI on PATH. The fixture now accepts
-GIT_ROAM_TEST_EXECUTABLE, set by preCheck to the built binary, retaining actual
-CLI execution tests. The same authorized commands passed after that correction.
+platforms were omitted. A subsequent user review removed the initial Nix preCheck
+workaround and GIT_ROAM_TEST_EXECUTABLE override. Tests now use only the internal
+Cabal build-tool-depends declaration and findExecutable/makeAbsolute, following
+the inspected GAW test organization. No test binary path is hard-coded in Nix.
+
+The lookup failure was reproduced with the GHC-bundled Cabal 3.12.1.0: its
+component graph correctly includes and builds exe:git-roam before the adapter
+tests, but Setup test does not expose it on the test process PATH. Selecting
+haskellPackages.Cabal_3_14_2_0 in setupHaskellDepends made the same tests pass
+without any executable-path injection. Nix now selects the Setup driver version;
+the Cabal file remains the sole declaration of test suites and the internal tool
+dependency. README explains the observed version boundary. This comparison does
+not establish the earliest fixed Cabal release or explain GAW's runtime toolchain;
+only its source organization was inspected. No library/compiler/lockfile upgrade
+or custom Setup script was needed.
 
 The clean snapshot contains 20 explicitly enumerated files, including eight new
 untracked Haskell files, and excludes .git/.agents/unrelated ignored content.
 Final read-only comparison confirmed every project and copied file matches the
 tested manifest. Manifest SHA-256:
-a2751d3c741a97d6e60a10bbe1b6ceab6f4ff836e2ac3702341f6803028886aa.
+37b63970af4a357e6f71167d763ba9002df805441ed1cf039fee8df76c40ed0f.
 Git diff --check passes and the project index is empty. CHANGELOG and lock inputs
 are unchanged. The successful package derivation is
-/nix/store/9l4lj7yndcl4k82bxlwb77h2dii2q871-git-roam-0.1.0.drv.
+/nix/store/zpzz1iw9f986lymazqyy09q9sglsi37y-git-roam-0.1.0.drv.
 These results describe an uncommitted worktree snapshot, not project HEAD 8f1fed2;
 they do not justify a new project parent for this GAW checkpoint.
 
 ## Next action and authorization
 
-Present node 1 for user review and staging. Once staged, review the actual index
+The test-discovery review is resolved and the final no-injection version passed
+formatting, build and flake check under the existing task command authorization.
+Present node 1 for user staging. Once staged, review the actual index
 and prepare its commit message, then wait for the user's commit. Confirm that
 commit and its relationship to the tested source before advancing to node 2.
 Do not stage or commit project files automatically. Preserve both independent
