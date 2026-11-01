@@ -6,20 +6,17 @@ The user accepted the revised v0.1.0 plan and requested implementation on
 2026-11-01. Execute serially, one independently reviewable/buildable/testable
 project commit at a time, with user-performed project staging and commits.
 
-The mandatory GAW design consolidation/checkpoint is complete. The user committed
-project node 0, and read-only review confirmed CHANGELOG.org exactly matches the
-previously reviewed staged content. The project worktree and index are clean.
-Formatting and package build passed before the commit, but the path:. flake check
-failed in treefmt when git-gaw was unavailable for the copied GAW Hook. The
-corrected Git-source check remains unexecuted pending its command authorization.
+The mandatory design checkpoint and user-committed project node 0 are complete.
+The committed CHANGELOG matches the staged review. The corrected Git-source root
+flake check passed on x86_64-linux, resolving the earlier treefmt blocker for
+tracked source. It reused available results and did not validate other platforms.
 
-The next isolated native-Git experiment has been prepared, not run, in
-tmp/git-roam-v0.1.0-native-git/. It contains flake.nix, validate.py and README.md;
-the new flake.lock has not been generated. There are 66 planned cases: 31 detailed
-scenarios on each of files/reftable with SHA-1, and four object/ref/Hook/worktree
-matrix smoke cases including SHA-256. No result, syntax execution, minimum-Git
-compatibility or product implementation is claimed. Do not start project node 1
-until the required experimental findings and execution choices are reviewed.
+The independent standard-Git experiment is complete: final unpatched Git 2.56.0
+fixtures passed 66/66 on x86_64-linux, including files/reftable and SHA-256 smoke.
+Findings and execution consequences are reviewed; the node-1 experimental gate
+is satisfied for this pinned Git. No minimum-2.54 or broader safety claim follows.
+The project remains an empty executable; next implement node 1, then wait for the
+user's project commit before advancing. Its files have not yet been changed.
 
 ## Navigation and authority
 
@@ -27,6 +24,8 @@ until the required experimental findings and execution choices are reviewed.
   encoding/projection, managed closure, lifecycle, deployment, discard and delete.
 - [implementation.md](implementation.md): accepted plan, experiment gate, serial
   project commits, execution defaults, validation and authorization boundaries.
+- [native-git-validation.md](native-git-validation.md): actual standard-Git results,
+  native failure hazards, verified adapter choices and the independent archive.
 - [experiment.md](experiment.md): completed independent batch-patch experiment,
   evidence limits and historical approvals, not the current task's instructions.
 - [Independent experiment manifest](../archive/2026-10-31T06-58-49Z--worktree-batch-experiment/MANIFEST.md):
@@ -94,38 +93,33 @@ does not establish a fresh compile or new product tests). Its first sandboxed
 attempt could not access the Nix daemon; the same authorized command succeeded
 with host access. No other platform was built.
 
-The authorized timeout 120s nix flake check --no-write-lock-file -L path:.
-failed with exit 1 in checks.x86_64-linux.treefmt. The relevant builder output was
-git-gaw --reference-transaction: command not found, followed by Git aborting its
-preparing transaction. Read-only git config confirmed the matching named Hook
-command in local .git/config. Explicit path: source including Git metadata is
-the suspected cause; the corrected Git-source check is not yet verified.
-The proposed retry is timeout 120s nix flake check --no-write-lock-file -L .,
-which includes tracked worktree edits without copying .git as source. Do not
-disable real protection or edit flake/config to conceal this failure. This tracked
-CHANGELOG needs no staging for that source selection. Native Git experiments and
-product tests have not started.
+The original path:. check failed in treefmt when the copied GAW Hook could not
+find git-gaw. After separate user authorization, timeout 120s nix flake check
+--no-write-lock-file -L . passed on the clean committed roadmap. Nix reported
+zero checks requiring execution and omitted both other platforms. Do not disable
+protection or reintroduce .git metadata into check source. Future untracked source
+files require an explicit clean snapshot strategy or user staging.
 
 The completed independent reproduction remains separately archived. Its source-
 pinned 2.54 and nixpkgs-patched 2.56 no-checkout results do not establish product
-protocol, Hook, real checkout or minimum-Git support. The new plan requires a
-separate flake-managed standard-Git experiment after project commit 0.
+protocol, Hook, real checkout or minimum-Git support. The new separate standard-Git
+experiment is now executed and independently archived; follow its dedicated memory.
 
 The earlier design/planning and pre-commit validation checkpoints had no new
 project parent: the semantic decisions were user-supplied and the validation
-used an uncommitted worktree. The present phase transition is grounded in the
-exact committed roadmap reviewed after the user's commit, whose CHANGELOG blob
-matches the earlier staged blob. Its project parent records this committed-tree
-review, not a claim that the earlier Nix runs were rerun on that commit. The
-new experiment uses independent fixtures and does not validate application code.
+used an uncommitted worktree. The roadmap phase transition was grounded in its
+exact committed tree and staged-blob match. The corrected root check now genuinely
+ran against that clean committed snapshot; the native experiment still uses
+independent fixtures and does not validate application code. Keep these distinct
+when selecting project parents for the combined verification state.
 
 ## Next action and authorization
 
-Obtain authorization for the corrected root check and the new isolated
-lock/check commands before execution. Do not repeat old commands on expired or
-one-shot authorization. Run the fixture suite, inspect findings and failures,
-record actual results/limits, then proceed to node 1 only when its experimental
-gate is satisfied. The project's implementation files remain unchanged.
+Continue with node 1: CLI/help/version, library, Git runner, OID/repository
+foundation, tests and README. Do not implement Node lifecycle commands early.
+Obtain applicable formatter/build/check authorization for that product node; the
+previous root check and lock commands were one-shot, and experiment repetition
+does not authorize product checks. Preserve the old and new archive snapshots.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.

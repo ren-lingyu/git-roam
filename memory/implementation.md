@@ -39,22 +39,15 @@ clear partial-failure/compensation reporting. Keep release state human-controlle
 
 ## Reproducible native Git experiments
 
-Current execution position: node 0 has been committed and its exact CHANGELOG
-blob was matched to the prior staged review. The independent experiment is now
-prepared in tmp/git-roam-v0.1.0-native-git/; no fixture test or Nix lock command has
-run. Its three files pin the application's nixpkgs revision and use unpatched
-pkgs.git/python3 with no Git source/version override. validate.py defines 31
-detailed scenarios per files/reftable SHA-1 backend and four SHA-1/SHA-256 smoke
-matrix cases, totaling 66. The flake checks execute only disposable local fixtures
-in build scratch space; result and command JSON are build outputs. Logging/
-rejection hooks are test fixtures, not a product protocol validator. The paired
-branch-presence guard only demonstrates complete-transaction coordination.
-
-The pending execution requests are a corrected root Git-source flake check, a
-one-shot isolated flake lock, and the isolated flake check. Each requires its
-applicable task authorization. Initial coverage is the pinned standard package;
-Git 2.54 minimum compatibility remains explicitly unverified. Preserve the old
-experiment and all ordinary project refs while performing these fixture tests.
+Current execution position: node 0 is committed, its root Git-source check passed,
+and the standard-Git experiment passed all 66 final cases with unpatched Git
+2.56.0 on x86_64-linux. See [native-git-validation.md](native-git-validation.md)
+for actual observations, reviewed execution choices and the independent archive.
+It covers 31 detailed SHA-1 scenarios per files/reftable backend plus four
+SHA-1/SHA-256 object/ref/Hook/worktree smoke cases. Logging/rejection/pair-presence
+hooks are fixtures, not the product validator. Git 2.54 and other platforms remain
+unverified. The experiment gate is satisfied for starting node 1; obtain separate
+product build/check authorization rather than reusing experiment approvals.
 
 After commit 0, use a new isolated directory such as
 tmp/git-roam-v0.1.0-native-git/, verifying the temporary boundary before writing.
@@ -250,19 +243,18 @@ increase a timed-out command. Old experiment approvals do not cover this task.
 Adding dependencies uses the locked nixpkgs foundation and minimal required
 changes; do not update locks without the applicable authorization.
 
-Current node-0 validation finding: fmt and the path:. package build passed, but
-the path:. treefmt check attempted to invoke the project's local GAW Hook inside
-its isolated build, where git-gaw was absent. Git aborted the transaction. Local
-.git/config contains the matching command; path source metadata leakage is the
-working diagnosis. A corrected check using Git-source . has been requested but
-not run. See current.md for exact command authorization and results. Do not
-blindly repeat path:. checks or disable live protection. Git-source . includes
-tracked worktree edits, but future new untracked files need an explicitly chosen
-source/staging strategy; this is not authorization to stage project files.
+Node-0 validation: fmt and the path:. package build passed. The raw path:. treefmt
+check invoked copied GAW configuration without git-gaw and failed. The separately
+authorized Git-source . check passed against the clean committed roadmap, reusing
+available results. Do not repeat raw root path:. checks or disable live protection.
+Git-source . includes tracked worktree edits; untracked modules need an explicit
+clean source snapshot or user staging. A snapshot can copy the intended project
+files under ignored tmp/ without .git, .agents or unrelated data, and be checked
+as a standalone path flake. This does not authorize staging project files.
 
 The [Nix flake reference manual](https://nix.dev/manual/nix/2.24/command-ref/new-cli/nix3-flake.html)
 documents local Git-source selection and inclusion of tracked worktree changes.
-The proposed retry still needs actual validation in this repository.
+That Git-source retry has now succeeded in this repository on x86_64-linux.
 
 README always describes that node's actual implementation, preserving the user's
 authorship and Org conventions. CHANGELOG stays TODO 0.1.0; use headlines and

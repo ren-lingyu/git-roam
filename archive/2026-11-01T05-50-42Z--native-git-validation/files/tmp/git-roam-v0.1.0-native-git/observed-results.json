@@ -1,0 +1,822 @@
+{
+  "failed": 0,
+  "git_executable": "/nix/store/xgw813vgzl2q0696sq45adpj0xd690jq-git-2.56.0/bin/git",
+  "git_version": "git version 2.56.0",
+  "matrix": "Full scenarios on files/reftable SHA-1; object/ref/worktree/Hook smoke on SHA-1/SHA-256.",
+  "minimum_git_254_verified": false,
+  "passed": 66,
+  "results": [
+    {
+      "backend": "files",
+      "name": "matrix-files-sha1",
+      "object_format": "sha1",
+      "observations": {
+        "object_format": "sha1",
+        "ref_backend": "files"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "matrix-files-sha256",
+      "object_format": "sha256",
+      "observations": {
+        "object_format": "sha256",
+        "ref_backend": "files"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-tracking-unique",
+      "object_format": "sha1",
+      "observations": {
+        "created_local_branch": true,
+        "upstream": "refs/remotes/origin/10000000-0000-4000-8000-000000000002"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-tracking-existing-local",
+      "object_format": "sha1",
+      "observations": {
+        "existing_local_tip_unchanged": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-tracking-equal-remotes",
+      "object_format": "sha1",
+      "observations": {
+        "explicit_source_fallback_succeeded": true,
+        "native_guess_accepted_equal_oid_sources": false
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-tracking-different-remotes",
+      "object_format": "sha1",
+      "observations": {
+        "default_remote_can_silently_select_different_tip": true,
+        "native_ambiguity_refused": true,
+        "product_must_prevalidate_candidates": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-tracking-failed-worktree",
+      "object_format": "sha1",
+      "observations": {
+        "new_branch_left_after_failure": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-post-checkout-failure",
+      "object_format": "sha1",
+      "observations": {
+        "branch_exists": true,
+        "exit_code": 23,
+        "registered": true,
+        "worktree_exists": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-hook-full-transaction",
+      "object_format": "sha1",
+      "observations": {
+        "both_named_hooks_received_full_transaction": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-batch-tracking-establishment",
+      "object_format": "sha1",
+      "observations": {
+        "guard_is_only_a_known_fixture_presence_rule_not_product_validation": true,
+        "joint_ref_creation_then_tracking_and_worktrees_succeeded": true,
+        "single_creation_rejected_by_fixture_pair_guard": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-hook-rejection-own-bypass",
+      "object_format": "sha1",
+      "observations": {
+        "audit_survives_guard_bypass": true,
+        "rejection_preserved_both_refs": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-hook-actual-old-symbolic-head",
+      "object_format": "sha1",
+      "observations": {
+        "actual_old_matches_existing_ref": true,
+        "symbolic_head_observed": [
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "guard",
+            "phase": "preparing",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "audit",
+            "phase": "preparing",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "guard",
+            "phase": "prepared",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "audit",
+            "phase": "prepared",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "ddc3094456ee4777c8e4f24b440f559db45b4ce0"
+            },
+            "name": "guard",
+            "phase": "committed",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "ddc3094456ee4777c8e4f24b440f559db45b4ce0"
+            },
+            "name": "audit",
+            "phase": "committed",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          }
+        ],
+        "unconstrained_update_input": [
+          "0000000000000000000000000000000000000000 dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb refs/heads/10000000-0000-4000-8000-000000000001"
+        ]
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-transaction-stale-old",
+      "object_format": "sha1",
+      "observations": {
+        "no_partial_ref_update": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-transaction-verify",
+      "object_format": "sha1",
+      "observations": {
+        "read_dependency_verify_rejected_transaction": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-main-detached",
+      "object_format": "sha1",
+      "observations": {
+        "detached_has_no_branch": true,
+        "main_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-move-lock",
+      "object_format": "sha1",
+      "observations": {
+        "branch_survives": true,
+        "locked_removal_refused": true,
+        "moved_path_recorded": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-dirty-staged",
+      "object_format": "sha1",
+      "observations": {
+        "kind": "staged",
+        "native_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-dirty-unstaged",
+      "object_format": "sha1",
+      "observations": {
+        "kind": "unstaged",
+        "native_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-dirty-untracked",
+      "object_format": "sha1",
+      "observations": {
+        "kind": "untracked",
+        "native_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-ignored-native-hazard",
+      "object_format": "sha1",
+      "observations": {
+        "native_clean_status_and_remove_discard_ignored_files": true,
+        "product_requires_additional_data_guard": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-nested",
+      "object_format": "sha1",
+      "observations": {
+        "deepest_first_removal_succeeded": true,
+        "ignored_nested_linked_worktrees_supported": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-worktree-duplicate-symlink",
+      "object_format": "sha1",
+      "observations": {
+        "actual_path": "/build/native-git/files-worktree-duplicate-symlink/actual-directory/k5xrrase",
+        "duplicate_checkout_refused": true,
+        "native_add_follows_symlink_parent": true,
+        "product_requires_path_boundary_preflight": true,
+        "requested_path": "/build/native-git/files-worktree-duplicate-symlink/symbolic-directory/k5xrrase"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-ff-clean",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": true,
+        "kind": "clean",
+        "local_changes_preserved": false
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-ff-unrelated-dirty",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": true,
+        "kind": "unrelated",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-ff-overlapping-dirty",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": false,
+        "kind": "overlap",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-ff-untracked",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": false,
+        "kind": "untracked",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-ff-ignored",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": false,
+        "kind": "ignored",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-ff-staged",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": true,
+        "kind": "staged",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-ff-divergence",
+      "object_format": "sha1",
+      "observations": {
+        "divergence_refused_without_merge_commit": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-cross-node-ancestry-trap",
+      "object_format": "sha1",
+      "observations": {
+        "foreign_path": [
+          "alternate-a",
+          "b1",
+          "a0"
+        ],
+        "git_ancestry_true_but_same_node_formal_retention_false": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-stale-cross-node-interleaving",
+      "object_format": "sha1",
+      "observations": {
+        "deterministic_stale_read_interleaving": true,
+        "independent_expected_old_updates_both_succeeded": true,
+        "product_hooks_and_postchecks_not_implemented_here": true,
+        "required_branch_missing_but_dependency_object_present": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-verify-guards-delete",
+      "object_format": "sha1",
+      "observations": {
+        "enumerated_read_guard_rejected_stale_delete": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "files",
+      "name": "files-same-ref-cas-race",
+      "object_format": "sha1",
+      "observations": {
+        "exactly_one_expected_old_writer_succeeded": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "matrix-reftable-sha1",
+      "object_format": "sha1",
+      "observations": {
+        "object_format": "sha1",
+        "ref_backend": "reftable"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "matrix-reftable-sha256",
+      "object_format": "sha256",
+      "observations": {
+        "object_format": "sha256",
+        "ref_backend": "reftable"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-tracking-unique",
+      "object_format": "sha1",
+      "observations": {
+        "created_local_branch": true,
+        "upstream": "refs/remotes/origin/10000000-0000-4000-8000-000000000002"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-tracking-existing-local",
+      "object_format": "sha1",
+      "observations": {
+        "existing_local_tip_unchanged": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-tracking-equal-remotes",
+      "object_format": "sha1",
+      "observations": {
+        "explicit_source_fallback_succeeded": true,
+        "native_guess_accepted_equal_oid_sources": false
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-tracking-different-remotes",
+      "object_format": "sha1",
+      "observations": {
+        "default_remote_can_silently_select_different_tip": true,
+        "native_ambiguity_refused": true,
+        "product_must_prevalidate_candidates": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-tracking-failed-worktree",
+      "object_format": "sha1",
+      "observations": {
+        "new_branch_left_after_failure": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-post-checkout-failure",
+      "object_format": "sha1",
+      "observations": {
+        "branch_exists": true,
+        "exit_code": 23,
+        "registered": true,
+        "worktree_exists": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-hook-full-transaction",
+      "object_format": "sha1",
+      "observations": {
+        "both_named_hooks_received_full_transaction": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-batch-tracking-establishment",
+      "object_format": "sha1",
+      "observations": {
+        "guard_is_only_a_known_fixture_presence_rule_not_product_validation": true,
+        "joint_ref_creation_then_tracking_and_worktrees_succeeded": true,
+        "single_creation_rejected_by_fixture_pair_guard": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-hook-rejection-own-bypass",
+      "object_format": "sha1",
+      "observations": {
+        "audit_survives_guard_bypass": true,
+        "rejection_preserved_both_refs": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-hook-actual-old-symbolic-head",
+      "object_format": "sha1",
+      "observations": {
+        "actual_old_matches_existing_ref": true,
+        "symbolic_head_observed": [
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "guard",
+            "phase": "preparing",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "audit",
+            "phase": "preparing",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "guard",
+            "phase": "prepared",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb"
+            },
+            "name": "audit",
+            "phase": "prepared",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "ddc3094456ee4777c8e4f24b440f559db45b4ce0"
+            },
+            "name": "guard",
+            "phase": "committed",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          },
+          {
+            "actual": {
+              "HEAD": "ddc3094456ee4777c8e4f24b440f559db45b4ce0"
+            },
+            "name": "audit",
+            "phase": "committed",
+            "updates": [
+              "0000000000000000000000000000000000000000 ref:refs/heads/10000000-0000-4000-8000-000000000002 HEAD"
+            ]
+          }
+        ],
+        "unconstrained_update_input": [
+          "0000000000000000000000000000000000000000 dd1e6e4f8ec39d6ac11a6b3edc43c470408eb8fb refs/heads/10000000-0000-4000-8000-000000000001"
+        ]
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-transaction-stale-old",
+      "object_format": "sha1",
+      "observations": {
+        "no_partial_ref_update": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-transaction-verify",
+      "object_format": "sha1",
+      "observations": {
+        "read_dependency_verify_rejected_transaction": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-main-detached",
+      "object_format": "sha1",
+      "observations": {
+        "detached_has_no_branch": true,
+        "main_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-move-lock",
+      "object_format": "sha1",
+      "observations": {
+        "branch_survives": true,
+        "locked_removal_refused": true,
+        "moved_path_recorded": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-dirty-staged",
+      "object_format": "sha1",
+      "observations": {
+        "kind": "staged",
+        "native_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-dirty-unstaged",
+      "object_format": "sha1",
+      "observations": {
+        "kind": "unstaged",
+        "native_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-dirty-untracked",
+      "object_format": "sha1",
+      "observations": {
+        "kind": "untracked",
+        "native_removal_refused": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-ignored-native-hazard",
+      "object_format": "sha1",
+      "observations": {
+        "native_clean_status_and_remove_discard_ignored_files": true,
+        "product_requires_additional_data_guard": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-nested",
+      "object_format": "sha1",
+      "observations": {
+        "deepest_first_removal_succeeded": true,
+        "ignored_nested_linked_worktrees_supported": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-worktree-duplicate-symlink",
+      "object_format": "sha1",
+      "observations": {
+        "actual_path": "/build/native-git/reftable-worktree-duplicate-symlink/actual-directory/k5xrrase",
+        "duplicate_checkout_refused": true,
+        "native_add_follows_symlink_parent": true,
+        "product_requires_path_boundary_preflight": true,
+        "requested_path": "/build/native-git/reftable-worktree-duplicate-symlink/symbolic-directory/k5xrrase"
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-ff-clean",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": true,
+        "kind": "clean",
+        "local_changes_preserved": false
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-ff-unrelated-dirty",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": true,
+        "kind": "unrelated",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-ff-overlapping-dirty",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": false,
+        "kind": "overlap",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-ff-untracked",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": false,
+        "kind": "untracked",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-ff-ignored",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": false,
+        "kind": "ignored",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-ff-staged",
+      "object_format": "sha1",
+      "observations": {
+        "accepted": true,
+        "kind": "staged",
+        "local_changes_preserved": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-ff-divergence",
+      "object_format": "sha1",
+      "observations": {
+        "divergence_refused_without_merge_commit": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-cross-node-ancestry-trap",
+      "object_format": "sha1",
+      "observations": {
+        "foreign_path": [
+          "alternate-a",
+          "b1",
+          "a0"
+        ],
+        "git_ancestry_true_but_same_node_formal_retention_false": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-stale-cross-node-interleaving",
+      "object_format": "sha1",
+      "observations": {
+        "deterministic_stale_read_interleaving": true,
+        "independent_expected_old_updates_both_succeeded": true,
+        "product_hooks_and_postchecks_not_implemented_here": true,
+        "required_branch_missing_but_dependency_object_present": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-verify-guards-delete",
+      "object_format": "sha1",
+      "observations": {
+        "enumerated_read_guard_rejected_stale_delete": true
+      },
+      "status": "pass"
+    },
+    {
+      "backend": "reftable",
+      "name": "reftable-same-ref-cas-race",
+      "object_format": "sha1",
+      "observations": {
+        "exactly_one_expected_old_writer_succeeded": true
+      },
+      "status": "pass"
+    }
+  ]
+}
