@@ -657,25 +657,40 @@ the own Hook is bypassed; other Hooks can reject. Post-update state/protection
 checks report failure without rollback. Diagnostics identify constructed OIDs,
 selected Content, and confirmed versus uncertain ref installation.
 
-The first build compiled but failed three dependency-related cases: the shared
-GIT_GRAFT_FILE=/dev/null protection triggered Git 2.56 deprecated-graft advice on
-rev-parse despite exit 0 and a valid OID. Strict stderr handling misclassified it;
-the third race fixture never reached its intended update. Resolution now applies
-only per-call advice.graftFileDeprecated=false, --no-replace-objects and forced
-core.warnAmbiguousRefs=true. Other stderr/ambiguity still refuses, including when
-the user's default suppresses ambiguity warnings. Persistent config is unchanged.
-The user asked about this; the agent explained the distinction between successful
-Git resolution and the application's overly strict output classification.
-A redundant pattern warning in new code was removed. An inherited unused-import
-warning in Undeployment.hs remains; no unrelated cleanup or warning-free claim.
+The first build failed three cases because GIT_GRAFT_FILE=/dev/null triggered Git
+2.56 deprecated-graft advice on successful rev-parse and strict stderr handling
+misclassified it. A narrow advice suppression initially passed 172 cases, but the
+user subsequently adopted a stronger compatibility boundary: accept Git refs and
+unambiguous commit OIDs, not full revision expressions; use native name resolution
+but raw objects for knowledge history; remove GIT_GRAFT_FILE and
+advice.graftFileDeprecated; introduce no temporary repository view.
 
-All 172 cases pass: 19 new Checkpoint groups plus the prior 153. New coverage uses
+The final implementation checks dependency names with native check-ref-format
+(or hexadecimal OID syntax), resolves without traversal suffixes, and peels
+annotated tags via stored headers. Forced core.warnAmbiguousRefs=true still rejects
+ambiguous names even under contrary user config. All three production rev-list
+completeness checks were replaced by one shared raw commit/tree traversal and
+blob metadata batch-check; gitlinks refer to external databases and are skipped.
+Inspection and candidate validation share per-call object caches; shallow refusal
+is retained and now explicit in candidate validation and the Hook's local path.
+No production revision walks remain. Native commit-tree receives explicit tree
+and parent OIDs; deployment/status/ref queries do not derive knowledge ancestry.
+An inherited unused-import warning in Undeployment.hs remains; no unrelated cleanup
+or warning-free claim.
+
+All 177 cases pass: 23 Checkpoint groups, 30 inspection groups and 124 others. Coverage uses
 files/reftable x SHA-1/SHA-256, exact first/second parents and tree, repeated and
 empty-diff versions, full dependency inheritance/removal/replacement/clearing,
 historical dependency retention, merged formal history, invalid/conflicting and
 ambiguous revisions, UTF-8/legacy configuration/file/stdin messages, Root and
 selection refusal, dirty main/linked index/files/ignored data, CAS/verify races,
 other Hook rejection and post-install read failure without rollback.
+The latest cases cover both formats/backends with grafts and replacement refs,
+full/abbreviated OIDs, short/full refs, lightweight/nested annotated tags, revision
+operator refusal without object/ref writes, missing old blobs in inspection,
+candidate validation and native Hook updates, nested trees/symlink blobs/gitlinks,
+and shallow candidate refusal. Restoring the missing old blob permits the native
+Content update without removing grafts.
 
 The user authorized on-demand repetition of these exact node-9 commands; all
 final commands passed with exit 0:
@@ -684,12 +699,12 @@ final commands passed with exit 0:
 - timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone9-source#default
 - timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone9-source
 
-Package derivation: /nix/store/qq53h3g3mvyl4yangjv2rbkcdx6gppdb-git-roam-0.1.0.drv.
-The final build reused the successful tested package after the CHANGELOG checkbox
-edit; final treefmt check passed with zero changes. Git 2.56.0, GHC 9.12.3/Cabal
+Package derivation: /nix/store/sgyjjps11h7l4sdmfz5vc3xf04lkdd9k-git-roam-0.1.0.drv.
+The revised package compiled and ran all 177 tests; final treefmt check passed with
+zero changes. Git 2.56.0, GHC 9.12.3/Cabal
 3.14.2.0, x86_64-linux only; other declared platforms remain unverified.
 All 42 worktree/source-snapshot files match manifest SHA-256
-b88a3abfb1f53ed416778d7273b5b93b12cdf08e9edd2dbb4749f7cb9ef38be2.
+4dbd8d066f39e8894baa2713311a79e6ec88da39f702744edfeb3102249a18d7.
 Helper: tmp/prepare-milestone9-source.py. diff --check passes; project index is
 empty, no lockfile changes or project protection installation. README and both
 Checkpoint/dependency editing CHANGELOG boxes match actual capability; version

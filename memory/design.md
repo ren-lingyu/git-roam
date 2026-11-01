@@ -265,6 +265,15 @@ delta semantics. Create a commit-tree object with exact parents and tree;
 do not synthesize content using write-tree, auto-squash, or inspect Org semantics.
 Dirty index, working files, and untracked data are excluded and remain unchanged.
 
+Checkpoint dependency inputs are Git refs or unambiguous commit OIDs (including
+unique hexadecimal abbreviations), not the full Git revision expression language.
+Git resolves names; raw stored tag headers may peel annotated tags to commits.
+Knowledge relationships and completeness use original commit/tree edges and blob
+metadata with replacement objects disabled. Do not use GIT_GRAFT_FILE or
+advice.graftFileDeprecated, and do not introduce a temporary Git repository view
+for v0.1.0. Grafts cannot redefine knowledge history or hide missing old payloads.
+Retain explicit shallow-repository and missing-object checks.
+
 Checkpoint messages are nonempty UTF-8, using -m/-F without requiring Conventional
 Commits or launching an editor. Feedback identifies the selected Content and new
 Checkpoint. Failure may leave unreachable new objects but must not overwrite a

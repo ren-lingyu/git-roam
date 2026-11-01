@@ -131,12 +131,17 @@ unborn checkouts are tested. Internal operation scope avoids imposing full-deplo
 restrictions on creation while leaving the public full-deploy policy unchanged.
 README and the Node
 creation/Content editing CHANGELOG boxes reflect actual capability. The user
-committed all 40 verified files before node 9. Its Checkpoint code, CLI and 19 new
-test groups pass, bringing the total to 172. Root requires prior Content; a Checkpoint tip gets a new
+committed all 40 verified files before node 9. Its Checkpoint code, CLI and 23 new
+test groups pass, bringing the total to 177 with an additional inspection group.
+Root requires prior Content; a Checkpoint tip gets a new
 empty-diff Content object. Only the final ref advances, with complete dependencies
 and shared target/retention validation. Dirty state is excluded and preserved.
-The first validation found deprecated-graft advice being misclassified as revision
-failure; the narrow per-command fix and ambiguity regression pass. Final format,
+The initial graft-advice workaround is superseded by the user's accepted refs/OIDs
+input boundary and raw object connectivity traversal. Production code no longer
+uses GIT_GRAFT_FILE, advice.graftFileDeprecated or rev-list for completeness.
+Native name resolution, raw annotated-tag peeling, explicit shallow refusal and
+graft/replace/payload regressions pass. No temporary repository view was introduced.
+Final format,
 build and flake checks pass on x86_64-linux, with 42 worktree/snapshot files equal.
 README and both Checkpoint/dependency editing CHANGELOG boxes are synchronized.
 Wait for the user commit before node 10; see current.md for evidence and limits.
