@@ -10,15 +10,18 @@ library
   exposed-modules:
     GitRoam.Application.Inspect
     GitRoam.Application.Protection
+    GitRoam.Application.Worktree
     GitRoam.Cli
     GitRoam.Git
     GitRoam.Git.Objects
+    GitRoam.Git.Worktrees
     GitRoam.ObjectId
     GitRoam.Protocol.History
     GitRoam.Protocol.Identity
     GitRoam.Protocol.Objects
     GitRoam.Protocol.Repository
     GitRoam.Repository
+    GitRoam.Worktree.Paths
 
   other-modules:
     GitRoam.BuildInfo
@@ -27,15 +30,17 @@ library
   autogen-modules:  Paths_git_roam
   build-depends:
     , async
-    , base              >=4.16 && <5
+    , base               >=4.16 && <5
     , bytestring
     , containers
+    , cryptohash-sha256
     , directory
     , filepath
     , process
     , template-haskell
     , text
     , transformers
+    , unix
 
   default-language: Haskell2010
   ghc-options:      -Wall
@@ -81,6 +86,24 @@ test-suite git-adapter-tests
     , git-roam
     , process
     , text
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded
+
+test-suite worktree-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Worktree.hs
+  other-modules:      TestSupport
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , git-roam
+    , unix
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded

@@ -4,6 +4,7 @@ module GitRoam.Application.Protection (
     enableProtection,
     disableProtection,
     requireProtection,
+    requireProtectionFor,
     withOperationLock,
     ownHookBypass,
     evaluateTransaction,
@@ -21,6 +22,7 @@ import qualified Data.Text.Encoding as Encoding
 import GitRoam.Application.Inspect
 import GitRoam.Git
 import GitRoam.Git.Objects
+import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
@@ -70,8 +72,10 @@ withOperationLock directory action = do
                     Right () -> bracket (pure ()) (const (removeDirectory lock)) (const action)
 
 configuration :: IO [(String, BS.ByteString)]
-configuration = do
-    executable <- getExecutablePath
+configuration = getExecutablePath >>= configurationFor
+
+configurationFor :: FilePath -> IO [(String, BS.ByteString)]
+configurationFor executable = do
     let quoted = "'" ++ concatMap (\c -> if c == '\'' then "'\\''" else [c]) executable ++ "' --reference-transaction"
     pure [("event", "reference-transaction"), ("command", Encoding.encodeUtf8 (Text.pack quoted)), ("enabled", "true")]
 
@@ -87,8 +91,13 @@ values directory local key = do
             _ -> Left (show (gitStderr result))
 
 requireProtection :: FilePath -> IO (Either String ())
-requireProtection directory = runExceptT $ do
-    expected <- lift configuration
+requireProtection directory = getExecutablePath >>= \executable -> requireProtectionFor executable directory
+
+-- Explicit executable dependency for library/application runtimes; the CLI uses
+-- its own executable, while Cabal integration tests supply their built tool.
+requireProtectionFor :: FilePath -> FilePath -> IO (Either String ())
+requireProtectionFor executable directory = runExceptT $ do
+    expected <- lift (configurationFor executable)
     mapM_
         ( \(key, value) -> do
             local <- ExceptT (values directory True key)
@@ -124,10 +133,10 @@ enableProtection directory = withOperationLock directory $ runExceptT $ do
 
 disableProtection :: FilePath -> IO (Either String ())
 disableProtection directory = withOperationLock directory $ runExceptT $ do
+    repository <- ExceptT (fmap (either (Left . show) Right) (inspectRepository native directory readOnlyEnvironment))
     bytes <- ExceptT (checked directory ["worktree", "list", "--porcelain", "-z"])
-    let fields = BS.split 0 bytes
-        linked = dropWhile (not . BS.null) fields
-        nodes = [name | field <- linked, Just name <- [BS.stripPrefix "branch refs/heads/" field], Right _ <- [parseNodeId name]]
+    records <- either throwE pure (Worktrees.decodeWorktrees (repositoryObjectFormat repository) bytes)
+    let nodes = [node | record <- records, not (Worktrees.treeMain record), Just node <- [Worktrees.worktreeNode record]]
     unless (null nodes) (throwE "Undeploy all Node linked worktrees before disabling protection")
     expected <- lift configuration
     observed <- mapM (\(key, _) -> ExceptT (values directory False key)) expected

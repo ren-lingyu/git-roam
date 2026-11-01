@@ -22,6 +22,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GitRoam.Git
 import GitRoam.Git.Objects
+import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
@@ -96,7 +97,7 @@ inspectState git directory environment target = do
                         (node, symbolic) : _ -> throwE (SymbolicNodeBranch node symbolic)
                         [] -> pure ()
                     connectivity (Map.elems selected)
-                    worktrees <- query ["worktree", "list", "--porcelain", "-z"] >>= parseWorktrees
+                    worktrees <- query ["worktree", "list", "--porcelain", "-z"] >>= parseWorktrees (repositoryObjectFormat repository)
                     let validated = validateManagedState history selected
                         problems = either id (const []) validated
                     views <- mapM (nodeView history) (Map.toList selected)
@@ -168,21 +169,9 @@ inspectState git directory environment target = do
             count = either (const 0) Set.size (formalHistory history tip)
         pure (NodeView node tip (validatedKind value) latest dependencies count)
 
-    parseWorktrees bytes = mapM decode (zip [0 :: Int ..] (records (BS.split 0 bytes)))
-      where
-        records [] = []
-        records ("" : rest) = records rest
-        records fields = let (record, rest) = break BS.null fields in record : records rest
-        decode (position, fields) = case fields of
-            first : rest
-                | Just path <- BS.stripPrefix "worktree " first
-                , not (BS.null path) -> do
-                    let branches = [name | field <- rest, Just name <- [BS.stripPrefix "branch refs/heads/" field]]
-                        node = case branches of
-                            [name] -> either (const Nothing) Just (parseNodeId name)
-                            _ -> Nothing
-                    pure (WorktreeView path node (position == 0))
-            _ -> throwE (InvalidGitOutput ["worktree", "list"] bytes)
+    parseWorktrees format bytes = case Worktrees.decodeWorktrees format bytes of
+        Left _ -> throwE (InvalidGitOutput ["worktree", "list"] bytes)
+        Right records -> pure [WorktreeView (Worktrees.treePath r) (Worktrees.worktreeNode r) (Worktrees.treeMain r) | r <- records]
 
 -- Inference is limited to an actual worktree on a canonical local Node branch.
 inferNode :: Git IO -> FilePath -> IO (Either InspectionError (Maybe NodeId))
