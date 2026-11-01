@@ -30,7 +30,9 @@ files in the tested snapshot. Node 3 is committed by the user, and all 28
 committed source files match the verified snapshot.
 Its final pre-commit build passed all 79 cases with no
 compiler warnings, and flake check passed on x86_64-linux. check/status are now
-available. Node 4 is now drafted and awaiting its separately authorized validation.
+available. Node 4 is implemented and verified in the worktree, awaiting user
+review/staging/commit. All 86 cases, build and flake check pass on x86_64-linux.
+Do not start node 5 until its user commit is confirmed.
 
 ## Navigation and authority
 
@@ -88,8 +90,9 @@ locked inputs and declared x86_64-linux/aarch64-linux/aarch64-darwin are unchang
 No patched Git is integrated.
 
 The committed baseline also includes node-2 Protocol.Identity/Objects/History,
-its 36 protocol cases and README. The uncommitted node-3 changes are described
-below; no protection lifecycle or mutating Node command is implemented yet.
+its 36 protocol cases and README, plus committed node-3 inspection and 79 tests.
+Node-4 protection lifecycle and Hook changes remain uncommitted; mutating Node
+history/worktree commands are still later work.
 
 README.org retains the user's title/author and now documents the implementation's actual
 help/version and inspection interfaces, build/check commands, native Git selection and tests.
@@ -301,33 +304,101 @@ f9f42c24320bb8cbfc6e673a2f6ef90ce7f35a667d754fd6954817217e86292d.
 The bounded helper and snapshot use tmp/prepare-milestone3-source.py and
 tmp/git-roam-milestone3-source/, preserving earlier snapshots. diff --check passes
 and the staged candidate matches all 28 verified source files. README describes current commands and boundaries.
-CHANGELOG remains TODO 0.1.0 and marks only inspection/status capabilities complete;
-all protection and modifying-operation boxes remain unchecked. The tested source
-is uncommitted, so no new project parent is justified for this handoff checkpoint.
+At the committed node-3 baseline, CHANGELOG remains TODO 0.1.0 and marks only
+inspection/status complete. The user subsequently committed the exact tested
+source; all 28 committed files were directly matched to the manifest before
+node 4. No fresh post-commit test execution is implied by that comparison.
+
+## Node-4 implementation and verification
+
+Application.Protection implements enable/disable, exact local/effective named
+Hook health, common-directory operation locking, the private reference-transaction
+entry and ownHookBypass. Configuration names are restricted to
+hook.git-roam-reference-transaction.{event,command,enabled}. The command shell-
+quotes this actual executable's absolute path. Enable is idempotent when matching,
+accepts invalid knowledge history, and refuses inherited/incomplete/divergent
+own-name configuration. Other hooks are never globally disabled or overwritten.
+The version floor is Git 2.54; full minimum-version compatibility remains unproved.
+
+Disable is idempotent when absent, removes only matching local own-name keys,
+and refuses any remaining canonical Node linked worktree, including user-created
+ones. It neither removes/switches main worktrees nor deletes refs/objects. Public
+deploy/undeploy remain later nodes, so manual native worktree cleanup may currently
+be required. Configuration uses native Git locking and sequential writes, not an
+atomic multi-key install guarantee; failed/incomplete configuration is diagnosed
+rather than automatically overwritten or guessed back into place. Enabled
+configuration is bound to the matching executable; an upgrade/different path
+requires explicit lifecycle/configuration review.
+
+withOperationLock atomically creates git-roam.operation.lock in the common Git
+directory, refuses a busy/unavailable lock and never removes a preexisting lock.
+Its own acquired directory is released after the operation. Common-directory
+filesystem encoding failures are explicit refusals, not lossy path writes.
+requireProtection is the health prerequisite for future mutating application
+operations. ownHookBypass supplies only a per-call named enabled=false setting;
+controlled ref writes must independently validate and use expected-old updates.
+No public Node mutation is introduced in this milestone.
+
+Git 2.56 sends preparing before prepared. Initial matrix tests failed because the
+private CLI omitted preparing; this was corrected. Preparing, committed and aborted
+are accepted no-ops, with actual rejection checks in prepared. The input's old OID
+is not used to infer branch existence: actual managed refs are read while targets
+are prepared. HEAD and noncanonical/non-managed refs are ignored. Ordinary new
+managed branches, deletion and Checkpoint discard are refused. Existing no-op and
+legal Content changes can pass. Local history checks compare Root and complete
+formal sets, with raw object connectivity, avoiding unconditional full repository
+history scans on Content-only transitions. Formal changes validate both complete
+before/candidate managed sets and the shared formal-preservation relation.
+The complete multi-ref transaction is evaluated together, not row by row.
+
+Application.Inspect now exports validateCandidate for a caller-supplied final ref
+set, sharing the protocol and managed-state validators and checking reachable
+objects without writing refs. Candidate validation is not itself authorization,
+an expected-old check, a live atomic snapshot or arbitrary-writer isolation.
+Native prepared-phase locks and the common-directory application lock narrow
+races; they do not promise a global transaction across arbitrary external actors.
+
+Tests retain the 79 previous cases and add seven protection groups: lifecycle on
+invalid history/repeated calls/config conflict/busy-lock preservation, refusal to
+disable with manual linked worktrees, own-only bypass with another rejecting Hook,
+and native protection for files/reftable x SHA-1/SHA-256. Real Git exercises
+Content creation, non-FF Content replacement, commit/amend/soft-reset, native
+Checkpoint progression, marker/tree corruption rejection, ordinary create/delete/
+discard rejection (including a Root-only Node), and a joint two-ref update whose
+new dependency closes only in the final set. Total 86 cases pass; final compiler
+output has no warnings. An initial test do-block compile error was also corrected.
+
+The user separately authorized repeating these exact commands in order for node 4,
+each timeout 120s; all final commands passed with exit 0:
+
+- timeout 120s nix fmt --no-write-lock-file
+- timeout 120s nix build --no-link --no-write-lock-file -L path:./tmp/git-roam-milestone4-source#default
+- timeout 120s nix flake check --no-write-lock-file -L path:./tmp/git-roam-milestone4-source
+
+The build uses GHC 9.12.3/Cabal 3.14.2.0 and standard Git 2.56.0 on x86_64-linux;
+the other declared platforms were omitted. Final package derivation:
+/nix/store/cmw0i05x9lzr6cd2502ykm1a2ga2k7x8-git-roam-0.1.0.drv.
+All 29 files match manifest SHA-256
+f1d566e5bb658e2cbe932ea51c4581bc55ce64ab68cbdac3644069893d268015.
+tmp/prepare-milestone4-source.py and tmp/git-roam-milestone4-source/ preserve older
+snapshots. diff --check passes; project index is empty. No lockfile changes.
+README records actual lifecycle/safety/compatibility limits. CHANGELOG remains
+TODO 0.1.0 and additionally checks the two repository protection boxes. History-
+constructing/deploy/delete/discard application capabilities remain unchecked.
+Only temporary fixture repositories installed/disabled Git-roam protection; the
+actual project still has its canonical GAW Hook and no Git-roam installation.
+These tests concern uncommitted node-4 source, so no new project parent is added
+to the final handoff checkpoint.
 
 ## Next action and authorization
 
-The user committed node 3 and requested continuation. All 28 committed files were
-confirmed equal to the tested snapshot before node 4 edits. Node 4 now drafts
-enable/disable, matching-executable named Hook configuration and health checks,
-common-directory operation locking, prepared transaction validation against real
-old refs, local formal-set-preserving Content checks, and complete candidate ref
-validation for formal changes. Ordinary creation/deletion/discard are refused;
-controlled callers can disable only their own named Hook after independent checks.
-The library compiled, but the initial test source needed a final do-block result.
-The next run passed lifecycle/conflict/coexistence cases and exposed Git 2.56's
-preparing phase before prepared; the private CLI now accepts preparing as a
-no-op and validates in prepared. The four native protection matrix cases then
-passed, bringing the total to 86 cases. Final native amend/reset/lock assertions
-and documentation are being verified. Do not claim the whole node verified yet.
-Native fixture cases cover lifecycle,
-coexistence, main/linked cleanup prerequisites, ordinary editing/formal progression,
-multi-ref dependency closure and all four object-format/ref-backend combinations.
-The user separately authorized formatting and build/check against
-path:./tmp/git-roam-milestone4-source, timeout 120s, in order and repeated as needed.
-Do not install Git-roam protection in the real project repository: only fixture
-repositories are used for lifecycle/Hook tests. Keep project staging/commit with
-the user, preserve previous snapshots/archives, and update progress after checks.
+Present node 4 for user review/staging. After staging, review the actual index and
+prepare its commit message; wait for the user's commit. Confirm its source against
+the tested snapshot before node 5 (internal safe worktree enumeration, planning,
+path validation and fixed short names; no public partial deployment command).
+Do not stage/commit project files, install protection in the project, or begin
+node 5 now. No further checks are needed absent changes/new concerns. Preserve
+the independent archives and prior snapshots; use the public GAW memory loop.
 
 The request to implement covers the plan's project edits. Respect AGENTS.md for
 build/test/format/network command authorization and project Git boundaries.
