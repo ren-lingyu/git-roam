@@ -32,6 +32,7 @@ library
 
   other-modules:
     GitRoam.BuildInfo
+    GitRoam.Git.Batch
     Paths_git_roam
 
   autogen-modules:  Paths_git_roam
@@ -294,6 +295,28 @@ test-suite end-to-end-tests
     , directory
     , filepath
     , git-roam
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded
+
+test-suite batch-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Batch.hs
+  other-modules:
+    TestSupport
+    WorktreeFixture
+
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , async
+    , base        >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , git-roam
+    , unix
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded

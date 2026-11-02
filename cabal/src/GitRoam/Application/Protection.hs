@@ -168,19 +168,21 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
                 [(node, _)] -> do
                     let old = before Map.! node
                         new = after Map.! node
-                    loaded <- lift (validateHistory format (nativeHistorySource native directory format []) [old, new])
-                    case loaded of
-                        Left problem -> throwE (show problem)
-                        Right history -> do
-                            let formal tip = either (const Nothing) Just (formalHistory history tip)
-                                sameRoot = (validatedRoot <$> lookupCommit history old) == (validatedRoot <$> lookupCommit history new)
-                            let unchanged = sameRoot && formal old == formal new
-                            when unchanged $ do
-                                shallow <- ExceptT (checked directory ["rev-parse", "--is-shallow-repository"])
-                                unless (shallow == "false\n") (throwE "Content updates require complete, non-shallow history")
-                                evidence <- lift (checkStoredConnectivity native directory [] (nativeHistorySource native directory format []) [new]) >>= either (throwE . show) pure
-                                unless (null evidence) (throwE "Content history has missing objects")
-                            pure unchanged
+                    result <- lift $ withHistorySource native directory format [] $ \provider -> runExceptT $ do
+                        loaded <- lift (validateHistory format provider [old, new])
+                        case loaded of
+                            Left problem -> throwE (show problem)
+                            Right history -> do
+                                let formal tip = either (const Nothing) Just (formalHistory history tip)
+                                    sameRoot = (validatedRoot <$> lookupCommit history old) == (validatedRoot <$> lookupCommit history new)
+                                let unchanged = sameRoot && formal old == formal new
+                                when unchanged $ do
+                                    shallow <- ExceptT (checked directory ["rev-parse", "--is-shallow-repository"])
+                                    unless (shallow == "false\n") (throwE "Content updates require complete, non-shallow history")
+                                    evidence <- lift (checkStoredConnectivity native directory [] provider [new]) >>= either (throwE . show) pure
+                                    unless (null evidence) (throwE "Content history has missing objects")
+                                pure unchanged
+                    either (throwE . show) (either throwE pure) result
                 _ -> pure False
             unless local $ do
                 old <- lift (validateCandidate native directory before) >>= either (throwE . show) pure

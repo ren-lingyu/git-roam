@@ -16,7 +16,6 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -26,7 +25,6 @@ import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
-import GitRoam.Protocol.Objects
 import GitRoam.Protocol.Repository
 import GitRoam.Repository
 import System.Exit (ExitCode (..))
@@ -76,8 +74,7 @@ inspectState git directory environment target = do
     case discovery of
         Left problem -> pure (Left (RepositoryDiscoveryFailure problem))
         Right repository -> do
-            provider <- cachedSource (nativeHistorySource git directory (repositoryObjectFormat repository) environment)
-            runExceptT $ do
+            result <- withHistorySource git directory (repositoryObjectFormat repository) environment $ \provider -> runExceptT $ do
                 before <- readRefs (repositoryObjectFormat repository)
                 let beforeRefs = Map.map fst before
                 -- Even a failed validation must distinguish a changing observation.
@@ -105,6 +102,7 @@ inspectState git directory environment target = do
                 after <- readRefs (repositoryObjectFormat repository)
                 unless (before == after) (throwE ReferencesChanged)
                 either throwE pure outcome
+            pure (either (Left . InspectionTransportFailure ["cat-file", "--batch"]) id result)
   where
     query arguments = do
         outcome <- lift $ runGit git (GitInvocation directory ("--no-replace-objects" : arguments) BS.empty (environment ++ readOnlyEnvironment))
@@ -189,20 +187,6 @@ inferNode git directory = do
                     Just (name, 10) -> Right (BS.stripPrefix "refs/heads/" name >>= either (const Nothing) Just . parseNodeId)
                     _ -> Left (InvalidGitOutput ["symbolic-ref"] (gitStdout value))
 
-cachedSource :: HistorySource IO -> IO (HistorySource IO)
-cachedSource provider = do
-    commits <- newIORef Map.empty
-    trees <- newIORef Map.empty
-    let cached cache loader oid = do
-            known <- Map.lookup oid <$> readIORef cache
-            case known of
-                Just value -> pure value
-                Nothing -> do
-                    value <- loader oid
-                    modifyIORef' cache (Map.insert oid value)
-                    pure value
-    pure (HistorySource (cached commits (loadCommit provider)) (cached trees (loadTree provider)))
-
 -- A caller-supplied final ref set; no ref writes or claim of a live snapshot.
 validateCandidate :: Git IO -> FilePath -> Map NodeId ObjectId -> IO (Either InspectionError ManagedState)
 validateCandidate git directory refs = runExceptT $ do
@@ -217,10 +201,11 @@ validateCandidate git directory refs = runExceptT $ do
         "false\n" -> pure ()
         "true\n" -> throwE ShallowRepository
         bytes -> throwE (InvalidGitOutput arguments bytes)
-    provider <- lift (cachedSource (nativeHistorySource git directory format []))
-    loaded <- lift (validateHistory format provider (Map.elems refs))
-    history <- either (throwE . HistoryFailure) pure loaded
-    outcome <- lift (checkStoredConnectivity git directory [] provider (Map.elems refs))
-    missing <- either (throwE . HistoryFailure . uncurry ObjectUnavailable) pure outcome
-    unless (null missing) (throwE (MissingReachableObjects (map objectIdBytes missing)))
-    either (throwE . CandidateStateInvalid) pure (validateManagedState history refs)
+    validated <- lift $ withHistorySource git directory format [] $ \provider -> runExceptT $ do
+        loaded <- lift (validateHistory format provider (Map.elems refs))
+        history <- either (throwE . HistoryFailure) pure loaded
+        outcome <- lift (checkStoredConnectivity git directory [] provider (Map.elems refs))
+        missing <- either (throwE . HistoryFailure . uncurry ObjectUnavailable) pure outcome
+        unless (null missing) (throwE (MissingReachableObjects (map objectIdBytes missing)))
+        either (throwE . CandidateStateInvalid) pure (validateManagedState history refs)
+    either (throwE . InspectionTransportFailure ["cat-file", "--batch"]) (either throwE pure) validated

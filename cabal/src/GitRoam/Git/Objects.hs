@@ -1,13 +1,15 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module GitRoam.Git.Objects (decodeCommit, decodeTree, nativeHistorySource, readOnlyEnvironment, checkStoredConnectivity, peelStoredCommit, resolveCommitReference) where
+module GitRoam.Git.Objects (decodeCommit, decodeTree, nativeHistorySource, withHistorySource, readOnlyEnvironment, checkStoredConnectivity, peelStoredCommit, resolveCommitReference) where
 
 import Control.Monad (foldM, unless, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import Data.IORef (atomicModifyIORef', newIORef, readIORef)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GitRoam.Git
 import GitRoam.ObjectId
@@ -61,6 +63,27 @@ decodeTree format = go
     hexadecimal byte = BS.pack [digit (byte `div` 16), digit (byte `mod` 16)]
     digit n = if n < 10 then 48 + n else 87 + n
 
+-- The callback and its cached HistorySource share one raw process lifetime.
+-- Native decorators retain this capability; pure one-shot test doubles retain
+-- their injected behavior, without launching an unobserved native executable.
+withHistorySource :: Git IO -> FilePath -> ObjectFormat -> [(String, Maybe String)] -> (HistorySource IO -> IO a) -> IO (Either GitError a)
+withHistorySource git directory format environment action =
+    withGitBatch git (GitInvocation directory ["--no-replace-objects", "cat-file", "--batch"] BS.empty (environment ++ readOnlyEnvironment)) $ \scoped -> do
+        commits <- newIORef Map.empty
+        trees <- newIORef Map.empty
+        let source = nativeHistorySource scoped directory format environment
+            cached cache loader oid = do
+                known <- Map.lookup oid <$> readIORef cache
+                case known of
+                    Just value -> pure value
+                    Nothing -> do
+                        value <- loader oid
+                        atomicModifyIORef' cache (\values -> (Map.insert oid value values, ()))
+                        pure value
+        action (HistorySource (cached commits (loadCommit source)) (cached trees (loadTree source)))
+
+-- Generic one-shot provider also used with the session's scoped Git transport.
+-- Application validation should enter through withHistorySource.
 nativeHistorySource ::
     (Monad m) =>
     Git m -> FilePath -> ObjectFormat -> [(String, Maybe String)] -> HistorySource m

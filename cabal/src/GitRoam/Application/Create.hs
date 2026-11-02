@@ -71,9 +71,12 @@ createNodeWith :: IO NodeId -> FilePath -> Git IO -> FilePath -> FilePath -> IO 
 createNodeWith generate executable git directory path = do
     installed <- newIORef False
     attempted <- newIORef False
-    let observed = Git $ \invocation -> do
-            when ("worktree" `elem` gitArguments invocation && "add" `elem` gitArguments invocation) (writeIORef attempted True)
-            runGit git invocation
+    let observed =
+            observeGit
+                ( \invocation -> do
+                    when ("worktree" `elem` gitArguments invocation && "add" `elem` gitArguments invocation) (writeIORef attempted True)
+                )
+                git
     outcome <- try $ withProtectedSession executable observed directory $ \session -> do
         prepared <- prepare
         case prepared of

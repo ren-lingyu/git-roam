@@ -99,15 +99,18 @@ deploy :: FilePath -> Git IO -> FilePath -> FilePath -> Maybe String -> IO (Eith
 deploy executable git directory path remote = do
     established <- newIORef False
     attempted <- newIORef Set.empty
-    let observedGit = Git $ \invocation -> do
-            let args = gitArguments invocation
-            case reverse args of
-                name : _
-                    | "worktree" `elem` args && "add" `elem` args
-                    , Right node <- parseNodeId (BSC.pack name) ->
-                        modifyIORef' attempted (Set.insert node)
-                _ -> pure ()
-            runGit git invocation
+    let observedGit =
+            observeGit
+                ( \invocation -> do
+                    let args = gitArguments invocation
+                    case reverse args of
+                        name : _
+                            | "worktree" `elem` args && "add" `elem` args
+                            , Right node <- parseNodeId (BSC.pack name) ->
+                                modifyIORef' attempted (Set.insert node)
+                        _ -> pure ()
+                )
+                git
     outcome <- try $ withProtectedSession executable observedGit directory $ \session -> do
         prepared <- prepare
         case prepared of

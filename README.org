@@ -164,6 +164,15 @@ Use =git roam check= to distinguish invalid history, incomplete local dependency
 
 Conditional updates, application locks, safety preflight and post-checks reduce or diagnose races; they do not guarantee arbitrary-process serializability. After failure, inspect the reported actual refs and =git worktree list --porcelain=, preserve residual files, and rerun the read-only check when a stable observation is possible. Do not assume every error means no changes occurred. Git-roam does not promise recovery of discarded history or a lost original branch tip, and it does not automatically force-clean, stash, reset or rewrite history to recover.
 
+* Raw object reading
+Raw object validation uses a scoped =git --no-replace-objects cat-file --batch= process per validation operation, shared by commit/tree reads and their existing per-call cache. =check=, =status=, candidate validation and the Hook's local-history path share this mechanism. Blob existence/type checks continue to use a separate batch metadata query. There is no cross-command object cache, daemon or repository registration state.
+
+Requests within a session are serialized, including concurrent callers. Full SHA-1/SHA-256 OIDs, response OIDs/types/sizes, binary body length and the terminator are checked. Missing objects remain distinct from malformed or truncated replies. A framing or I/O failure makes that session unusable; it is not retried as another object. Replacement refs, grafts and shallow rules retain their existing interpretation boundaries.
+
+Session scope closes stdin, checks process exit and releases handles. Stderr is continuously drained with bounded diagnostic retention. Cancellation or an unusable stream terminates and reaps the owned child, escalating only within its own process group when necessary. Shutdown, trailing-output and cleanup failures are reported; a valid reply followed by a failed process exit is not successful validation. The callback's reader must not escape its scope. Arbitrarily stuck kernel I/O is not a promised transaction guarantee.
+
+The Haskell adapter's =withHistorySource= manages this scope. =withGitEnvironment= and =observeGit= preserve native session support when adapting the environment or observing process launches. A bare injected =Git= test double retains its one-shot behavior, without secretly launching an unobserved native process; =nativeHistorySource= remains the generic one-shot provider used by those doubles and the scoped transport. Application validation uses the scoped entry point.
+
 * Repository protection
 =enable= configures this executable's named =reference-transaction= Hook in the common repository configuration. It can run before knowledge history or dependency closure is valid, creates no Node or worktree, and is idempotent when the installed configuration matches. Conflicting, inherited or incomplete configuration is refused rather than overwritten. Other Hooks remain configured and active.
 

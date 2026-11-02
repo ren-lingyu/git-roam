@@ -7,6 +7,9 @@
 * TODO 0.1.0
 Unchecked items describe planned work, not a claim of available functionality.
 
+** Changed
+- [X] Reuse a raw Git object-reading process within each validation operation to reduce full-check startup overhead while preserving history interpretation and diagnostics.
+
 ** Added
 *** Repository protection
 - [X] Enable and disable repository protection independently of worktree deployment.

@@ -36,7 +36,7 @@ fixture backend format action = withTempDirectory $ \parent -> do
                    , ("GIT_COMMITTER_NAME", Just "Fixture")
                    , ("GIT_COMMITTER_EMAIL", Just "fixture@example.invalid")
                    ]
-        git = Git $ \invocation -> runGit native invocation{gitEnvironment = environment ++ gitEnvironment invocation}
+        git = withGitEnvironment environment native
         repo = parent </> "repository"
     createDirectory repo
     _ <- ok git repo ["init", "-q", "--initial-branch=main", "--ref-format=" ++ backend, "--object-format=" ++ if format == Sha1 then "sha1" else "sha256"] ""
