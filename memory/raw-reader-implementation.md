@@ -108,3 +108,53 @@ Next: await the next user task. The optimization, correctness checks, production
 performance measurements and documentation are complete. Keep the minimum-Git,
 other-platform and benchmark workload limits explicit. Do not start unrelated
 worktree optimizations, release changes or archival expansion automatically.
+
+## Committed-source performance retest
+
+The user separately requested a new isolated flake performance retest after
+committing the optimization. This is tmp/committed-reader-performance/, not a
+reprint of the prior uncommitted results. prepare.py restores all 50 small blobs
+from the exact committed production tree, with git-blob/SHA-256 provenance in
+flake/SOURCE.json. All copied hashes were rechecked after measurement. Source
+manifest SHA-256: e72a934e020d577533d41bddcaf94d376249eac22584ab5bb03ae5c477edc399.
+
+The archived run.py is copied byte-exactly as fixture_recipe.py and imported
+only for its unmodified deterministic fixture() function. The archived lock is
+also byte-exact. Both generated streams and all six production validation
+results match the archive's 1,000/10,000-Node hashes/digests. The fixtures have
+one Root, one Content and one Checkpoint per Node, no external dependencies,
+packed SHA-1/files. Large generated repositories were omitted from the original
+archive; reproducing their exact generator streams is the dataset identity.
+
+Only native production observeGit/inspectState is measured, with no prototype
+or one-shot mode executed. Three invocations per case, serial -N1 -M1G, one
+packing thread, 60s child deadlines. Build/check/run commands had 120s outer
+deadlines and NIX_CONFIG single job/core. All commands and six measurements
+passed; no timeout, failure, retry, heap exhaustion or budget increase occurred.
+The isolated flake check warned only about an optional missing app meta field.
+
+| Nodes | Three validation times, seconds | Median seconds | Median max RSS MiB |
+| --- | --- | --- | --- |
+| 1,000 | 0.190306686, 0.217523995, 0.160588873 | 0.190306686 | 30.10546875 |
+| 10,000 | 2.455160513, 3.054985528, 2.241433720 | 2.455160513 | 243.53515625 |
+
+Every run starts exactly one raw child, one metadata process and nine other
+repository queries (11 total). This confirms the per-validation session on the
+actual committed implementation. Git 2.56.0/GHC 9.12, x86_64-linux. OS caches
+were not flushed; inspection core excludes CLI rendering. GNU time max RSS is
+not summed simultaneous RSS and the managed heap cap is not a total RSS cap.
+Do not assert cold-storage, other-platform, or minimum-Git compatibility, or
+interpret run-to-run differences as a separately measured code improvement.
+
+Raw observations: tmp/committed-reader-performance/runs/20261102T005250.860888Z/.
+REPORT.md and README.md at the experiment root explain reproduction/controls.
+Those are ignored local evidence paths, not durable external dependencies;
+results and required method are distilled here, with the original archived
+recipe and the exact production project-parent providing recoverable inputs.
+No archive expansion is necessary for this retest; do not copy generated large
+fixture data into GAW by default. Project working tree/index/refs/lock and the
+original archive remained unchanged, and the worktree is clean.
+
+The explicitly requested retest is complete. Report its production-only results
+and limitations; await the user's next task. No duplicate full test-suite run
+or product edit was needed for this isolated performance measurement.

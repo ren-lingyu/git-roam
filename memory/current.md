@@ -892,6 +892,22 @@ needed for ordinary source implementation/testing.
 
 ## Next action and authorization
 
+The user requested a new isolated flake-managed performance retest of the
+committed production reader using the archived 1,000/10,000-Node fixtures.
+The new experiment is tmp/committed-reader-performance/, with an exact
+50-file source copy reconstructed from the committed optimization, the original
+byte-verified fixture recipe and lock, and archived expected stream/result
+hashes. Build, isolated flake check and all six measurements passed. Production
+medians: 1,000 Nodes 0.190307s / 30.11 MiB max RSS; 10,000 Nodes 2.455161s /
+243.54 MiB. Every run uses one raw child / 11 total Git launches and matches the
+archived stream/result digests. Three runs per scale were serial, one capability,
+1 GiB managed heap, single Nix job/core; no timeout, failed run or retry. No
+product edits, original archive edits or old run replacement. Follow the
+committed-retest section in raw-reader-implementation.md for measurements,
+controls and limits. The requested retest is complete; await the next user task.
+
+### Completed production implementation
+
 The user now explicitly requested production integration of the persistent raw
 reader, preserving all protocol semantics and requiring lifecycle/error tests
 plus performance revalidation. Follow
