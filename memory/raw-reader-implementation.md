@@ -88,15 +88,23 @@ this ordinary implementation retest does not establish a new independent
 archival need. Durable results, controls and limits are distilled here. Do not
 archive generated fixture repos, packs, build outputs or the whole tmp directory.
 
-The whole intended project diff was reviewed, including both new untracked
-files; diff --check passed and the project index remains empty. This is one
-cohesive optimization with its lifecycle tests and documentation. No protocol
-module, lockfile, live protection config, project ref or pre-existing Node
-worktree/index was modified by the task. A pre-existing Undeployment test import warning remains unchanged.
+The whole intended project diff was reviewed, including the two added files;
+diff --check passed. This is one cohesive optimization with its lifecycle tests
+and documentation. No protocol module, lockfile, live protection config or
+pre-existing Node worktree/index was modified by the task. A pre-existing
+Undeployment test import warning remains unchanged.
 
-Next: hand off the verified implementation and performance results for user
-review, project staging and commit. Use staged-diff evidence for any requested
-commit message; do not stage or commit project files on the user's behalf. There is
-no exact project commit for this uncommitted implementation, so do not attach a
-speculative project parent. After the user's commit, compare it with the verified
-source manifest before grounding the committed state if that has recovery value.
+The user has committed the production implementation with the reviewed
+`perf(git-roam): reuse a persistent raw object reader per validation` message.
+Read-only comparison of every committed blob confirms all 50 files match the
+final verified manifest, with no additional tracked files. The project worktree
+is clean. The committed source snapshot supplies an exact project-parent
+provenance for the final implementation verification, rather than a guessed
+association. Measurement source predates only the final documentation checkbox;
+the performance manifest above continues to identify that measured copy exactly.
+No build or performance rerun was necessary merely to confirm the commit.
+
+Next: await the next user task. The optimization, correctness checks, production
+performance measurements and documentation are complete. Keep the minimum-Git,
+other-platform and benchmark workload limits explicit. Do not start unrelated
+worktree optimizations, release changes or archival expansion automatically.

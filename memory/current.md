@@ -896,7 +896,7 @@ The user now explicitly requested production integration of the persistent raw
 reader, preserving all protocol semantics and requiring lifecycle/error tests
 plus performance revalidation. Follow
 [raw-reader-implementation.md](raw-reader-implementation.md) for current code,
-test design and remaining verification. Session/adapter/shared-validator code,
+test design, completed verification and recovery boundaries. Session/adapter/shared-validator code,
 tests and documentation are written; the corrected 50-file build passed all
 274 cases / 13 suites and flake/format checks. Actual production performance
 revalidation completed all 24 measurements in a new isolated experiment, with
@@ -906,12 +906,14 @@ implementation medians are 109.6696s one-shot versus 2.7429s production (~40x),
 production run uses exactly one raw batch process. Longer dependency-history
 measurements also passed. The Changed checkbox is checked; final formatting,
 build and flake check passed, and all 50 current files match the final verified
-snapshot. Await user review/staging/commit; project index remains empty. The user preauthorized
-repeated Nix build/check/run/fmt for this round;
-retain single-job/core resource bounds, source snapshots and normal project Git
-boundaries. The production changes remain uncommitted. This adopted task
-supersedes the preceding experiment-only boundary; it does not change the DAG
-or authorize unrelated deployment optimizations or a release.
+snapshot. The user committed the production optimization as
+`perf(git-roam): reuse a persistent raw object reader per validation`.
+Read-only comparison confirms all 50 committed files match the final verified
+snapshot, with no additional tracked files; the project worktree is clean.
+The committed implementation is complete. No duplicate build or performance
+rerun is needed solely for the commit acknowledgment. Await the next user task;
+do not start unrelated optimizations or a release. Nix command authorization
+applies to the completed task and does not broaden future task scope.
 
 The preceding independent experiment (before production authorization) was an
 isolated flake-managed raw-object performance measurement for potential
