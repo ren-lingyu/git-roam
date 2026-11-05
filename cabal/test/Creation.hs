@@ -48,9 +48,19 @@ main =
 
 arguments :: IO ()
 arguments = do
-    assertEqual (Right (CreateNode "work")) (parseCommand ["node", "create", "--path", "work"])
+    assertEqual (Right (CreateNode "work" Nothing)) (parseCommand ["node", "create", "--path", "work"])
+    assertEqual (Right (CreateNode "work" (Just nodeA))) (parseCommand ["node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA)])
+    assertEqual (Right (CreateNode "work" (Just nodeA))) (parseCommand ["node", "create", "--id", BSC.unpack (nodeIdBytes nodeA), "--path", "work"])
     assertEqual (Right (ShowHelp NodeCreateHelp)) (parseCommand ["help", "node", "create"])
-    forM_ [["node", "create"], ["node", "create", "--path", ""], ["node", "create", "--uuid", BSC.unpack (nodeIdBytes nodeA), "--path", "work"], ["node", "create", "--path", "work", "extra"]] $ expectLeft . parseCommand
+    forM_
+        [ ["node", "create"]
+        , ["node", "create", "--path", ""]
+        , ["node", "create", "--uuid", BSC.unpack (nodeIdBytes nodeA), "--path", "work"]
+        , ["node", "create", "--path", "work", "--id", "not-a-uuid"]
+        , ["node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA), "--id", BSC.unpack (nodeIdBytes nodeB)]
+        , ["node", "create", "--path", "work", "extra"]
+        ]
+        $ expectLeft . parseCommand
 
 create :: Git IO -> FilePath -> FilePath -> FilePath -> IO (Either CreationFailure CreationResult)
 create git executable repo path = createNodeWith (pure nodeA) executable git repo path
@@ -62,6 +72,7 @@ lifecycle git executable repo parent = do
     result <- create git executable repo (parent </> "work") >>= expectRight
     assertEqual nodeA (createdNode result)
     assertEqual (parent </> "work" </> shortName nodeA) (createdPath result)
+    assertEqual (createdPath result </> BSC.unpack (nodeIdBytes nodeA)) (createdBundlePath result)
     formatName <- BSC.init <$> ok git repo ["rev-parse", "--show-object-format"] ""
     format <- expectRight (parseObjectFormat formatName)
     let provider = nativeHistorySource git repo format []
@@ -267,13 +278,19 @@ cliLoop git executable repo _ = do
     inherited <- getEnvironment
     let environment = [(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name] ++ [("GIT_CONFIG_NOSYSTEM", Just "1"), ("GIT_CONFIG_GLOBAL", Just "/dev/null")]
         cli args = runGit (nativeGit executable) (GitInvocation repo args "" environment) >>= expectRight
-    result <- cli ["node", "create", "--path", "nodes"]
+    invalid <- cli ["node", "create", "--path", "nodes", "--id", "11111111-1111-1111-8111-111111111111"]
+    assertEqual (ExitFailure 1) (gitExitCode invalid)
+    snapshot git repo >>= assertEqual Map.empty . managedRefs
+    result <- cli ["node", "create", "--path", "nodes", "--id", BSC.unpack (nodeIdBytes nodeA)]
     assertEqual ExitSuccess (gitExitCode result)
+    assertTrue "Public create did not report bundle path" ("bundle " `BS.isInfixOf` gitStdout result)
     node <- case BSC.words (BSC.takeWhile (/= '\n') (gitStdout result)) of
         ["node", uuid] -> expectRight (parseNodeId uuid)
         _ -> fail (show result)
     let target = repo </> "nodes" </> shortName node
         note = BSC.unpack (nodeIdBytes node) </> "note.org"
+    assertTrue "Specified UUID was not used" (node == nodeA)
+    assertTrue "Incorrect bundle path" (("bundle " <> BSC.pack (show (target </> BSC.unpack (nodeIdBytes node)))) `BS.isInfixOf` gitStdout result)
     doesFileExist (target </> BSC.unpack (nodeIdBytes node) </> ".roam") >>= assertEqual True
     writeFile (target </> note) "A real note\n"
     _ <- ok git target ["add", "--", note] ""

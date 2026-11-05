@@ -44,7 +44,7 @@ data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp |
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDiscard [String] | ExecuteDiscard [String] (Maybe String) | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDiscard [String] | ExecuteDiscard [String] (Maybe String) | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -93,8 +93,8 @@ parseCommand arguments = case arguments of
     ["node", "-h"] -> help NodeHelp
     ["node", "create", "--help"] -> help NodeCreateHelp
     ["node", "create", "-h"] -> help NodeCreateHelp
-    ["node", "create", "--path", path] | validValue path -> Right (CreateNode path)
-    "node" : _ -> Left "Usage: git roam node create --path <path>"
+    "node" : "create" : args -> createArgs Nothing Nothing args
+    "node" : _ -> Left "Usage: git roam node create --path <path> [--id <uuid>]"
     ["undeploy", "--help"] -> help UndeployHelp
     ["undeploy", "-h"] -> help UndeployHelp
     ["undeploy"] -> Right UndeployNodes
@@ -129,6 +129,11 @@ parseCommand arguments = case arguments of
     option : _ | take 1 option == "-" -> Left ("Unknown option: " <> quoted option)
     command : _ -> Left ("Unknown command: " <> quoted command)
   where
+    createArgs path node args = case args of
+        [] | Just target <- path -> Right (CreateNode target node)
+        "--path" : value : rest | path == Nothing && validValue value -> createArgs (Just value) node rest
+        "--id" : value : rest | node == Nothing -> uuid value >>= \selected -> createArgs path (Just selected) rest
+        _ -> Left "Usage: git roam node create --path <path> [--id <uuid>]"
     deleteArgs node dry confirmation args = case args of
         "--node" : value : rest | node == Nothing -> case uuid value of
             Right parsed -> deleteArgs (Just parsed) dry confirmation rest
@@ -192,9 +197,9 @@ renderHelp topic = case topic of
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
-    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path>  Create a UUIDv4 Node with an editable linked worktree", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
+    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path> [--id <uuid>]  Create a UUIDv4 Node with an editable linked worktree", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
     NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Every other Node's retained historical dependency is checked; incoming edges block deletion.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
-    NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path>", "", "Create a UUIDv4 identity, empty-marker Root, persistent local branch and linked worktree.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID and actual path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
+    NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>]", "", "Create a UUIDv4 identity, empty-marker Root, persistent local branch and linked worktree.", "--id selects a canonical lowercase UUIDv4; without it, a fresh UUIDv4 is generated.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
     CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       [--depend <ref-or-oid>] [--drop-dependency <uuid>] [--clear-dependencies]", "", "Select an explicit Node or infer its worktree; Root requires committed Content first.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Inherit the previous full dependency set; --depend adds/replaces one external Checkpoint per UUID.", "Dependencies accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "Repeat --depend/--drop-dependency for different Nodes. Clear may combine with additions, not removals.", "Conflicting edits, self dependencies and unretained/non-Checkpoint inputs are refused.", "Uses the committed tree, preserving all Content history and uncommitted index/worktree data."]
     DiscardHelp -> Text.unlines ["usage: git roam discard --dry-run <ref-or-oid>...", "       git roam discard --confirm <plan-id> <ref-or-oid>...", "       git roam discard <ref-or-oid>...", "", "Preview the exact minimal successor closure, old/new tips, Content loss and affected worktrees.", "Refs or unambiguous commit OIDs must identify currently retained Checkpoints.", "--dry-run is read-only and prints a plan ID only when all preconditions pass.", "Execution requires matching enabled protection and confirmation of that complete plan ID.", "Without --confirm, terminal input/stderr are required: review the preview and type its plan ID.", "Stale plans, multiple remaining maxima and unsafe worktrees refuse; there is no force option.", "Affected clean linked worktrees are recreated at their original paths around one ref transaction.", "Main/nested target worktrees and private worktree configuration/refs require prior manual handling.", "Failures report actual state; committed discards are never rolled back and recovery is not promised."]
   where
@@ -381,13 +386,24 @@ runCli arguments = case parseCommand arguments of
                                     ++ ["dependency " <> nodeText dep <> " " <> oidText oid | (dep, oid) <- Map.toList (Checkpoints.checkpointDependencies value)]
                                 )
                             )
-    Right (CreateNode path) -> do
+    Right (CreateNode path specifiedNode) -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath
-        result <- Creation.createNode executable (nativeGit defaultGitExecutable) directory path
+        let git = nativeGit defaultGitExecutable
+        result <- case specifiedNode of
+            Nothing -> Creation.createNode executable git directory path
+            Just node -> Creation.createNodeWith (pure node) executable git directory path
         pure $ case result of
             Left (Creation.CreationFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
-            Right report -> success (Text.unlines ["node " <> nodeText (Creation.createdNode report), "root " <> oidText (Creation.createdRoot report), "worktree " <> Text.pack (show (Creation.createdPath report))])
+            Right report ->
+                success
+                    ( Text.unlines
+                        [ "node " <> nodeText (Creation.createdNode report)
+                        , "root " <> oidText (Creation.createdRoot report)
+                        , "worktree " <> Text.pack (show (Creation.createdPath report))
+                        , "bundle " <> Text.pack (show (Creation.createdBundlePath report))
+                        ]
+                    )
     Right UndeployNodes -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module GitRoam.Application.Create (createNode, createNodeWith, CreationResult (..), CreationFailure (..)) where
+module GitRoam.Application.Create (createNode, createNodeWith, createdBundlePath, CreationResult (..), CreationFailure (..)) where
 
 import Control.Exception (IOException, try)
 import Control.Monad (forM_, unless, when)
@@ -34,6 +34,11 @@ data CreationResult = CreationResult
     , createdPath :: FilePath
     }
     deriving (Eq, Show)
+
+-- A Node's checked-out payload lives below its linked worktree root.
+createdBundlePath :: CreationResult -> FilePath
+createdBundlePath result = createdPath result </> BSC.unpack (nodeIdBytes (createdNode result))
+
 data CreationFailure = CreationFailure String [String] deriving (Eq, Show)
 
 environment :: [(String, Maybe String)]
@@ -65,8 +70,8 @@ branchConfig git directory node = do
 createNode :: FilePath -> Git IO -> FilePath -> FilePath -> IO (Either CreationFailure CreationResult)
 createNode = createNodeWith (UUID.nextRandom >>= either (ioError . userError) pure . parseNodeId . BSC.pack . UUID.toString)
 
--- Entropy is injected for embedded runtimes and deterministic collision tests;
--- the CLI always uses UUIDv4 generation, with no user-selected identity option.
+-- The identity source is injected for embedded runtimes, caller-selected
+-- identities and deterministic collision tests; every candidate must be UUIDv4.
 createNodeWith :: IO NodeId -> FilePath -> Git IO -> FilePath -> FilePath -> IO (Either CreationFailure CreationResult)
 createNodeWith generate executable git directory path = do
     installed <- newIORef False
