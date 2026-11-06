@@ -56,10 +56,10 @@ main =
             ( "help advertises only available commands"
             , do
                 output <- responseStdout <$> runCli []
-                assertTrue "help missing" ("help [command]" `Text.isInfixOf` output)
-                assertTrue "Node deletion missing" ("node delete" `Text.isInfixOf` output)
+                assertTrue "help missing" ("help [command]" `BS.isInfixOf` output)
+                assertTrue "Node deletion missing" ("node delete" `BS.isInfixOf` output)
                 assertTrue "unimplemented command advertised" $
-                    not ("node adopt" `Text.isInfixOf` output)
+                    not ("node adopt" `BS.isInfixOf` output)
             )
         ,
             ( "object formats"

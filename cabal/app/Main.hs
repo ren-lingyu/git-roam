@@ -10,6 +10,7 @@ import System.IO (stderr, stdout)
 main :: IO ()
 main = do
     response <- getArgs >>= runCli
-    BS.hPut stdout (Text.encodeUtf8 (responseStdout response))
+    -- stdout can contain CBOR bytes; do not pass it through UTF-8.
+    BS.hPut stdout (responseStdout response)
     BS.hPut stderr (Text.encodeUtf8 (responseStderr response))
     exitWith (responseExitCode response)

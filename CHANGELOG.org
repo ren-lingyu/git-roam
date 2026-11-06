@@ -18,6 +18,7 @@ Unchecked items describe planned work, not a claim of available functionality.
 *** Node history and dependencies
 - [X] Create a UUID-identified Node and an editable linked worktree under an explicit deployment path.
 - [X] Allow an explicit UUIDv4 on Node creation and report the resulting UUID bundle path.
+- [X] Support selectable text, JSON and CBOR Node creation output, with lossless filesystem path bytes in structured formats.
 - [X] Edit and revise unconfirmed Content with ordinary Git, preserving editing history without automatic squash.
 - [X] Create Checkpoints from committed Content with complete, exact-version external dependencies.
 - [X] Add, remove, replace, or clear dependencies without including or changing uncommitted index and worktree content.

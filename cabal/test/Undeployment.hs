@@ -11,7 +11,6 @@ import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Application.Undeploy
 import GitRoam.Cli (Command (..), HelpTopic (..), parseCommand)
 import GitRoam.Git
-import GitRoam.Git.Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository

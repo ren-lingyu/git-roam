@@ -35,6 +35,8 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam disable
   git roam node create --path /path/to/worktrees
   git roam node create --path /path/to/worktrees --id <uuid-v4>
+  git roam node create --path /path/to/worktrees --format json
+  git roam node create --path /path/to/worktrees --format cbor > creation.cbor
   git roam node delete --node <uuid> --dry-run
   git roam checkpoint -m 'Confirm this knowledge version'
   git roam discard --dry-run <checkpoint-ref-or-oid>
@@ -47,8 +49,31 @@ Help and version queries do not require a Git repository. Successful queries wri
 The optional =--id= on =node create= accepts a canonical lowercase UUIDv4;
 without it Git-roam generates a new UUIDv4. Successful creation prints the
 =node= identity, =root= OID, =worktree= path, and =bundle= path (the UUID
-subdirectory inside that worktree). Paths use the existing Haskell-escaped
-quoted output format. This output is not yet a structured machine protocol.
+subdirectory inside that worktree). By default (=--format text=), paths use the existing Haskell-escaped quoted
+output format. =node create= also supports =--format json= and =--format cbor=.
+The option is specific to Node creation for now; other commands retain their
+existing outputs. Formatting does not change creation semantics or exit codes.
+
+The structured outputs use a four-field top-level map: =node= (canonical UUID),
+=root= (lowercase hexadecimal Git object ID), =worktree= (linked worktree root),
+and =bundle= (its UUID subdirectory). The JSON value is a UTF-8 object, followed
+by one LF. Its path fields are objects of the form:
+
+#+begin_src json
+  {"utf8": "/path/to/worktree", "base64": "L3BhdGgvdG8vd29ya3RyZWU="}
+#+end_src
+
+=base64= is the standard padded Base64 encoding of the exact filesystem bytes;
+it is authoritative. =utf8= is the decoded path for valid UTF-8, otherwise
+=null=. Do not infer path bytes by re-encoding the human-readable field. CBOR
+(RFC 8949) emits one complete map without a trailing newline: =node= and =root=
+are CBOR text strings, while =worktree= and =bundle= are CBOR byte strings
+containing the same original filesystem bytes. No custom CBOR tags are used.
+
+On success stdout contains only the requested representation. Errors and
+warnings remain text on stderr with the existing exit statuses; a successful
+creation followed by an unexpected encoding failure reports that the Node was
+created and must be inspected before retrying.
 
 * Read-only repository inspection
 =check= validates stored Node histories and the managed local branch dependency closure. =status= shows tip type, latest Checkpoint, unconfirmed Content, retained Checkpoint count, exact dependencies, and Git-recorded worktree paths. Dependencies displayed for a Content tip belong to its latest Checkpoint; Content itself has no formal dependency declaration. Main worktrees are distinguished from linked deployments, and detached worktrees are not Node deployments.
@@ -235,7 +260,7 @@ Tests exercise actual local clone/fetch, tracking setup, both object formats and
   git roam node create --path /path/to/worktrees
 #+end_src
 
-=node create= generates a canonical UUIDv4 and creates a Root, its persistent local UUID branch, and an immediately editable linked worktree. Output contains =node <uuid>=, =root <oid>= and the actual =worktree= path. The path uses the same eight-character short name as deployment. Only this new Node receives a worktree; existing undeployed Nodes are left for a later full =deploy=. Unrelated main or locked Node worktrees are left alone and do not prevent creation when the new target is safe.
+=node create= generates a canonical UUIDv4 and creates a Root, its persistent local UUID branch, and an immediately editable linked worktree. The default output contains =node <uuid>=, =root <oid>=, the actual =worktree= path, and the =bundle= path. The path uses the same eight-character short name as deployment. Only this new Node receives a worktree; existing undeployed Nodes are left for a later full =deploy=. Unrelated main or locked Node worktrees are left alone and do not prevent creation when the new target is safe.
 
 The Root has no parents and contains only =<uuid>/.roam=, an empty regular file. Knowledge content belongs inside that UUID directory. Use ordinary Git to stage and commit edits there, retaining the marker:
 
