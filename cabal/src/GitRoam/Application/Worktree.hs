@@ -174,8 +174,6 @@ planDeploymentCandidateFor git directory current state wanted requestedRoot = gu
                 path <- ExceptT (registered git repository record)
                 pure (node, Just path)
             _ -> throwE ("Node is checked out in main or duplicate worktrees: " ++ show node)
-    paths <- lift (mapM (decodePath . treePath) records)
-    when (root `elem` paths) (throwE "Deployment root equals a worktree root")
     let existing = Map.fromList [(node, path) | (node, Just path) <- selected]
         targets = [(node, root </> shortName node) | node <- Map.keys (managedRefs state)]
         pending = [(node, path) | (node, path) <- targets, Set.member node wanted, Map.notMember node existing]
@@ -184,34 +182,46 @@ planDeploymentCandidateFor git directory current state wanted requestedRoot = gu
     when isPresent $ do
         isDirectory <- lift (doesDirectoryExist root)
         unless isDirectory (throwE "Deployment root is not a directory")
-        children <- lift (listDirectory root)
-        unless (all (\child -> root </> child `elem` Map.elems existing) children) (throwE "Deployment root contains unrelated data or worktrees")
+    registeredPaths <- lift (mapM (decodePath . treePath) records)
     forM_ pending $ \(_, path) -> do
+        when (path `elem` registeredPaths) (throwE ("Registered worktree at deployment target: " ++ show path))
         occupied <- lift (exists path)
         when occupied (throwE ("Occupied deployment target: " ++ show path))
-    ExceptT (outerIgnore git root)
+    ExceptT (checkOuterTargets git root (map snd pending))
     pure (DeploymentPlan root state existing pending wanted)
 
-outerIgnore :: Git IO -> FilePath -> IO (Either String ())
-outerIgnore git root = outerIgnoreFrom git root root
+-- The deployment root is shared with arbitrary user contents. Only paths that
+-- this operation will create belong to Git-roam's preflight. Do not require
+-- ignore rules: the outer index itself is authoritative for path conflicts.
+checkOuterTargets :: Git IO -> FilePath -> [FilePath] -> IO (Either String ())
+checkOuterTargets git root = checkOuterTargetsFrom git root root
 
-outerIgnoreFrom :: Git IO -> FilePath -> FilePath -> IO (Either String ())
-outerIgnoreFrom git root search = runExceptT $ do
+-- For an existing linked worktree, start outside its root. Otherwise Git
+-- would inspect the linked worktree's own index, not the outer repository.
+checkOuterTargetsFrom :: Git IO -> FilePath -> FilePath -> [FilePath] -> IO (Either String ())
+checkOuterTargetsFrom git root search targets = runExceptT $ do
     nearest <- lift (existingParent search)
     result <- ExceptT (request git nearest ["rev-parse", "--is-inside-work-tree"] BS.empty)
     case (gitExitCode result, gitStdout result) of
         (ExitSuccess, "true\n") -> do
             top <- ExceptT (command git nearest ["rev-parse", "--path-format=absolute", "--show-toplevel"] BS.empty)
             topPath <- lift (decodePath (BS.init top))
-            when (root == topPath) (throwE "Deployment root equals an outer worktree root")
-            tracked <- ExceptT (command git nearest ["ls-files", "-z", "--", root] BS.empty)
-            unless (BS.null tracked) (throwE "Deployment root contains tracked outer-repository paths")
-            ignored <- ExceptT (request git nearest ["check-ignore", "--quiet", "--no-index", "--", addTrailingPathSeparator root] BS.empty)
-            unless (gitExitCode ignored == ExitSuccess) (throwE "Nested deployment root is not wholly ignored by the outer repository")
+            unless (within topPath root) (throwE "Cannot locate deployment root within the outer worktree")
+            -- A tracked file/gitlink at an ancestor conflicts even when that
+            -- path has since been replaced by a directory in the worktree.
+            forM_ (if null targets then [] else takeWhile (/= topPath) (iterate takeDirectory root)) $ \ancestor -> do
+                entries <- ExceptT (command git nearest ["ls-files", "--cached", "--full-name", "-z", "--", ancestor] BS.empty)
+                name <- lift (encodePath (makeRelative topPath ancestor))
+                when (name `elem` BS.split 0 entries) $
+                    throwE ("Deployment path crosses a tracked outer-repository entry: " ++ show ancestor)
+            forM_ targets $ \target -> do
+                entries <- ExceptT (command git nearest ["ls-files", "--cached", "-z", "--", target] BS.empty)
+                unless (BS.null entries) $
+                    throwE ("Deployment target conflicts with tracked outer-repository paths: " ++ show target)
         (ExitSuccess, _) -> throwE "Deployment root is inside Git administration data"
         (ExitFailure 128, _) -> do
             metadata <- lift (hasMetadata nearest)
-            when metadata (throwE "Cannot establish the outer repository's ignore protection")
+            when metadata (throwE "Cannot establish the outer repository's tracking state")
         _ -> throwE ("Cannot inspect outer repository: " ++ show (gitStderr result))
   where
     existingParent path = do
@@ -260,7 +270,7 @@ planDiscardRemoval git directory state selected = guardIO $ runExceptT $ do
         when (any (\other -> treePath other /= treePath record && (treePath record <> "/") `BS.isPrefixOf` treePath other) records) $
             throwE "Affected worktree contains a nested worktree; undeploy before discarding this history"
         path <- lift (decodePath (treePath record))
-        ExceptT (outerIgnoreFrom git path (takeDirectory path))
+        ExceptT (checkOuterTargetsFrom git path (takeDirectory path) [path])
         config <- ExceptT (command git path ["rev-parse", "--path-format=absolute", "--git-path", "config.worktree"] BS.empty)
         configPath <- lift (decodePath (BS.init config))
         configured <- lift (exists configPath)
@@ -399,5 +409,5 @@ restorationPath git record = runExceptT $ do
     when occupied (throwE "Restoration path is occupied; user data is retained")
     parent <- lift (doesDirectoryExist (takeDirectory path))
     unless parent (throwE "Restoration parent directory disappeared")
-    ExceptT (outerIgnore git path)
+    ExceptT (checkOuterTargets git path [path])
     pure path

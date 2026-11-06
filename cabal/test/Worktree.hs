@@ -6,6 +6,7 @@ import Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import GitRoam.Application.Worktree
 import GitRoam.Git
 import GitRoam.Git.Worktrees
@@ -24,7 +25,11 @@ main =
         [ ("fixed short-name vectors and collision rejection", names)
         , ("NUL worktree parser preserves byte paths and states", parser)
         , ("filesystem path round-trip and symlink refusal", paths)
-        , ("nested deployment requires complete ignore protection", fixture "files" Sha1 nestedRoot)
+        , ("unrelated tracked and untracked root contents are permitted", fixture "files" Sha1 nestedRoot)
+        , ("tracked index entries inside a pending target are refused", fixture "files" Sha1 trackedTarget)
+        , ("tracked file ancestors of pending targets are refused", fixture "files" Sha1 trackedAncestor)
+        , ("occupied pending targets are refused", fixture "files" Sha1 occupiedTarget)
+        , ("discard recreation preserves tracked outer siblings", fixture "files" Sha1 recreation)
         , ("existing moved and dirty deployments are preserved", fixture "files" Sha1 moved)
         , ("all removal targets are preflighted for user data", fixture "files" Sha1 dirty)
         , ("stale worktree and ref plans refuse mutation", fixture "files" Sha1 stale)
@@ -104,20 +109,91 @@ nestedRoot :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 nestedRoot git _ repo parent = do
     root git repo nodeA
     state <- snapshot git repo
-    planDeployment git repo state (repo </> "unignored") >>= expectLeft
-    writeFile (repo </> ".gitignore") "/deployment/\n"
-    _ <- planDeployment git repo state (repo </> "deployment") >>= expectRight
-    planDeployment git repo state repo >>= expectLeft
+    _ <- planDeployment git repo state (repo </> "unignored") >>= expectRight
+    _ <- planDeployment git repo state repo >>= expectRight
     planDeployment git repo state (repo </> ".git" </> "data") >>= expectLeft
     let unrelated = parent </> "unrelated"
     createDirectory unrelated
     writeFile (unrelated </> "keep") "user"
-    planDeployment git repo state unrelated >>= expectLeft
-    _ <- ok git repo ["add", "-f", "--", ".gitignore"] ""
+    _ <- planDeployment git repo state unrelated >>= expectRight
     createDirectory (repo </> "deployment")
     writeFile (repo </> "deployment" </> "tracked") "keep"
-    _ <- ok git repo ["add", "-f", "--", "deployment/tracked"] ""
-    planDeployment git repo state (repo </> "deployment") >>= expectLeft
+    _ <- ok git repo ["add", "--", "deployment/tracked"] ""
+    _ <- planDeployment git repo state (repo </> "deployment") >>= expectRight
+    readFile (repo </> "deployment" </> "tracked") >>= assertEqual "keep"
+
+affectedTarget :: FilePath -> FilePath
+affectedTarget directory = directory </> shortName nodeA
+
+trackedTarget :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+trackedTarget git _ repo _ = do
+    root git repo nodeA
+    state <- snapshot git repo
+    let directory = repo </> "nodes"
+        target = affectedTarget directory
+    createDirectory directory
+    createDirectory target
+    writeFile (target </> "staged") "index-only data"
+    _ <- ok git repo ["add", "--", "nodes/" ++ shortName nodeA ++ "/staged"] ""
+    removeFile (target </> "staged")
+    removeDirectory target
+    planDeployment git repo state directory >>= expectLeft
+
+trackedAncestor :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+trackedAncestor git _ repo _ = do
+    root git repo nodeA
+    state <- snapshot git repo
+    let directory = repo </> "nodes"
+    writeFile directory "staged as a file"
+    _ <- ok git repo ["add", "--", "nodes"] ""
+    removeFile directory
+    createDirectory directory
+    planDeployment git repo state directory >>= expectLeft
+
+occupiedTarget :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+occupiedTarget git _ repo _ = do
+    root git repo nodeA
+    state <- snapshot git repo
+    let directory = repo </> "nodes"
+        target = affectedTarget directory
+    createDirectory directory
+    writeFile target "do not overwrite"
+    planDeployment git repo state directory >>= expectLeft
+    readFile target >>= assertEqual "do not overwrite"
+
+-- An existing linked worktree has its own Git index. Discard's preflight
+-- must inspect the parent repository instead, and restoring it must not
+-- require the enclosing deployment directory to be ignored or empty.
+recreation :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+recreation git executable repo _ = do
+    root git repo nodeA
+    enable git executable repo
+    let directory = repo </> "nodes"
+        target = directory </> shortName nodeA
+        sibling = directory </> "README.org"
+    createDirectory directory
+    writeFile sibling "keep\n"
+    _ <- ok git repo ["add", "--", "nodes/README.org"] ""
+    manual git repo target nodeA
+    state <- snapshot git repo
+    _ <- planDiscardRemoval git repo state (Set.singleton nodeA) >>= expectRight
+    plan <- planRemoval git repo state >>= expectRight
+    withProtectedSession
+        executable
+        git
+        repo
+        ( \session -> do
+            removed <- removePlannedWorktree session plan nodeA
+            case removed of
+                Left problem -> pure (Left problem)
+                Right () -> do
+                    checked <- checkRemovedWorktreePaths session (removalTargets plan)
+                    case checked of
+                        Left problem -> pure (Left problem)
+                        Right () -> restoreRemovedWorktree session state (head (removalTargets plan))
+        )
+        >>= expectRight
+    readFile sibling >>= assertEqual "keep\n"
 
 moved :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 moved git _ repo parent = do

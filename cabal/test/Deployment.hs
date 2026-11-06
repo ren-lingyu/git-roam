@@ -33,7 +33,8 @@ main =
                , ("divergent candidates need explicit remote; locals never advance", fixture "files" Sha1 ambiguity)
                , ("deployment can complete initially missing dependency branches", fixture "files" Sha1 repairClosure)
                , ("incomplete or invalid targets refuse all writes", fixture "files" Sha1 invalidTargets)
-               , ("unsafe deployment root refuses before branch creation", fixture "files" Sha1 unsafeRoot)
+               , ("occupied deployment target refuses before branch creation", fixture "files" Sha1 unsafeRoot)
+               , ("deploy shares a tracked, nonempty root", fixture "files" Sha1 mixedRoot)
                , ("failed checkout compensates clean newly created state", fixture "files" Sha1 cleanFailure)
                , ("user changes retain new branch and required dependencies", fixture "files" Sha1 dirtyFailure)
                , ("conditional transaction refuses stale existing refs", fixture "files" Sha1 racingRefs)
@@ -190,10 +191,26 @@ unsafeRoot git executable repo parent = do
     let path = parent </> "work"
     createDirectory path
     writeFile (path </> "user") "keep"
+    createDirectory (path </> shortName nodeA)
     before <- refs git repo
     deploy executable git repo path Nothing >>= expectLeft
     refs git repo >>= assertEqual before
     readFile (path </> "user") >>= assertEqual "keep"
+
+mixedRoot :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+mixedRoot git executable repo parent = do
+    upstream <- source git repo parent
+    fetch git repo "origin" upstream
+    enable git executable repo
+    let directory = repo </> "nodes"
+    createDirectory directory
+    writeFile (directory </> "README.org") "keep\n"
+    _ <- ok git repo ["add", "--", "nodes/README.org"] ""
+    report <- deploy executable git repo directory Nothing >>= expectRight
+    assertEqual 2 (length (deployedWorktrees report))
+    readFile (directory </> "README.org") >>= assertEqual "keep\n"
+    tracked <- ok git repo ["ls-files", "--", "nodes/README.org"] ""
+    assertEqual "nodes/README.org\n" tracked
 
 failureHook :: Git IO -> FilePath -> String -> IO ()
 failureHook git repo script = do

@@ -37,6 +37,7 @@ main =
                , ("an unrelated locked deployment is retained", fixture "files" Sha1 existingLocked)
                , ("local, fetched, tag and configuration conflicts refuse", fixture "files" Sha1 conflicts)
                , ("unsafe paths refuse before objects or refs are written", fixture "files" Sha1 unsafePath)
+               , ("Node creation shares a tracked, nonempty deployment root", fixture "files" Sha1 mixedRoot)
                , ("native author/committer errors precede object writes", fixture "files" Sha1 identities)
                , ("clean checkout failure compensates the new branch", fixture "files" Sha1 cleanFailure)
                , ("dirty checkout failure preserves user files and identity", fixture "files" Sha1 dirtyFailure)
@@ -185,10 +186,24 @@ unsafePath git executable repo parent = do
     let path = parent </> "work"
     createDirectory path
     writeFile (path </> "user") "keep"
+    createDirectory (path </> shortName nodeA)
     create git executable repo path >>= expectLeft
-    create git executable repo (repo </> "not-ignored") >>= expectLeft
+    create git executable repo (repo </> ".git" </> "data") >>= expectLeft
     ok git repo ["count-objects"] "" >>= assertEqual before
     readFile (path </> "user") >>= assertEqual "keep"
+
+mixedRoot :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+mixedRoot git executable repo _ = do
+    enable git executable repo
+    let directory = repo </> "nodes"
+    createDirectory directory
+    writeFile (directory </> "README.org") "keep\n"
+    _ <- ok git repo ["add", "--", "nodes/README.org"] ""
+    created <- create git executable repo directory >>= expectRight
+    assertEqual (directory </> shortName nodeA) (createdPath created)
+    readFile (directory </> "README.org") >>= assertEqual "keep\n"
+    tracked <- ok git repo ["ls-files", "--", "nodes/README.org"] ""
+    assertEqual "nodes/README.org\n" tracked
 
 identities :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 identities git executable repo parent = do
