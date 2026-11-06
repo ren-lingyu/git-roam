@@ -62,6 +62,12 @@ main =
                     not ("node adopt" `BS.isInfixOf` output)
             )
         ,
+            ( "enable help documents PATH-resolved Hook"
+            , do
+                output <- responseStdout <$> runCli ["help", "enable"]
+                assertTrue "Hook resolution is not documented" ("git-roam --reference-transaction" `BS.isInfixOf` output)
+            )
+        ,
             ( "object formats"
             , do
                 assertEqual (Right Sha1) (parseObjectFormat "sha1")

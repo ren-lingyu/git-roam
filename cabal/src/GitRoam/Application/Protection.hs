@@ -29,9 +29,8 @@ import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
 import GitRoam.Repository
 import System.Directory (createDirectory, removeDirectory)
-import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
-import System.FilePath ((</>))
+import System.FilePath (isAbsolute, takeFileName, (</>))
 import Text.Read (readMaybe)
 
 hookPrefix :: String
@@ -71,13 +70,23 @@ withOperationLock directory action = do
                     Left _ -> pure (Left "Repository operation lock is busy or unavailable; no stale lock is removed automatically")
                     Right () -> bracket (pure ()) (const (removeDirectory lock)) (const action)
 
-configuration :: IO [(String, BS.ByteString)]
-configuration = getExecutablePath >>= configurationFor
+-- Let Git resolve the hook through the environment's PATH, as GAW does.
+-- The configured command is independent of the Nix store path of the caller.
+configuration :: [(String, BS.ByteString)]
+configuration = [("event", "reference-transaction"), ("command", "git-roam --reference-transaction"), ("enabled", "true")]
 
-configurationFor :: FilePath -> IO [(String, BS.ByteString)]
-configurationFor executable = do
-    let quoted = "'" ++ concatMap (\c -> if c == '\'' then "'\\''" else [c]) executable ++ "' --reference-transaction"
-    pure [("event", "reference-transaction"), ("command", Encoding.encodeUtf8 (Text.pack quoted)), ("enabled", "true")]
+-- Only the exact shell-quoted command produced by older Git-roam releases is
+-- eligible for migration. Other hook commands are never silently overwritten.
+legacyHookCommand :: BS.ByteString -> Bool
+legacyHookCommand bytes = case Encoding.decodeUtf8' bytes of
+    Left _ -> False
+    Right command -> case Text.stripPrefix "'" command >>= Text.stripSuffix "' --reference-transaction" of
+        Nothing -> False
+        Just escaped ->
+            let path = Text.replace "'\\''" "'" escaped
+             in command == "'" <> Text.replace "'" "'\\''" path <> "' --reference-transaction"
+                    && isAbsolute (Text.unpack path)
+                    && takeFileName (Text.unpack path) == "git-roam"
 
 values :: FilePath -> Bool -> String -> IO (Either String [BS.ByteString])
 values directory local key = do
@@ -91,21 +100,21 @@ values directory local key = do
             _ -> Left (show (gitStderr result))
 
 requireProtection :: FilePath -> IO (Either String ())
-requireProtection directory = getExecutablePath >>= \executable -> requireProtectionFor executable directory
+requireProtection directory =
+    runExceptT $
+        mapM_
+            ( \(key, value) -> do
+                local <- ExceptT (values directory True key)
+                effective <- ExceptT (values directory False key)
+                unless (local == [value] && effective == [value]) $
+                    throwE "Git-roam protection is missing, disabled or divergent; run git roam enable and ensure git-roam is on PATH"
+            )
+            configuration
 
--- Explicit executable dependency for library/application runtimes; the CLI uses
--- its own executable, while Cabal integration tests supply their built tool.
+-- Preserve the application/test interface: the executable parameter is no
+-- longer part of hook identity. Git resolves the canonical command via PATH.
 requireProtectionFor :: FilePath -> FilePath -> IO (Either String ())
-requireProtectionFor executable directory = runExceptT $ do
-    expected <- lift (configurationFor executable)
-    mapM_
-        ( \(key, value) -> do
-            local <- ExceptT (values directory True key)
-            effective <- ExceptT (values directory False key)
-            unless (local == [value] && effective == [value]) $
-                throwE "Git-roam protection is missing, disabled or divergent; enable the matching executable before modifying history"
-        )
-        expected
+requireProtectionFor _ = requireProtection
 
 enableProtection :: FilePath -> IO (Either String ())
 enableProtection directory = withOperationLock directory $ runExceptT $ do
@@ -114,17 +123,24 @@ enableProtection directory = withOperationLock directory $ runExceptT $ do
             _ : _ : text : _ -> mapM readMaybe (take 2 (splitDot text)) :: Maybe [Int]
             _ -> Nothing
     unless (maybe False (>= [2, 54]) numbers) (throwE "Git >= 2.54 with configured named Hooks is required")
-    expected <- lift configuration
-    observed <- mapM (\(key, _) -> ExceptT (values directory False key)) expected
-    if all null observed
+    local <- mapM (\(key, _) -> ExceptT (values directory True key)) configuration
+    effective <- mapM (\(key, _) -> ExceptT (values directory False key)) configuration
+    if all null local && all null effective
         then
             mapM_
                 ( \(key, value) -> do
                     _ <- ExceptT (checked directory ["config", "--local", "--add", hookPrefix ++ key, Text.unpack (Encoding.decodeUtf8 value)])
                     pure ()
                 )
-                expected
-        else ExceptT (requireProtection directory)
+                configuration
+        else case (local, effective) of
+            ( [["reference-transaction"], [command], ["true"]]
+                , [["reference-transaction"], [effectiveCommand], ["true"]]
+                ) | command == effectiveCommand && legacyHookCommand command -> do
+                    -- Change only the command; never temporarily disable the hook.
+                    _ <- ExceptT (checked directory ["config", "--local", "--replace-all", hookPrefix ++ "command", "git-roam --reference-transaction"])
+                    pure ()
+            _ -> ExceptT (requireProtection directory)
     ExceptT (requireProtection directory)
   where
     splitDot text = case break (== '.') text of
@@ -138,8 +154,7 @@ disableProtection directory = withOperationLock directory $ runExceptT $ do
     records <- either throwE pure (Worktrees.decodeWorktrees (repositoryObjectFormat repository) bytes)
     let nodes = [node | record <- records, not (Worktrees.treeMain record), Just node <- [Worktrees.worktreeNode record]]
     unless (null nodes) (throwE "Undeploy all Node linked worktrees before disabling protection")
-    expected <- lift configuration
-    observed <- mapM (\(key, _) -> ExceptT (values directory False key)) expected
+    observed <- mapM (\(key, _) -> ExceptT (values directory False key)) configuration
     unless (all null observed) $ do
         ExceptT (requireProtection directory)
         mapM_
@@ -147,7 +162,7 @@ disableProtection directory = withOperationLock directory $ runExceptT $ do
                 _ <- ExceptT (checked directory ["config", "--local", "--unset-all", hookPrefix ++ key])
                 pure ()
             )
-            expected
+            configuration
 
 -- Prepared sees actual old refs, even when an unchecked update reports zero old.
 evaluateTransaction :: FilePath -> String -> BS.ByteString -> IO (Either String ())

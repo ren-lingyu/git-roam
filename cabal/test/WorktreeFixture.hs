@@ -2,6 +2,7 @@
 
 module WorktreeFixture (nodeA, nodeB, fixture, ok, root, snapshot, enable, manual) where
 
+import Control.Exception (bracket_)
 import Control.Monad (unless)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -12,9 +13,9 @@ import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
 import System.Directory (createDirectory, findExecutable, makeAbsolute)
-import System.Environment (getEnvironment)
+import System.Environment (getEnvironment, lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..))
-import System.FilePath ((</>))
+import System.FilePath (searchPathSeparator, takeDirectory, (</>))
 import TestSupport
 
 nodeA, nodeB :: NodeId
@@ -25,7 +26,7 @@ native :: Git IO
 native = nativeGit defaultGitExecutable
 
 fixture :: String -> ObjectFormat -> (Git IO -> FilePath -> FilePath -> FilePath -> IO ()) -> IO ()
-fixture backend format action = withTempDirectory $ \parent -> do
+fixture backend format action = withGitRoamPath $ \executable -> withTempDirectory $ \parent -> do
     inherited <- getEnvironment
     let environment =
             [(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name]
@@ -40,8 +41,21 @@ fixture backend format action = withTempDirectory $ \parent -> do
         repo = parent </> "repository"
     createDirectory repo
     _ <- ok git repo ["init", "-q", "--initial-branch=main", "--ref-format=" ++ backend, "--object-format=" ++ if format == Sha1 then "sha1" else "sha256"] ""
-    executable <- findExecutable "git-roam" >>= maybe (fail "Cabal did not expose git-roam") makeAbsolute
     action git executable repo parent
+
+-- The fixture's Git processes and nested hook shells must share a PATH that
+-- contains the Cabal-built executable. Restore it after each test.
+withGitRoamPath :: (FilePath -> IO a) -> IO a
+withGitRoamPath action = do
+    executable <- findExecutable "git-roam" >>= maybe (fail "Cabal did not expose git-roam") makeAbsolute
+    previous <- lookupEnv "PATH"
+    let path = case previous of
+            Just existing | not (null existing) -> takeDirectory executable ++ [searchPathSeparator] ++ existing
+            _ -> takeDirectory executable
+    bracket_
+        (setEnv "PATH" path)
+        (maybe (unsetEnv "PATH") (setEnv "PATH") previous)
+        (action executable)
 
 ok :: Git IO -> FilePath -> [String] -> BS.ByteString -> IO BS.ByteString
 ok git directory arguments input = do

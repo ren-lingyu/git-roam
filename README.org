@@ -206,7 +206,18 @@ Session scope closes stdin, checks process exit and releases handles. Stderr is 
 The Haskell adapter's =withHistorySource= manages this scope. =withGitEnvironment= and =observeGit= preserve native session support when adapting the environment or observing process launches. A bare injected =Git= test double retains its one-shot behavior, without secretly launching an unobserved native process; =nativeHistorySource= remains the generic one-shot provider used by those doubles and the scoped transport. Application validation uses the scoped entry point.
 
 * Repository protection
-=enable= configures this executable's named =reference-transaction= Hook in the common repository configuration. It can run before knowledge history or dependency closure is valid, creates no Node or worktree, and is idempotent when the installed configuration matches. Conflicting, inherited or incomplete configuration is refused rather than overwritten. Other Hooks remain configured and active.
+=enable= installs or validates the canonical repository-local =reference-transaction= Hook in the common Git configuration:
+
+#+begin_src sh
+  git config --local hook.git-roam-reference-transaction.event reference-transaction
+  git config --local hook.git-roam-reference-transaction.command \
+    'git-roam --reference-transaction'
+  git config --local hook.git-roam-reference-transaction.enabled true
+#+end_src
+
+Git resolves =git-roam= through the Git process's =PATH= on every invocation. The Hook is not pinned to the Nix store path of the =enable= caller; changing the runtime =PATH= changes which executable runs. =nix run ... -- enable= by itself does not put =git-roam= on the =PATH= of subsequent ordinary Git commands. Supply a suitable Nix shell or other executable environment to those Git commands. If the command cannot be started, Git refuses a reference transaction rather than silently disabling its Hook; a successfully launched incompatible old executable may nevertheless implement different protection rules. Protection is a local guard against mistakes, not an authorization boundary.
+
+=enable= can run before knowledge history or dependency closure is valid, creates no Node or worktree, and is idempotent for the canonical configuration. It migrates the exact previously generated shell-quoted absolute-path Git-roam command to the fixed command without temporarily disabling the Hook. Arbitrary commands, duplicate keys, inherited overrides, disabled or incomplete configuration are refused rather than overwritten. Other Hooks remain active and unchanged.
 
 Ordinary Git updates may edit or replace unconfirmed Content and add valid Checkpoints. They must retain the Root and every already retained formal Checkpoint. Ordinary Node branch creation, deletion and Checkpoint discard are refused. The Hook validates the complete candidate set of a multi-ref transaction in =prepared=; Content updates that keep the same formal history use a local history check rather than a full repository scan.
 
@@ -214,7 +225,7 @@ Ordinary Git updates may edit or replace unconfirmed Content and add valid Check
 
 Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook.
 
-The current build uses Git 2.56.0. Protection requires configured named Hook support and enforces a Git 2.54 version floor; the full behavior on that minimum version and on other platforms remains unverified. Hook configuration identifies the enabled executable, so a different executable or divergent configuration requires an explicit lifecycle/configuration review. Configuration writes use Git's own locking; a failed installation is not claimed to be an atomic configuration transaction.
+The current build uses Git 2.56.0. Protection requires configured named Hook support and enforces a Git 2.54 version floor; the full behavior on that minimum version and on other platforms remains unverified. Canonical Hook configuration is independent of the caller's executable path; its actual implementation is selected by the invocation environment. Configuration writes use Git's own locking; a failed installation is not claimed to be an atomic configuration transaction.
 
 * History protocol library
 The Haskell library validates decoded commit and tree objects through an injectable object source. It checks canonical UUID directories and regular-file =.roam= markers, unique Roots, single-parent Content chains, and Checkpoint parent roles and tree equality. Required missing objects and incomplete history are reported as unavailable evidence.

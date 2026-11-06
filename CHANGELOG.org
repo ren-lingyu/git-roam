@@ -8,6 +8,7 @@
 Unchecked items describe planned work, not a claim of available functionality.
 
 ** Changed
+- [X] Use a PATH-resolved configured Git-roam Hook instead of binding protection to a Nix store executable path; migrate recognized legacy commands on =enable= while refusing divergent configuration.
 - [X] Reuse a raw Git object-reading process within each validation operation to reduce full-check startup overhead while preserving history interpretation and diagnostics.
 
 ** Added

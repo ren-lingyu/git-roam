@@ -184,7 +184,7 @@ renderHelp topic = case topic of
             , "  version         Print the package version"
             , "  check           Validate Node history and managed dependencies"
             , "  status          Show Node history, dependencies and worktrees"
-            , "  enable          Enable repository reference protection"
+            , "  enable          Install or verify repository reference protection"
             , "  disable         Disable protection after full undeployment"
             , "  deploy          Deploy all local and fetched candidate Nodes"
             , "  undeploy        Safely remove all Node linked worktrees"
@@ -201,7 +201,7 @@ renderHelp topic = case topic of
     VersionHelp -> Text.unlines ["usage: git roam version", "       git roam --version", "", "Print the package version."]
     CheckHelp -> inspectionHelp "check" "Validate the complete protocol and managed dependency closure."
     StatusHelp -> inspectionHelp "status" "Show actual Node history, dependencies, worktrees and diagnostics."
-    EnableHelp -> Text.unlines ["usage: git roam enable", "", "Enable this executable's named repository Hook without changing knowledge history."]
+    EnableHelp -> Text.unlines ["usage: git roam enable", "", "Install or validate the repository-local reference-transaction Hook.", "The Hook runs git-roam --reference-transaction from Git's PATH, not a pinned executable path.", "An existing canonical Hook is unchanged; recognized old absolute-path Git-roam Hooks are migrated.", "Incomplete, inherited or divergent configuration is refused; Node history is not changed."]
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]

@@ -22,7 +22,7 @@ import GitRoam.Protocol.Repository
 import System.Directory (createDirectory, doesFileExist, findExecutable, makeAbsolute, removeDirectory, removeFile)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
-import System.FilePath ((</>))
+import System.FilePath (searchPathSeparator, takeDirectory, (</>))
 import TestSupport
 
 uuidA, uuidB, uuidC :: BS.ByteString
@@ -35,10 +35,16 @@ native = nativeGit defaultGitExecutable
 
 fixtureEnvironment :: IO [(String, Maybe String)]
 fixtureEnvironment = do
+    -- Git's nested hook shell must find the Cabal build-tool on PATH too.
+    executable <- findExecutable "git-roam" >>= maybe (fail "Cabal did not expose git-roam") makeAbsolute
     inherited <- getEnvironment
+    let hookPath = case lookup "PATH" inherited of
+            Just existing | not (null existing) -> takeDirectory executable ++ [searchPathSeparator] ++ existing
+            _ -> takeDirectory executable
     pure $
         [(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name]
-            ++ [ ("GIT_CONFIG_NOSYSTEM", Just "1")
+            ++ [ ("PATH", Just hookPath)
+               , ("GIT_CONFIG_NOSYSTEM", Just "1")
                , ("GIT_CONFIG_GLOBAL", Just "/dev/null")
                , ("GIT_AUTHOR_NAME", Just "Git Roam Fixture")
                , ("GIT_AUTHOR_EMAIL", Just "fixture@example.invalid")

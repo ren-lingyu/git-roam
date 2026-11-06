@@ -8,7 +8,7 @@ import qualified Data.ByteString.Char8 as BSC
 import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import GitRoam.Application.Create
-import GitRoam.Application.Protection (ownHookBypass)
+import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
 import GitRoam.Cli (Command (..), HelpTopic (..), parseCommand)
 import GitRoam.Git
 import GitRoam.Git.Objects (nativeHistorySource)
@@ -45,6 +45,9 @@ main =
                , ("conditional creation protects existing ref state", fixture "files" Sha1 changedExisting)
                , ("public create and ordinary Git editing form a local loop", fixture "files" Sha1 cliLoop)
                , ("creation requires protection and a UUIDv4 source", fixture "files" Sha1 prerequisites)
+               , ("enable migrates the old absolute-path Hook", fixture "files" Sha1 hookMigration)
+               , ("enable refuses divergent Hook commands", fixture "files" Sha1 hookConflict)
+               , ("an unavailable Hook executable rejects ref updates", fixture "files" Sha1 missingHookExecutable)
                ]
 
 arguments :: IO ()
@@ -321,3 +324,45 @@ prerequisites git executable repo parent = do
     let notV4 = either error id (parseNodeId "11111111-1111-1111-8111-111111111111")
     createNodeWith (pure notV4) executable git repo (parent </> "work") >>= expectLeft
     snapshot git repo >>= assertEqual Map.empty . managedRefs
+
+hookMigration :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+hookMigration git executable repo _ = do
+    let prefix = "hook.git-roam-reference-transaction."
+        quoted = "'" ++ concatMap (\c -> if c == '\'' then "'\\''" else [c]) executable ++ "' --reference-transaction"
+    _ <- ok git repo ["config", "--local", "--add", prefix ++ "event", "reference-transaction"] ""
+    _ <- ok git repo ["config", "--local", "--add", prefix ++ "command", quoted] ""
+    _ <- ok git repo ["config", "--local", "--add", prefix ++ "enabled", "true"] ""
+    enable git executable repo
+    installed <- ok git repo ["config", "--local", "--get", prefix ++ "command"] ""
+    assertEqual "git-roam --reference-transaction\n" installed
+    -- Application callers no longer need the same executable path as the Hook.
+    requireProtectionFor "/some/other/git-roam" repo >>= expectRight
+    enable git executable repo
+    repeated <- ok git repo ["config", "--local", "--get-all", prefix ++ "command"] ""
+    assertEqual installed repeated
+
+hookConflict :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+hookConflict git executable repo _ = do
+    let prefix = "hook.git-roam-reference-transaction."
+        unknown = "other-program --reference-transaction"
+    _ <- ok git repo ["config", "--local", "--add", prefix ++ "event", "reference-transaction"] ""
+    _ <- ok git repo ["config", "--local", "--add", prefix ++ "command", unknown] ""
+    _ <- ok git repo ["config", "--local", "--add", prefix ++ "enabled", "true"] ""
+    inherited <- getEnvironment
+    let environment = [(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name] ++ [("GIT_CONFIG_NOSYSTEM", Just "1"), ("GIT_CONFIG_GLOBAL", Just "/dev/null")]
+    refused <- runGit (nativeGit executable) (GitInvocation repo ["enable"] "" environment) >>= expectRight
+    assertEqual (ExitFailure 1) (gitExitCode refused)
+    existing <- ok git repo ["config", "--local", "--get", prefix ++ "command"] ""
+    assertEqual (BSC.pack (unknown ++ "\n")) existing
+
+missingHookExecutable :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+missingHookExecutable git executable repo _ = do
+    root git repo nodeA
+    enable git executable repo
+    let ref = "refs/heads/" ++ BSC.unpack (nodeIdBytes nodeA)
+        missing = "hook.git-roam-reference-transaction.command=git-roam-unavailable-for-test --reference-transaction"
+    before <- ok git repo ["rev-parse", ref] ""
+    refused <- runGit git (GitInvocation repo ["-c", missing, "update-ref", "-d", ref] "" []) >>= expectRight
+    assertTrue "Missing Hook executable unexpectedly allowed ref deletion" (gitExitCode refused /= ExitSuccess)
+    after <- ok git repo ["rev-parse", ref] ""
+    assertEqual before after
