@@ -220,7 +220,7 @@ a concrete demonstrated conflict between adopted requirements.
 | 5 | Internal safe worktree enumeration/planning/primitives, root validation, fixed short names; no public subset-deploy command | Manual/moved/main/detached worktrees, nesting/ignore, collisions/occupancy, lock/user-data safety |
 | 6 | Full deploy, canonical remote candidates, missing tracking-branch establishment, complete target closure | Clone then deploy, mutually dependent Nodes, source ambiguity, unchanged existing local tips, incomplete input to complete target, safe compensation |
 | 7 | Full undeploy with whole-input safety preflight | All Node linked worktrees, main exclusion/diagnostics, nested order, no start on known unsafe target, partial execution failure, branch/Hook retention |
-| 8 | Node create --path creates UUIDv4/Root/branch/worktree and returns UUID/path | Identity/path conflict, author settings, conditional creation, worktree failure and bounded compensation |
+| 8 | Node create --path creates UUIDv4/Root/branch/worktree and returns UUID/path (later extended after node 13 with an explicit `--id` including Nil/Max UUID, the bundle path and text/JSON/CBOR output) | Identity/path conflict, author settings, conditional creation, worktree failure and bounded compensation |
 | 9 | Checkpoint construction and complete dependency editing | First/repeated Checkpoints, clear/remove/add/replace, new empty Content after Checkpoint, exact committed tree, dirty state preserved, CAS races |
 | 10 | Explicit discard --dry-run and complete impact plan | Minimal cross-Node successor closure, old dependencies, merged history, multiple targets/maxima, Content impact, no preview mutation |
 | 11 | Confirmed discard execution, conditional refs and safe worktree coordination | Exact remaining formal set, stale/refused confirmation, user-data protection, whole ref plan, post-commit failure classification |
@@ -285,9 +285,11 @@ Do not restore a public adopt command to solve implementation coupling.
 Use canonical UUID ASCII -> SHA-256 -> first 5 raw bytes -> standard Base32 ->
 lowercase unpadded, producing 8 characters. Reject collisions without fallback.
 
-Allow ignored subdirectories of main or linked worktrees, never a worktree root.
-A first root is absent/empty; reused roots contain only valid Node deployments.
-Do not edit ignore config. Respect moved/manual valid linked worktrees at their
+Roots may be shared: unrelated tracked content is allowed, and a root may be the
+outer worktree root itself or lie inside an existing linked worktree. Check new
+targets against the outer repository index instead of ignore rules: refuse
+occupied targets, indexed targets and tracked file/gitlink ancestors. Do not
+edit ignore config. Respect moved/manual valid linked worktrees at their
 actual paths. Deploy rejects a main-worktree Node checkout conflict rather than
 moving/switching it; undeploy processes linked targets and reports main specially.
 Detached historical worktrees remain outside normal deployment.

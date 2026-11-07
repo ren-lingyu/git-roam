@@ -172,8 +172,14 @@ verification sections below supersede the earlier milestone descriptions.
 README.org retains the user's title/author and now documents the implementation's actual
 help/version and inspection interfaces, build/check commands, native Git selection and tests.
 The committed CHANGELOG.org preserves its canonical Org header and TODO 0.1.0.
-Implemented and verified capabilities are checked through node 12, including
-Node deletion. Optional naming and acceleration candidates remain separate
+Implemented and verified capabilities are checked through node 13, and after that
+batch the user committed five further capability changes plus one test-fixture
+fix (see "Post-node-13 capability changes" below): explicit `node create --id`
+with bundle reporting and Nil/Max admission, selectable text/JSON/CBOR creation
+output, a PATH-resolved protection Hook with legacy-command migration, and
+deployment into a shared root with unrelated tracked content. The project tree
+now holds 52 files and Cabal declares 14 test suites (288 cases in the last
+successful build). Optional naming and acceleration candidates remain separate
 from the current batch. No no-op/scaffolding claims are included.
 
 ## Verification and provenance limits
@@ -392,6 +398,9 @@ quotes this actual executable's absolute path. Enable is idempotent when matchin
 accepts invalid knowledge history, and refuses inherited/incomplete/divergent
 own-name configuration. Other hooks are never globally disabled or overwritten.
 The version floor is Git 2.54; full minimum-version compatibility remains unproved.
+Later, see the post-node-13 section: the Hook command became the PATH-resolved
+`git-roam --reference-transaction` with legacy-command migration, replacing the
+store-absolute path described here.
 
 Disable is idempotent when absent, removes only matching local own-name keys,
 and refuses any remaining canonical Node linked worktree, including user-created
@@ -477,7 +486,9 @@ SHA-256/first-five-bytes/Base32 algorithm; collisions are explicit failures.
 Planning preserves manual/moved deployments, rejects main checkout conflicts,
 occupied targets and symlink path components, and checks nested roots against
 the outer Git repository's ignore and tracked paths. No deployment registry is
-introduced. Removal preflights all targets, protecting staged/unstaged/untracked/
+introduced. Later, see the post-node-13 section: the outer-root check became
+index-based (`checkOuterTargets`) and no longer requires ignore rules. Removal
+preflights all targets, protecting staged/unstaged/untracked/
 ignored files, empty unknown directories, special files, unfinished operations,
 locked/prunable worktrees, assume-unchanged/skip-worktree entries and submodules.
 Selected nested Node worktrees are removed deepest first; non-target nested
@@ -632,6 +643,8 @@ All 38 committed files, including the final CHANGELOG checkbox, matched its sour
 snapshot before new edits. Application.Create now implements node create --path:
 UUIDv4, empty-marker parentless Root, persistent local UUID branch and immediately
 editable linked worktree. It reports UUID, Root OID and actual short-name path.
+Extended after node 13 with an explicit `--id`, the bundle path and text/JSON/CBOR
+output; see the post-node-13 section.
 Only the new Node is deployed; other undeployed Nodes are not implicitly deployed.
 Internal plans carry an explicit operation target set: full deploy still targets
 all Nodes, while creation targets only the new one. Review found the original
@@ -642,7 +655,9 @@ Valid existing linked directories are still recognized for deployment-root reuse
 Cabal adds uuid for UUIDv4 generation, selected from locked nixpkgs (1.3.16.1 in
 this build). The library accepts an injected identity generator for deterministic
 collision tests, but the CLI exposes no user-selected UUID. New identities must
-have v4/variant bits; historical identity parsing is unchanged. Current managed
+have v4/variant bits; historical identity parsing is unchanged. Superseded after
+node 13: `--id` accepts a UUIDv4, Nil UUID or Max UUID, while default generation
+remains UUIDv4. Current managed
 history must be valid. Local/fetched/tag/configuration or unborn-checkout identity conflicts, path
 conflicts and native author/committer availability are checked before object writes.
 Native hash-object, mktree and commit-tree construct exactly <uuid>/.roam with a
@@ -890,6 +905,60 @@ and no lockfile or actual project protection configuration changed. No project
 parent represents this tested uncommitted snapshot; no independent archive is
 needed for ordinary source implementation/testing.
 
+## Post-node-13 capability changes
+
+After the node 0-13 batch was accepted, the user requested further changes and
+committed them without adding plan nodes. They describe the current product
+state; the node sections above are historical and are marked where superseded.
+
+- Explicit `node create --id` was added, and the CLI reports `bundle` (the UUID
+directory inside the created worktree) next to node, root and worktree. Default
+generation stayed a fresh UUIDv4.
+- A later request admitted the Nil UUID and Max UUID as explicit new identities.
+`createNodeWith` accepts them alongside the UUIDv4 check and refuses anything
+else with "New Node identity must be UUIDv4, Nil UUID or Max UUID". Default
+generation is asserted never to produce either extreme. Historical identity
+parsing already accepted any canonical lowercase hyphenated UUID.
+- `node create --format text|json|cbor` renders the creation report. The new
+library module GitRoam.Output owns structured rendering, and the new output-tests
+suite covers the text bytes and arbitrary filesystem path bytes in JSON (UTF-8
+text plus a lossless Base64 representation) and CBOR (byte strings).
+- Protection no longer binds a store-absolute executable path. The configured
+command is `git-roam --reference-transaction`, resolved through PATH when the
+Hook runs; `enable` migrates a recognized legacy absolute-path command and
+refuses divergent configuration. An unreachable executable still fails the ref
+update, so protection fails closed.
+- Deployment exclusivity moved from the whole root to the new targets.
+`checkOuterTargets` uses the outer repository index instead of `check-ignore`: a
+shared root may hold unrelated tracked content, may be the outer worktree root
+itself or sit inside an existing linked worktree, while occupied targets, indexed
+targets and tracked file/gitlink ancestors are refused. Discard's recreated
+worktrees reuse the same check, and outer ignore configuration is still never
+edited.
+- The discard recreation fixture stopped using partial `head`; an empty removal
+plan returns an explicit failure instead of raising.
+- CHANGELOG.org marks the matching Changed and Added items as checked; TODO 0.1.0
+is unchanged and no release is implied.
+
+Harness lesson: a test that runs the CLI with every `GIT_*` variable removed and
+`GIT_CONFIG_GLOBAL=/dev/null` must also configure local `user.name`/`user.email`.
+`node create` validates `git var GIT_AUTHOR_IDENT`/`GIT_COMMITTER_IDENT` before
+writing objects, so such a test otherwise fails with exit 1 in a way that mimics
+a product defect. This happened once in the new extreme-identity case.
+
+Verification. That creation case first failed only through the missing identity;
+after the fixture fix the same source content built with 14 suites and 288 cases
+passing, no compiler warnings and a checkPhase of about 2 minutes. A later
+`nix flake check` on the dirty tree built only treefmt-check, because the product
+check derivation was already valid in the store; the logged results come from
+that earlier build of identical content, not from a new post-commit test run.
+The committed tree matches that content, including the separately committed
+test-fixture fix, so this is content equivalence rather than post-commit testing.
+README and CHANGELOG text are not executed by the build. Scope vocabulary also
+widened: the user committed the identity change as
+`feat(node-create): allow explicit Nil and Max UUID identities`, the first
+feature-level scope; earlier production commits use `feat(git-roam):`.
+
 ## Next action and authorization
 
 The user requested a new isolated flake-managed performance retest of the
@@ -966,9 +1035,10 @@ Node-12 code and tests are verified by the user's successful flake check, with
 all 240 cases passing. The user committed the implementation and corrected
 CHANGELOG; project status was clean at transition. Node 13 passed final build,
 all 244 tests and flake/format checks, and its user commit matches all 48 verified
-files. The project worktree is clean; the standard-Git batch is complete and
-there is no next implementation milestone in this accepted plan. Report completion
-and wait for the user's next objective. Do not start deferred acceleration,
+files. After that batch the user requested and committed the five capability
+changes and one test-fixture fix described in the post-node-13 section; the
+current HEAD is the node-create Nil/Max identity change and the project worktree
+is clean. Await the user's next objective. Do not start deferred acceleration,
 alternative naming, minimum-version/platform work or release preparation by
 default. The standard-Git loop is accepted on x86_64-linux/Git 2.56.0; report
 minimum-version and other-platform gaps. Preserve TODO 0.1.0; do not release/tag

@@ -48,7 +48,9 @@ contains external Nodes' Roots and cannot identify a unique Root for this purpos
 Validate every relevant commit's tree and same-Node history, not just the branch
 name. A UUID-looking name alone does not prove valid history.
 
-Create UUIDv4 identities and zero-byte regular-file markers. Historical marker
+New identities are canonical lowercase hyphenated UUID text carried by zero-byte
+regular-file markers. Default generation produces a fresh UUIDv4, while an
+explicit CLI identity may be a UUIDv4 or the Nil/Max UUID. Historical marker
 contents need not be empty; marker bytes carry no type/version/dependency meaning.
 Preserve marker path and regular-file type. No mandatory note filename, Org
 syntax, Org ID, nonempty payload, or nonempty diff follows from this protocol.
@@ -182,9 +184,12 @@ check and status do not. There are no init/deinit commands.
 
 ## Node creation, tracking branches, and full deployment
 
-Node create requires --path and creates UUIDv4, valid Root, local UUID branch,
-and linked worktree, returning full UUID and actual path. It is not a branch-only
-operation. This one-Node creation does not add subset selection to normal deploy.
+Node create requires --path and creates a valid Root, local UUID branch and
+linked worktree for a new identity, returning the UUID, Root OID, actual
+worktree path and UUID bundle path. The identity defaults to a fresh UUIDv4 or
+may be an explicit UUIDv4, Nil UUID or Max UUID; output is text, JSON or CBOR.
+It is not a branch-only operation. This one-Node creation does not add subset
+selection to normal deploy.
 
 There is no independent node adopt command. Normal clone/fetch can be followed by
 enable and deploy. Deploy may establish missing local UUID tracking branches for
@@ -226,12 +231,15 @@ substitute names. Short names are derived path components, not identity or a
 separate persistent mapping. Git records actual paths; do not reverse-map them
 using the current short-name algorithm.
 
-The deployment root may be inside a main or linked worktree, but cannot equal an
-existing worktree root. First use requires absent/empty directory. Nested roots
-must be wholly protected by applicable Git ignore rules; never edit outer ignore
-configuration automatically. Reuse may contain valid existing Node worktrees,
-not unrelated files/directories/worktrees. Check path and symlink safety,
-collisions, occupancy, locked/prunable states, ignored data, and nesting.
+The deployment root may be the outer repository worktree root itself or lie
+inside a main or linked worktree; only each new Node target is exclusively
+reserved. It may be shared: unrelated tracked content is permitted,
+including in a reused root. Exclusivity is checked against the new targets using
+the outer repository index, not ignore rules: refuse occupied targets, targets
+already registered in the index, and tracked file/gitlink ancestors between the
+root and the outer toplevel. Never edit outer ignore configuration
+automatically. Check path and symlink safety, collisions, occupancy,
+locked/prunable states, user data, and nesting.
 
 All linked worktrees attached to canonical managed branches are deployment
 targets regardless of creator or location. Undeploy discovers all of them from
