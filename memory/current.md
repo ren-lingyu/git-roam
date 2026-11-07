@@ -2,9 +2,23 @@
 
 ## Objective and actual progress
 
-The user accepted the revised v0.1.0 plan and requested implementation on
-2026-11-01. Execute serially, one independently reviewable/buildable/testable
-project commit at a time, with user-performed project staging and commits.
+Current objective: freeze the implemented v0.1.0 knowledge-dependency protocol
+as a valuable, independently recoverable first release, then redesign
+Checkpoint semantics for v0.2.0. The user confirms no actual callers and no
+workflow built on v0.1.0, so no existing deployment requires migration. Do not
+promise automatic compatibility with the proposed successor protocol.
+
+At inspection, project main HEAD is
+`0ab23d8d944beff8bcbd337a6698060611e544f9`; its CHANGELOG still says
+`TODO 0.1.0`. A separate candidate release-freeze patch proposes `NEXT v0.1.0`,
+`CHANGELOGS/v0.1.0.org`, a concise root changelog and a README update. It has
+not been established as applied, tested or released. The user has chosen to
+exclude alternative deployment naming and full-deployment acceleration from
+the v0.1.0 release scope. Release review and finalization remain outstanding;
+there is no observed v0.1.0 tag or publication.
+
+The original serial implementation plan was accepted on 2026-11-01 and is now
+complete. The detailed milestone and verification history follows.
 
 The mandatory design checkpoint and user-committed project node 0 are complete.
 The committed CHANGELOG matches the staged review. The corrected Git-source root
@@ -108,9 +122,13 @@ Ordinary test work has no independent archival requirement.
 
 ## Navigation and authority
 
-- [design.md](design.md): effective standard knowledge model, Content/Checkpoint
-  encoding/projection, managed closure, lifecycle, deployment, discard and delete.
-- [implementation.md](implementation.md): accepted plan, experiment gate, serial
+- [design.md](design.md): effective v0.1.0 knowledge-dependency protocol,
+  Content/Checkpoint encoding/projection, managed closure and lifecycle.
+- [context-checkpoint-direction.md](context-checkpoint-direction.md): the
+  post-v0.1.0 context-fixing direction, reasons for the change, and open design
+  work; not yet a replacement for the current product protocol or README.
+- [implementation.md](implementation.md): accepted historical implementation plan,
+  experiment gate, serial
   project commits, execution defaults, validation and authorization boundaries.
 - [object-reader-performance.md](object-reader-performance.md): completed isolated
   full-validator performance comparison, resource budgets, raw evidence and limits.
@@ -959,7 +977,7 @@ widened: the user committed the identity change as
 `feat(node-create): allow explicit Nil and Max UUID identities`, the first
 feature-level scope; earlier production commits use `feat(git-roam):`.
 
-## Next action and authorization
+## Completed reader verification and prior authorization
 
 The user requested a new isolated flake-managed performance retest of the
 committed production reader using the archived 1,000/10,000-Node fixtures.
@@ -1027,28 +1045,43 @@ production reader change, DAG change or permanent cache. The current explicit
 production implementation task above supersedes that completed task boundary;
 keep the prototype and production measurements distinct.
 
-The user's node-11 commit was confirmed against all 45 verified source files;
-the project was clean at transition. Node 12 implements non-cascading Node
-deletion, including all historical incoming dependency checks, checkout refusal,
-impact preview/explicit confirmation, conditional ref deletion and result checks.
-Node-12 code and tests are verified by the user's successful flake check, with
-all 240 cases passing. The user committed the implementation and corrected
-CHANGELOG; project status was clean at transition. Node 13 passed final build,
-all 244 tests and flake/format checks, and its user commit matches all 48 verified
-files. After that batch the user requested and committed the five capability
-changes and one test-fixture fix described in the post-node-13 section; the
-current HEAD is the node-create Nil/Max identity change and the project worktree
-is clean. Await the user's next objective. Do not start deferred acceleration,
-alternative naming, minimum-version/platform work or release preparation by
-default. The standard-Git loop is accepted on x86_64-linux/Git 2.56.0; report
-minimum-version and other-platform gaps. Preserve TODO 0.1.0; do not release/tag
-or choose whether deferred candidates belong in this version without a user
-decision. No extra checks absent new changes or concerns. Never stage/commit
-project files or install project protection. Preserve archives and prior snapshots.
+Node 11's discard execution, node 12's confirmed non-cascading deletion and node
+13's end-to-end lifecycle are complete. The post-node-13 additions are recorded
+above: explicit UUIDs including Nil/Max, lossless text/JSON/CBOR creation output,
+PATH-resolved Hook configuration, target-scoped shared-root deployment, and the
+persistent raw-object reader. The verified 288-case build is the last recorded
+complete matrix for the post-node-13 creation updates; later scoped reader
+checks are documented separately. Do not treat either as a fresh release check.
+The accepted production evidence is principally x86_64-linux with pinned Git
+2.56.0; minimum Git 2.54 and other declared systems are not fully verified.
 
-The request to implement covers the plan's project edits. Respect AGENTS.md for
-build/test/format/network command authorization and project Git boundaries.
-Ordinary GAW memory maintenance is preauthorized through its public loop; lifecycle
-changes or native project commits are not implied. Preserve the existing archive,
-user edits and unrelated temporary work. No new command approval is inherited
-from the completed reproduction.
+## Release freeze and subsequent work
+
+The user has explicitly chosen to publish v0.1.0 as the complete first
+knowledge-dependency-DAG implementation despite a planned semantic change. It
+has no known actual consumers or established workflow. Preserve the old protocol
+and its documentation in v0.1.0; do not insert the proposed v0.2.0 semantics
+into its README or release notes. The `NEXT` transition is part of the prepared
+freeze patch, not an observed change in main. The human-controlled release flow
+still needs review, appropriate current tests, the later `NEXT -> DONE` change,
+and a release tag; publication is not established.
+
+The deferred deployment-directory naming and full-set deployment acceleration
+are non-blockers. Existing deployment already supports the complete Node set,
+but does not implement the proposed bulk checkout acceleration. A separate
+cross-Node Content-edit workflow may reduce manual repeated `git commit` work;
+it is an optional later capability, not a v0.1.0 prerequisite. Do not start
+these implementations during the freeze.
+
+After v0.1.0 is actually released, formally update the product README and
+protocol documentation for the new context-fixing model, then design and
+implement v0.2.0 without a default promise to migrate v0.1.0 repositories.
+Follow [context-checkpoint-direction.md](context-checkpoint-direction.md) for
+accepted semantic direction and unresolved engineering details. Do not modify
+v0.1.0 history or retroactively recast its formal dependencies as contexts.
+
+This is a GAW memory proposal against `_agents` HEAD, not permission to mutate
+project refs, stage, run builds, finalize releases or create GAW checkpoints.
+Respect project AGENTS.md and the GAW public workflow. Preserve archives and
+prior snapshots; approvals for completed tests and experiments do not extend to
+new commands.

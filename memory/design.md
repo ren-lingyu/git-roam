@@ -1,9 +1,14 @@
-# Git Roam current design
+# Git Roam v0.1.0 design
 
 ## Authority and scope
 
-This is the effective v0.1.0 design adopted through the user's final decisions
-and accepted implementation plan on 2026-11-01. The earlier supplied design
+This records the implemented v0.1.0 knowledge-dependency protocol adopted
+through the user's decisions and accepted plan on 2026-11-01. Its semantics
+remain authoritative for v0.1.0 release preparation. The user has selected a
+post-release context-fixing successor; see
+[context-checkpoint-direction.md](context-checkpoint-direction.md). Do not
+reinterpret this document as the new protocol or update the product README to
+the successor design before v0.1.0 is released. The earlier supplied design
 document was the initial knowledge source; the final decisions supersede its
 conflicting assumptions. This is current memory, not a replay of design history.
 See [implementation.md](implementation.md) for the accepted execution sequence
@@ -336,12 +341,14 @@ undeploy. User may need full undeploy or safe manual checkout changes.
 Use explicit destructive confirmation and conditional ref deletion. This removes
 managed retention/identity entry, not physical objects or a global UUID tombstone.
 
-The current batch uses standard Git, Haskell, Cabal, and Nix. No patched Git,
-CSV, classification registry, independent adopt, partial deploy, historical
+The v0.1.0 implementation uses standard Git, Haskell, Cabal, and Nix. No patched
+Git, CSV, classification registry, independent adopt, partial deploy, historical
 multi-Node checkout, automatic formal merge, lost-tip reconstruction, signatures/
 trust policy, permanent global dependency index, or cross-clone transactions.
-Optional naming strategies and acceleration remain candidates whose inclusion in
-0.1.0 is undecided; they do not alter identity or historical semantics.
+Optional deployment directory naming strategies and full-deployment acceleration
+are explicitly excluded from the frozen v0.1.0 scope and remain future candidates.
+The isolated worktree-batch experiment does not establish an implemented bulk
+checkout path. Other capabilities are not implied by these candidates.
 
 The initial source was git-roam-design-2026-10-31.org (43390 bytes), member SHA-256
 d65ec4e2253e2e2f839780832382d8e0c4cd08923280e6f6df29631ce3b2f953.

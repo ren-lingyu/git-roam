@@ -2,9 +2,15 @@
 
 ## Authority, baseline, and boundaries
 
-The user requested implementation of the formal plan on 2026-11-01 after
-concluding the design discussion. [design.md](design.md) is the effective product
-model; [current.md](current.md) distinguishes actual work from intended features.
+This is the completed, historical v0.1.0 implementation plan, not the active
+post-release development schedule. Its milestone instructions, checkbox
+conventions and candidate-scope uncertainties record the earlier work phase;
+[current.md](current.md) gives the present release decision, and
+[context-checkpoint-direction.md](context-checkpoint-direction.md) records the
+proposed successor semantics. The user requested implementation of the formal
+plan on 2026-11-01 after concluding the design discussion. [design.md](design.md)
+records the v0.1.0 product model; [current.md](current.md) distinguishes actual
+work from intended features.
 This file retains the accepted plan so recovery does not depend on a chat or
 ignored temporary file. Node 1 is committed and its exact source was compared
 with the verified GHC 9.12 snapshot. Node 2 is implemented and verified in the
