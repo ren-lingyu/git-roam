@@ -4,7 +4,8 @@
 #+startup: logdone
 #+property: TIMEZONE UTC
 
-* NEXT v0.1.0
+* DONE v0.1.0
+CLOSED: [2026-11-07 Sat 18:59]
 :PROPERTIES:
 :CUSTOM_ID: v0.1.0
 :END:
