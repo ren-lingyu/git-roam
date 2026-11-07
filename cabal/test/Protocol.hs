@@ -135,7 +135,7 @@ main =
             ++ [("generated graph projection properties " ++ show format, graphProperties format) | format <- [Sha1, Sha256]]
 
 uuidTest :: IO ()
-uuidTest = forM_ [uuidA, "00000000-0000-0000-0000-000000000000", "abcdef01-2345-1678-9abc-def012345678"] $ \bytes -> do
+uuidTest = forM_ [uuidA, "00000000-0000-0000-0000-000000000000", "ffffffff-ffff-ffff-ffff-ffffffffffff", "abcdef01-2345-1678-9abc-def012345678"] $ \bytes -> do
     node <- expectRight (parseNodeId bytes)
     assertEqual bytes (nodeIdBytes node)
 

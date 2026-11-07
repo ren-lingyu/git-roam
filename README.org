@@ -34,7 +34,7 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam enable
   git roam disable
   git roam node create --path /path/to/worktrees
-  git roam node create --path /path/to/worktrees --id <uuid-v4>
+  git roam node create --path /path/to/worktrees --id <uuid>
   git roam node create --path /path/to/worktrees --format json
   git roam node create --path /path/to/worktrees --format cbor > creation.cbor
   git roam node delete --node <uuid> --dry-run
@@ -46,8 +46,10 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
 
 Help and version queries do not require a Git repository. Successful queries write to standard output and exit with status 0. Invalid commands, help topics, or arguments write a diagnostic to standard error and exit with status 2.
 
-The optional =--id= on =node create= accepts a canonical lowercase UUIDv4;
-without it Git-roam generates a new UUIDv4. Successful creation prints the
+The optional =--id= on =node create= accepts a canonical lowercase UUIDv4,
+Nil UUID (=00000000-0000-0000-0000-000000000000=), or Max UUID
+(=ffffffff-ffff-ffff-ffff-ffffffffffff=). Without it Git-roam generates
+a fresh UUIDv4, never either extreme. Successful creation prints the
 =node= identity, =root= OID, =worktree= path, and =bundle= path (the UUID
 subdirectory inside that worktree). By default (=--format text=), paths use the existing Haskell-escaped quoted
 output format. =node create= also supports =--format json= and =--format cbor=.
@@ -271,7 +273,7 @@ Tests exercise actual local clone/fetch, tracking setup, both object formats and
   git roam node create --path /path/to/worktrees
 #+end_src
 
-=node create= generates a canonical UUIDv4 and creates a Root, its persistent local UUID branch, and an immediately editable linked worktree. The default output contains =node <uuid>=, =root <oid>=, the actual =worktree= path, and the =bundle= path. The path uses the same eight-character short name as deployment. Only this new Node receives a worktree; existing undeployed Nodes are left for a later full =deploy=. Unrelated main or locked Node worktrees are left alone and do not prevent creation when the new target is safe.
+=node create= generates a canonical UUIDv4 by default (or accepts an allowed explicit =--id=) and creates a Root, its persistent local UUID branch, and an immediately editable linked worktree. The default output contains =node <uuid>=, =root <oid>=, the actual =worktree= path, and the =bundle= path. The path uses the same eight-character short name as deployment. Only this new Node receives a worktree; existing undeployed Nodes are left for a later full =deploy=. Unrelated main or locked Node worktrees are left alone and do not prevent creation when the new target is safe.
 
 The Root has no parents and contains only =<uuid>/.roam=, an empty regular file. Knowledge content belongs inside that UUID directory. Use ordinary Git to stage and commit edits there, retaining the marker:
 

@@ -45,7 +45,8 @@ main =
                , ("conditional creation preserves a competing same-OID branch", fixture "files" Sha1 competingCreation)
                , ("conditional creation protects existing ref state", fixture "files" Sha1 changedExisting)
                , ("public create and ordinary Git editing form a local loop", fixture "files" Sha1 cliLoop)
-               , ("creation requires protection and a UUIDv4 source", fixture "files" Sha1 prerequisites)
+               , ("creation requires protection and an allowed Node identity", fixture "files" Sha1 prerequisites)
+               , ("explicit Nil and Max UUIDs can create Nodes", fixture "files" Sha1 extremeIdentities)
                , ("enable migrates the old absolute-path Hook", fixture "files" Sha1 hookMigration)
                , ("enable refuses divergent Hook commands", fixture "files" Sha1 hookConflict)
                , ("an unavailable Hook executable rejects ref updates", fixture "files" Sha1 missingHookExecutable)
@@ -115,6 +116,8 @@ generation git executable repo parent = do
         let uuid = nodeIdBytes (createdNode result)
         assertEqual 52 (BS.index uuid 14)
         assertTrue "Invalid UUID variant" (BS.index uuid 19 `elem` [56, 57, 97, 98])
+        assertTrue "Default generation produced an extreme UUID" $
+            uuid /= "00000000-0000-0000-0000-000000000000" && uuid /= "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
 existingNodes :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 existingNodes git executable repo parent = do
@@ -331,6 +334,26 @@ cliLoop git executable repo _ = do
     removed <- cli ["undeploy"]
     assertEqual ExitSuccess (gitExitCode removed)
     doesDirectoryExist target >>= assertEqual False
+
+extremeIdentities :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+extremeIdentities git executable repo parent = do
+    _ <- ok git repo ["config", "--local", "user.name", "Fixture"] ""
+    _ <- ok git repo ["config", "--local", "user.email", "fixture@example.invalid"] ""
+    enable git executable repo
+    inherited <- getEnvironment
+    let environment = [(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name] ++ [("GIT_CONFIG_NOSYSTEM", Just "1"), ("GIT_CONFIG_GLOBAL", Just "/dev/null")]
+        cli args = runGit (nativeGit executable) (GitInvocation repo args "" environment) >>= expectRight
+        targetRoot = parent </> "special"
+        extremes = ["00000000-0000-0000-0000-000000000000", "ffffffff-ffff-ffff-ffff-ffffffffffff"]
+    forM_ extremes $ \uuid -> do
+        created <- cli ["node", "create", "--path", targetRoot, "--id", BSC.unpack uuid]
+        assertTrue ("Creating " ++ BSC.unpack uuid ++ " failed: " ++ show created) (gitExitCode created == ExitSuccess)
+        node <- expectRight (parseNodeId uuid)
+        doesFileExist (targetRoot </> shortName node </> BSC.unpack uuid </> ".roam") >>= assertEqual True
+    current <- snapshot git repo
+    assertEqual extremes (map nodeIdBytes (Map.keys (managedRefs current)))
+    checked <- cli ["check"]
+    assertTrue ("Checking special UUIDs failed: " ++ show checked) (gitExitCode checked == ExitSuccess)
 
 prerequisites :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 prerequisites git executable repo parent = do

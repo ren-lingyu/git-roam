@@ -71,7 +71,8 @@ createNode :: FilePath -> Git IO -> FilePath -> FilePath -> IO (Either CreationF
 createNode = createNodeWith (UUID.nextRandom >>= either (ioError . userError) pure . parseNodeId . BSC.pack . UUID.toString)
 
 -- The identity source is injected for embedded runtimes, caller-selected
--- identities and deterministic collision tests; every candidate must be UUIDv4.
+-- identities and deterministic collision tests; only UUIDv4, Nil UUID and
+-- Max UUID are admitted as new Node identities.
 createNodeWith :: IO NodeId -> FilePath -> Git IO -> FilePath -> FilePath -> IO (Either CreationFailure CreationResult)
 createNodeWith generate executable git directory path = do
     installed <- newIORef False
@@ -116,7 +117,9 @@ createNodeWith generate executable git directory path = do
         before <- ExceptT (stateAt git common)
         node <- lift generate
         let uuid = nodeIdBytes node
-        unless (BS.index uuid 14 == 52 && BS.index uuid 19 `elem` [56, 57, 97, 98]) (throwE "New Node identity must be UUIDv4")
+            isV4 = BS.index uuid 14 == 52 && BS.index uuid 19 `elem` [56, 57, 97, 98]
+            isExtreme = uuid == "00000000-0000-0000-0000-000000000000" || uuid == "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        unless (isV4 || isExtreme) (throwE "New Node identity must be UUIDv4, Nil UUID or Max UUID")
         when (Map.member node (managedRefs before)) (throwE "Node UUID already exists locally")
         records <- ExceptT (listWorktrees git common (repositoryObjectFormat repository))
         when (any ((== Just node) . worktreeNode) records) (throwE "Node UUID is already checked out, including an unborn branch")
