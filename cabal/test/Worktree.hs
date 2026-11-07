@@ -190,7 +190,9 @@ recreation git executable repo _ = do
                     checked <- checkRemovedWorktreePaths session (removalTargets plan)
                     case checked of
                         Left problem -> pure (Left problem)
-                        Right () -> restoreRemovedWorktree session state (head (removalTargets plan))
+                        Right () -> case removalTargets plan of
+                            firstRemoval : _ -> restoreRemovedWorktree session state firstRemoval
+                            [] -> pure (Left "Removal plan has no targets")
         )
         >>= expectRight
     readFile sibling >>= assertEqual "keep\n"
