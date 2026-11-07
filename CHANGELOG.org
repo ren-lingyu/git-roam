@@ -4,43 +4,20 @@
 #+startup: logdone
 #+property: TIMEZONE UTC
 
-* TODO 0.1.0
-Unchecked items describe planned work, not a claim of available functionality.
+* NEXT v0.1.0
+:PROPERTIES:
+:CUSTOM_ID: v0.1.0
+:END:
+See [[file:CHANGELOGS/v0.1.0.org][Detailed release notes]].
 
 ** Changed
-- [X] Restrict deployment exclusivity to new Node worktree targets instead of requiring an empty or wholly ignored deployment root; permit unrelated tracked content while refusing occupied or indexed targets and tracked ancestors.
-- [X] Use a PATH-resolved configured Git-roam Hook instead of binding protection to a Nix store executable path; migrate recognized legacy commands on =enable= while refusing divergent configuration.
-- [X] Reuse a raw Git object-reading process within each validation operation to reduce full-check startup overhead while preserving history interpretation and diagnostics.
+- Allow unrelated content in deployment roots while refusing occupied or indexed Node worktree targets and unsafe tracked ancestors.
+- Resolve the configured Git-roam reference-transaction Hook through =PATH= and migrate recognized legacy commands.
+- Reuse a scoped raw Git object reader within each history validation operation.
 
 ** Added
-*** Repository protection
-- [X] Enable and disable repository protection independently of worktree deployment.
-- [X] Protect all retained Checkpoints while allowing legal native Git Content edits and formal history advancement.
-
-*** Node history and dependencies
-- [X] Create a UUID-identified Node and an editable linked worktree under an explicit deployment path.
-- [X] Allow an explicit UUIDv4, Nil UUID or Max UUID on Node creation while generating only UUIDv4 by default; report the resulting UUID bundle path.
-- [X] Support selectable text, JSON and CBOR Node creation output, with lossless filesystem path bytes in structured formats.
-- [X] Edit and revise unconfirmed Content with ordinary Git, preserving editing history without automatic squash.
-- [X] Create Checkpoints from committed Content with complete, exact-version external dependencies.
-- [X] Add, remove, replace, or clear dependencies without including or changing uncommitted index and worktree content.
-- [X] Check Node identities, history structure, formal history retention, and managed dependency closure.
-- [X] Show Node history, Checkpoint dependencies, worktree locations, and diagnostic states.
-
-*** Full worktree deployment
-- [X] Deploy all Nodes after clone or fetch, establishing missing local tracking branches without advancing existing local branches.
-- [X] Recognize existing Node linked worktrees, including manually created and moved worktrees.
-- [X] Safely undeploy all Node linked worktrees while retaining Node branches and repository protection.
-- [X] Detect path conflicts and unsafe worktree states, and protect uncommitted, untracked, and ignored user data.
-- [X] Report partial failures and preserve user changes during conservative compensation, maintaining dependency closure when branches are involved.
-
-*** Explicit history removal
-- [X] Preview Checkpoint discard targets, their complete collateral effects, and affected Content history with =--dry-run=.
-- [X] Explicitly discard only the minimal required Checkpoint successor closure after impact confirmation, rejecting results that cannot retain all remaining formal history in one branch per Node.
-- [X] Delete an unchecked-out Node only when no other retained Node history depends on it, without cascading history removal.
-
-*** Candidates outside the current implementation batch
-Whether these candidates belong in 0.1.0 will be decided after the standard Git foundation is complete.
-
-- [ ] Selectable deployment directory naming strategies.
-- [ ] Optional deployment acceleration.
+- Create UUID-identified Nodes with independent Git histories and linked worktrees; support explicit identities and text, JSON, or CBOR creation output.
+- Record Content with ordinary Git and create formal Checkpoints with complete, exact-version external dependencies.
+- Inspect and protect Node history, retained Checkpoints, and managed dependency closure.
+- Deploy and undeploy complete Node worktree sets with conservative filesystem and history safety checks.
+- Preview and confirm explicit Checkpoint discard or deletion of an unreferenced Node.

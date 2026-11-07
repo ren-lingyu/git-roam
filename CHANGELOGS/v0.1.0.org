@@ -1,0 +1,49 @@
+#+title: v0.1.0 Release Notes
+
+* Overview
+Initial Git-roam implementation for independently versioned, UUID-identified Nodes in standard Git repositories. Node histories record editable Content and formal Checkpoints with exact-version external knowledge dependencies. Node worktrees can be created, deployed, and undeployed without changing those dependencies implicitly.
+
+* Changed
+** Deployment target isolation
+- A deployment root may contain unrelated tracked or untracked files and directories. Exclusivity applies to each newly created Node worktree target rather than the entire deployment root.
+- Occupied targets, conflicting outer-index entries, tracked ancestors, symlink path components, and other unsafe placements are refused. Existing deployments are not moved implicitly.
+
+** Reference-transaction Hook configuration
+- Repository protection uses a named =reference-transaction= Hook whose command resolves =git-roam= through =PATH= instead of retaining a Nix store executable path.
+- =git roam enable= recognizes and migrates its former generated absolute-path command. Divergent or incomplete Hook configuration is refused rather than overwritten.
+
+** Git object validation
+- Each validation operation shares a scoped raw Git object-reading session to reduce repeated process startup while retaining binary object checks, history interpretation, and failure diagnostics.
+
+* Added
+** Independent Node histories
+- =git roam node create --path= creates a Node Root, its persistent UUID branch, and an editable linked worktree. A Root contains an empty =<uuid>/.roam= marker; ordinary single-parent Git commits record subsequent Content without automatic squashing.
+- Creation generates a UUIDv4 by default, or accepts an explicit UUIDv4, Nil UUID, or Max UUID through =--id=. It reports the UUID, Root OID, actual worktree path, and UUID bundle path.
+- Node creation supports text, JSON, and CBOR output. Structured output preserves exact filesystem path bytes; the JSON representation includes a Base64 path value and optional UTF-8 text.
+
+** Formal Checkpoints and inspection
+- =git roam checkpoint= confirms committed Content with a complete, exact-version mapping to external Node Checkpoints. Dependencies can be added, replaced, removed, or cleared explicitly; index, working-tree, and untracked changes are not included in a Checkpoint.
+- =git roam check= validates Node identity, history structure, retained formal versions, and managed dependency closure. =git roam status= reports history, dependency, worktree, and diagnostic information.
+
+** Repository protection
+- =git roam enable= and =git roam disable= manage repository-local protection independently of Node deployment. =enable= enforces a Git 2.54 floor and migrates a recognized legacy command; =disable= requires that all Node linked worktrees are already removed.
+- Modifying commands (=checkpoint=, =node create=, =deploy=, =undeploy=, confirmed =discard=, and confirmed =node delete=) require healthy matching protection and valid managed history; missing, disabled, or divergent Hook configuration is refused. =check= and =status= are read-only and need no protection. =deploy= additionally requires non-shallow history.
+- The named reference-transaction Hook rejects invalid Node histories, loss of retained formal Checkpoints, and inconsistent managed dependencies while allowing valid native Git Content updates and complete multi-ref transactions.
+
+** Worktree deployment and removal
+- =git roam deploy --path= deploys the complete Node set after clone or fetch, optionally establishing missing local tracking branches in a conditional multi-ref transaction without advancing existing local Node branches.
+- A missing Node whose fetched sources disagree on their tip is refused instead of guessed; =--remote <remote>=, which must name a configured remote, restricts discovery to that remote while all existing local Nodes stay included.
+- Deployment recognizes previously created, manually created, or moved Node linked worktrees and checks worktree paths, tracked outer-index entries, history, and dependency closure before modification.
+- =git roam undeploy= safely removes all eligible Node linked worktrees, retaining Node branches, history, tracking configuration, and protection. Dirty, locked, or otherwise unsafe worktrees are not forcibly removed.
+- Deployment and undeployment report partial failures and conservatively preserve changed or untracked user data instead of force-cleaning or silently rolling back uncertain work.
+
+** Explicit history removal
+- =git roam discard --dry-run= previews the selected Checkpoints, their necessary formal/dependency successor closure, affected Node branches, and Content history potentially lost from managed branch reachability.
+- =git roam discard= executes only a reviewed, representable discard plan after explicit confirmation. It refuses plans that cannot retain the required remaining formal history.
+- =git roam node delete= previews and explicitly confirms removal of an unchecked-out Node branch only when no other retained Node history depends on it; deletion does not cascade to other Nodes.
+
+* Scope and limitations
+- Dependencies in v0.1.0 refer to retained formal Checkpoints, not arbitrary Content commits. Removing or rewriting history is constrained by the retained formal dependency closure.
+- Git-roam does not fetch, push, or merge Node histories automatically. Native Git manages history transport; =deploy= works with already available local or fetched history.
+- Multi-ref updates do not provide atomic filesystem changes across multiple worktrees. Worktree and reference-state failures may require manual inspection of reported residual state.
+- The build and executable tests target Git 2.56.0 on x86_64-linux; declared outputs for other systems are not tested compatibility claims. Protection enforces a Git 2.54 floor, but behavior on that minimum version remains unverified.

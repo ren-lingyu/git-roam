@@ -1,10 +1,19 @@
 #+title: Git Roam
 #+author: Lingyu Ren
 
-* Development status
-Version 0.1.0 is under development. Planned capabilities and their completion status are recorded in [[file:CHANGELOG.org][CHANGELOG.org]].
+* Release preparation
+Version v0.1.0 has a frozen release scope and is being prepared for release; it has not yet been published. See [[file:CHANGELOG.org][CHANGELOG.org]] for the version summary and [[file:CHANGELOGS/v0.1.0.org][the detailed release notes]] for the release manuscript.
 
-Git-roam represents local knowledge versions and exact dependencies in standard Git commit objects. Node branches persist independently of their optional linked worktrees. Git transports existing history; it does not decide or reconstruct knowledge dependencies. The current implementation provides the standard Git workflow; release finalization, deployment acceleration and alternative directory naming remain separate decisions.
+Git-roam represents local knowledge versions and exact dependencies in standard Git commit objects. Node branches persist independently of their optional linked worktrees. Git transports existing history; it does not decide or reconstruct knowledge dependencies. The current implementation provides the standard Git workflow.
+
+* Deferred candidates
+The following improvements are not part of v0.1.0 and do not block its release. They remain candidates rather than committed features.
+
+** Accelerate full deployment of many Nodes
+The existing =git roam deploy= command already processes the complete Node set in one invocation and creates missing local branches together. Deployment still creates linked worktrees through Git's native worktree operations. Improving full-deployment performance for large Node sets remains a separate candidate. No accelerated implementation or performance guarantee is included in v0.1.0.
+
+** Selectable deployment directory naming
+The current deployment path uses a fixed eight-character name derived from the Node UUID. Allowing alternative directory naming strategies is a separate candidate; v0.1.0 provides no such selection option.
 
 * Build and check
 The Nix flake provides the executable and runs the Cabal test suites and formatting checks.
