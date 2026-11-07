@@ -4,6 +4,26 @@
 #+startup: logdone
 #+property: TIMEZONE UTC
 
+* TODO v0.2.0
+Planned incompatible revision of the Checkpoint history protocol. The items below
+are development goals, not functionality available in v0.1.0; exact command
+interfaces and compatibility handling have not yet been finalized.
+
+** Changed
+*** Checkpoint semantics and encoding
+- [ ] Interpret a Checkpoint's external parents as caller-selected historical context, not a complete declaration of knowledge dependencies.
+- [ ] Use the Node's immediate predecessor as the first parent and external context commits as additional parents, preserving the first-parent Node history and the first parent's tree; remove the special =q, w= structure and synthetic Content commit.
+- [ ] Record context explicitly per Checkpoint, without inherited dependency mappings, empty dependency declarations, or automatic updates when external Nodes advance.
+
+*** Validation and lifecycle
+- [ ] Validate referenced commits by their own Node histories without requiring them to remain in the current branch history of the referenced Node.
+- [ ] Rework history validation, =check=, =status=, repository protection, deployment, and Node deletion without managed dependency-closure or mandatory Checkpoint-retention rules.
+- [ ] Reassess the specialized =discard= workflow and its cross-Node successor-closure semantics under ordinary Git history rewriting and reachability.
+
+** Added
+- [ ] Allow Checkpoints to reference ordinary Content commits of external Nodes, without requiring those Nodes to create Checkpoints.
+- [ ] Allow callers to select sparse or dense external contexts, including policies based on current Node tips, without making Git-roam interpret Org links or maintain those relationships.
+
 * DONE v0.1.0
 CLOSED: [2026-11-07 Sat 18:59]
 :PROPERTIES:

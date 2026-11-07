@@ -1,13 +1,51 @@
 #+title: Git Roam
 #+author: Lingyu Ren
 
-* Release preparation
-Version v0.1.0 has a frozen release scope and is being prepared for release; it has not yet been published. See [[file:CHANGELOG.org][CHANGELOG.org]] for the version summary and [[file:CHANGELOGS/v0.1.0.org][the detailed release notes]] for the release manuscript.
+* Version status
+Version v0.1.0 has been finalized and tagged. Its [[file:CHANGELOG.org][Changelog]]
+summary and [[file:CHANGELOGS/v0.1.0.org][release notes]] describe the
+implemented protocol. The commands and technical behavior documented below
+refer to v0.1.0, not to the proposed v0.2.0 protocol.
 
-Git-roam represents local knowledge versions and exact dependencies in standard Git commit objects. Node branches persist independently of their optional linked worktrees. Git transports existing history; it does not decide or reconstruct knowledge dependencies. The current implementation provides the standard Git workflow.
+Git-roam represents independently versioned, UUID-identified Nodes in standard
+Git repositories. In v0.1.0, Content commits preserve ordinary editing history,
+while formal Checkpoints declare complete, exact-version knowledge dependencies.
+Node branches persist independently of their optional linked worktrees. Native
+Git transports history; Git-roam does not infer knowledge relationships.
+
+* Planned v0.2.0 protocol direction
+The v0.1.0 model encodes formal knowledge dependencies in Git commit ancestry.
+Although it provides exact version relationships, its requirement to retain
+formal Checkpoints and maintain dependency closure imposes coordination between
+Nodes. The planned revision narrows the meaning of a Checkpoint: it fixes a
+historical context selected by the caller, without claiming that context is a
+complete or continuously maintained set of knowledge dependencies.
+
+The proposed encoding gives each Node an independent first-parent history.
+Ordinary Content commits have one same-Node parent. A Checkpoint continues that
+history with its immediate same-Node predecessor as first parent and selected
+external Node commits as additional parents; its tree is unchanged from the
+first parent's tree. External references may identify ordinary Content commits,
+not just formal Checkpoints. This eliminates the v0.1.0 special two-commit
+Checkpoint construction.
+
+Creating a Checkpoint would modify only its own Node branch. Other Nodes need
+not create Checkpoints, update their branches, or react to later changes in the
+selected context. Existing Checkpoints would receive no special protection
+against ordinary Git history rewriting; object retention follows Git's normal
+reference-reachability rules. The caller may choose a sparse context or
+explicitly select many current Node tips, including a dense policy derived from
+Org links. Git-roam itself would not interpret or maintain those links.
+
+This is a design direction, not the currently implemented interface. It requires
+new protocol validation, operation semantics, tests, and documentation. It may
+be incompatible with v0.1.0 histories; automatic migration and compatibility
+support are not promised. The development checklist is in
+[[file:CHANGELOG.org][CHANGELOG.org]] under =TODO v0.2.0=.
 
 * Deferred candidates
-The following improvements are not part of v0.1.0 and do not block its release. They remain candidates rather than committed features.
+The following improvements are not part of v0.1.0 and have not been assigned
+to v0.2.0. They remain candidates rather than committed features.
 
 ** Accelerate full deployment of many Nodes
 The existing =git roam deploy= command already processes the complete Node set in one invocation and creates missing local branches together. Deployment still creates linked worktrees through Git's native worktree operations. Improving full-deployment performance for large Node sets remains a separate candidate. No accelerated implementation or performance guarantee is included in v0.1.0.
