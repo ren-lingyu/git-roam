@@ -27,7 +27,7 @@ Initial Git-roam implementation for independently versioned, UUID-identified Nod
 
 ** Repository protection
 - =git roam enable= and =git roam disable= manage repository-local protection independently of Node deployment. =enable= enforces a Git 2.54 floor and migrates a recognized legacy command; =disable= requires that all Node linked worktrees are already removed.
-- Modifying commands (=checkpoint=, =node create=, =deploy=, =undeploy=, confirmed =discard=, and confirmed =node delete=) require healthy matching protection and valid managed history; missing, disabled, or divergent Hook configuration is refused. =check= and =status= are read-only and need no protection. =deploy= additionally requires non-shallow history.
+- Modifying commands (=checkpoint=, =node create=, =deploy=, =undeploy=, confirmed =discard=, and confirmed =node delete=) require healthy matching protection; missing, disabled, or divergent Hook configuration is refused. Except for =deploy=, these commands require valid current managed history. =deploy= instead validates the complete candidate Node set, including missing local branches selected from fetched history, and requires non-shallow history. =check= and =status= are read-only and need no protection.
 - The named reference-transaction Hook rejects invalid Node histories, loss of retained formal Checkpoints, and inconsistent managed dependencies while allowing valid native Git Content updates and complete multi-ref transactions.
 
 ** Worktree deployment and removal
