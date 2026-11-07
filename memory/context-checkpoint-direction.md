@@ -113,8 +113,7 @@ with deployed worktrees and dirty indexes handled conservatively. None of these
 features blocks v0.1.0 or is automatically required by the new Checkpoint
 semantics. Do not start them as part of release preparation.
 
-Immediate sequence: review the v0.1.0 documentation-only freeze candidate on
-project main, complete current checks and release review, let the human
-perform the `NEXT -> DONE` transition and tag, then author the v0.2.0 public
-semantic redesign and implementation plan. The v0.1.0 README and release notes
+Immediate sequence: the freeze, the `NEXT -> DONE` transition and the annotated
+`v0.1.0` tag are committed on project main; author the v0.2.0 public semantic
+redesign and implementation plan next. The v0.1.0 README and release notes
 must continue to describe the implemented old protocol, not this future one.

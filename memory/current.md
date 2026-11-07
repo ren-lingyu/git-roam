@@ -2,20 +2,25 @@
 
 ## Objective and actual progress
 
-Current objective: freeze the implemented v0.1.0 knowledge-dependency protocol
-as a valuable, independently recoverable first release, then redesign
-Checkpoint semantics for v0.2.0. The user confirms no actual callers and no
-workflow built on v0.1.0, so no existing deployment requires migration. Do not
-promise automatic compatibility with the proposed successor protocol.
+Current objective: v0.1.0 is frozen and locally finalized (a `DONE` entry plus
+an annotated tag) as a valuable, independently recoverable first release; the
+next work is to redesign Checkpoint semantics for v0.2.0. The user confirms no
+actual callers and no workflow built on v0.1.0, so no existing deployment
+requires migration. Do not promise automatic compatibility with the proposed
+successor protocol.
 
-At inspection, project main HEAD is
-`0ab23d8d944beff8bcbd337a6698060611e544f9`; its CHANGELOG still says
-`TODO 0.1.0`. A separate candidate release-freeze patch proposes `NEXT v0.1.0`,
-`CHANGELOGS/v0.1.0.org`, a concise root changelog and a README update. It has
-not been established as applied, tested or released. The user has chosen to
-exclude alternative deployment naming and full-deployment acceleration from
-the v0.1.0 release scope. Release review and finalization remain outstanding;
-there is no observed v0.1.0 tag or publication.
+At inspection, project main HEAD is the v0.1.0 release commit
+`docs(changelog): move v0.1.0 from NEXT to DONE`; its `CHANGELOG.org` entry is
+`DONE v0.1.0` with `CLOSED: [2026-11-07 Sat 18:59]` (UTC) and
+`CUSTOM_ID: v0.1.0`. The annotated tag `v0.1.0` peels to that same commit, whose
+tree contains the detailed `CHANGELOGS/v0.1.0.org` manuscript added by
+`docs(changelog): promote v0.1.0 to NEXT and add detailed release notes`; a later
+commit refined that manuscript's precondition wording for `deploy`. The human
+performed the state transition and the tag. No publication evidence has been
+observed and a tag is not proof of publication. The user excludes alternative
+deployment naming and full-deployment acceleration from the v0.1.0 release
+scope. The project README still says the version is being prepared and not yet
+published; reconcile that status separately.
 
 The original serial implementation plan was accepted on 2026-11-01 and is now
 complete. The detailed milestone and verification history follows.
@@ -189,7 +194,8 @@ verification sections below supersede the earlier milestone descriptions.
 
 README.org retains the user's title/author and now documents the implementation's actual
 help/version and inspection interfaces, build/check commands, native Git selection and tests.
-The committed CHANGELOG.org preserves its canonical Org header and TODO 0.1.0.
+The committed CHANGELOG.org preserves its canonical Org header and now records
+`DONE v0.1.0` with its UTC `CLOSED` time.
 Implemented and verified capabilities are checked through node 13, and after that
 batch the user committed five further capability changes plus one test-fixture
 fix (see "Post-node-13 capability changes" below): explicit `node create --id`
@@ -955,8 +961,8 @@ worktrees reuse the same check, and outer ignore configuration is still never
 edited.
 - The discard recreation fixture stopped using partial `head`; an empty removal
 plan returns an explicit failure instead of raising.
-- CHANGELOG.org marks the matching Changed and Added items as checked; TODO 0.1.0
-is unchanged and no release is implied.
+- CHANGELOG.org marks the matching Changed and Added items as checked; the entry
+was later promoted to `NEXT v0.1.0` and then `DONE v0.1.0`.
 
 Harness lesson: a test that runs the CLI with every `GIT_*` variable removed and
 `GIT_CONFIG_GLOBAL=/dev/null` must also configure local `user.name`/`user.email`.
@@ -1057,14 +1063,14 @@ The accepted production evidence is principally x86_64-linux with pinned Git
 
 ## Release freeze and subsequent work
 
-The user has explicitly chosen to publish v0.1.0 as the complete first
+The user has explicitly chosen to release v0.1.0 as the complete first
 knowledge-dependency-DAG implementation despite a planned semantic change. It
 has no known actual consumers or established workflow. Preserve the old protocol
 and its documentation in v0.1.0; do not insert the proposed v0.2.0 semantics
-into its README or release notes. The `NEXT` transition is part of the prepared
-freeze patch, not an observed change in main. The human-controlled release flow
-still needs review, appropriate current tests, the later `NEXT -> DONE` change,
-and a release tag; publication is not established.
+into its README or release notes. The freeze, the `NEXT -> DONE` transition with
+its UTC `CLOSED` time and the annotated `v0.1.0` tag are all recorded in project
+main; the human performed that transition and the tag. Publication is not
+established, and the README release-status sentence still describes preparation.
 
 The deferred deployment-directory naming and full-set deployment acceleration
 are non-blockers. Existing deployment already supports the complete Node set,
@@ -1073,15 +1079,16 @@ cross-Node Content-edit workflow may reduce manual repeated `git commit` work;
 it is an optional later capability, not a v0.1.0 prerequisite. Do not start
 these implementations during the freeze.
 
-After v0.1.0 is actually released, formally update the product README and
-protocol documentation for the new context-fixing model, then design and
-implement v0.2.0 without a default promise to migrate v0.1.0 repositories.
+Next action: reconcile the README release status with the committed `DONE`
+entry and tag, then author the v0.2.0 public design and implementation plan,
+including the README and protocol documentation for the context-fixing model,
+without a default promise to migrate v0.1.0 repositories.
 Follow [context-checkpoint-direction.md](context-checkpoint-direction.md) for
 accepted semantic direction and unresolved engineering details. Do not modify
 v0.1.0 history or retroactively recast its formal dependencies as contexts.
 
-This is a GAW memory proposal against `_agents` HEAD, not permission to mutate
-project refs, stage, run builds, finalize releases or create GAW checkpoints.
+This checkpoint records planning knowledge; it does not authorize mutating
+project refs, staging, builds, release finalization or further GAW checkpoints.
 Respect project AGENTS.md and the GAW public workflow. Preserve archives and
 prior snapshots; approvals for completed tests and experiments do not extend to
 new commands.
