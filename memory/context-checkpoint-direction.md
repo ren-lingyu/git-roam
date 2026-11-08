@@ -2,13 +2,15 @@
 
 ## Status and reason for the change
 
-This is durable GAW planning memory, not an implemented protocol, a published
-release note or permission to edit the project README. The user chose to
-freeze and release the completed v0.1.0 knowledge-dependency DAG as a valuable
-first implementation, even though its semantics will be reconsidered for
-v0.2.0. There are no known actual callers and no workflow built upon v0.1.0.
-Therefore no existing deployment requires migration; do not promise a general
-migration tool or forward compatibility to hypothetical later users.
+This records the agreed v0.2.0 protocol, whose phase-one pure implementation is
+committed behind the temporary `GitRoam.Protocol.V2.*` namespace. It is not a
+released interface, not a published release note and not permission to edit the
+project README. The user chose to release the completed v0.1.0
+knowledge-dependency DAG as a valuable first implementation, even though its
+semantics are now being replaced. There are no known actual callers and no
+workflow built upon v0.1.0. Therefore no existing deployment requires migration;
+do not promise a general migration tool or forward compatibility to hypothetical
+later users.
 
 The v0.1.0 model formalizes complete, exact-version *knowledge dependencies* at
 each Checkpoint. This provides a strong and elegant Git DAG but imports the
@@ -26,7 +28,7 @@ Preserve that implementation and its precise limits as v0.1.0. Treat the next
 model as a deliberate change of interpretation, not a claim that the previous
 implementation was invalid or that its original capabilities were worthless.
 
-## Agreed semantic direction for v0.2.0
+## Adopted protocol for v0.2.0
 
 - A Node has a stable UUID identity, an independent persistent branch and an
   optional worktree. Its first-parent history records its own content evolution.
@@ -36,17 +38,33 @@ implementation was invalid or that its original capabilities were worthless.
   context* commits. It does not assert an exhaustive or semantically verified
   knowledge-dependency relation. Git-roam does not decide which context belongs
   to a document, nor interpret Org links.
-- The candidate Git parent layout is `[p, q1, ..., qn]` with `n >= 1`, where
-  `p` is the same Node's immediate first-parent predecessor and each `qi` is an
-  existing valid commit of a different Node. A referenced commit need not be a
-  Checkpoint, nor the target Node's HEAD, nor a member of its current branch.
-  The initial conservative design keeps the Checkpoint tree equal to `p`'s
-  committed tree; allowing simultaneous content changes is a separate choice,
-  not a fundamental semantic requirement.
-- The Checkpoint is an ordinary Git commit with additional parents. A context
-  must contain at least one external commit to warrant that structure; there
-  is no inherited dependency mapping or explicit empty-dependency declaration,
-  and no need for a Root marker or placeholder Content commit.
+- The adopted Git parent layout is `P(K) = [p, q1, ..., qn]` with `n >= 1`,
+  where `p` is the same Node's immediate first-parent predecessor and each `qi`
+  is an existing valid commit of a different Node. A referenced commit need not
+  be a Checkpoint, nor the target Node's HEAD, nor a member of its current
+  branch. The Checkpoint tree must equal `p`'s committed tree, so a Checkpoint
+  never changes content while recording context and is not an equal merge.
+- The protocol requires a Checkpoint's own tree to be disjoint from every
+  context commit's tree; because each validated tree has exactly one top-level
+  UUID directory, this is checked as a different Node identity. Pairwise
+  disjointness among the context commits is *not* a protocol requirement: it is
+  a recommended stricter convention, so several historical versions of the same
+  external Node may all be contexts of one Checkpoint.
+- A validated commit tree has exactly one top-level canonical-UUID directory.
+  Inside it, `.roam` must exist as a regular or executable file whose content may
+  change with ordinary Content. A Root contains only that marker. Node UUID and
+  Root identity must agree, and one UUID keeps one Root across the validated
+  graph.
+- Validation reads only locally supplied commits and their Git ancestors; it
+  does not query remotes or scan unreachable objects. Context commits need not
+  remain reachable from their Node's current branch. Ordinary branch rewrites
+  may drop old Content and Checkpoints, but a managed branch may not disappear
+  or change its Root identity.
+- The Checkpoint is an ordinary Git commit with additional parents. Because a
+  Checkpoint always carries at least one context commit, there is no inherited
+  dependency mapping, no empty-dependency declaration and no synthetic
+  placeholder Content commit to manufacture. The `.roam` marker is still
+  required in every commit tree.
 - Creating A's Checkpoint may read and validate external objects but advances
   only A's ref. No other Node is required to establish a Checkpoint, and later
   changes to external branches do not force A to update its historical context.
@@ -68,28 +86,48 @@ without first modifying those note histories or promising that they are the
 paper's logically complete dependencies. This use case motivated the value of
 local context binding independently of whole-repository snapshots.
 
-## Protocol and interface work still to derive
+## Phase-one implementation and remaining work
 
-- Re-derive valid Root/Content/Checkpoint histories from the new first-parent
-  and additional-parent roles; specify identity checks for historical commits
-  even when they are no longer reachable from their original Node branch.
-  The first-parent Root identifies an individual commit independently of the
-  current branch tip. Do not silently carry forward the old formal-history
-  projection or global retained-Checkpoint dependency-closure validator.
-- Determine the ordinary Git ref-update and worktree-safety boundaries. The
-  ability to rewrite or abandon a Checkpoint follows Git's normal reachability
-  rules; user-facing destructive operations may still use confirmations for
-  user-data safety, but no special Checkpoint retention is assumed.
-- Revisit `checkpoint`, `check`, `status`, `discard`, Node deletion, Hook and
-  tests against the new semantics rather than preserving obsolete options or
-  validation code for compatibility. Do not assume the old `--depend`,
-  `--drop-dependency` and `--clear-dependencies` API remains appropriate.
-- v0.1.0 and v0.2.0 DAG encodings need not be mutually interpretable. There is
-  no known existing-user migration obligation. Do not claim a migration path
-  until one is designed and verified.
-- The v0.2.0 product design and README revision are intentionally deferred
-  until *after* v0.1.0 is actually finalized and released. This GAW note keeps
-  the agreed rationale recoverable without prematurely changing public docs.
+Phase one, the isolated pure protocol, is committed as
+`feat(protocol): introduce isolated v0.2.0 history model` behind the temporary
+`GitRoam.Protocol.V2.*` namespace. `Protocol.V2.History` validates the adopted
+commit kinds, tree and marker rules, context-tree disjointness, duplicate
+parents, per-UUID Root consistency, object formats, cycles and unavailable or
+wrong-type evidence; it exposes `firstParentHistory`, `contextParents` and
+`reachableHistory`. `Protocol.V2.Repository` replaces the retained-Checkpoint
+dependency closure with validated history plus managed refs, and validates
+ordinary transitions that may rewrite history but not remove a managed branch or
+change its Root. A separate `protocol-v2-tests` suite covers these rules on
+SHA-1 and SHA-256. The application layer is unchanged: phase one does not make
+v0.2.0 usable through the CLI, Hook or worktrees.
+
+Still to derive and implement in the application cutover:
+
+- `checkpoint` construction and its CLI arguments, including how a caller
+  selects context commits; the old `--depend`, `--drop-dependency` and
+  `--clear-dependencies` interface is not assumed to survive.
+- `check`, `status` and history/context presentation under the new model.
+- Reference-transaction Hook validation without retained-Checkpoint or
+  dependency-closure rules.
+- Deployment, Node creation and deletion adapted to the new protocol.
+- Removal or replacement of the v0.1.0 `discard` and formal successor-closure
+  machinery.
+- Application-level, end-to-end and documentation updates.
+
+Temporary namespace cleanup is part of the cutover, not a separate release
+task: when the v0.2.0 protocol becomes the production protocol, delete
+`GitRoam.Protocol.V2.*` and replace `GitRoam.Protocol.History` and
+`GitRoam.Protocol.Repository` with the new semantics, remove old
+protocol-specific types, functions and modules, update every caller, the Cabal
+registration, tests and docs, and keep no `V2` aliases or long-lived dual
+protocol path. The cutover commit requires a complete build and test pass.
+
+v0.1.0 and v0.2.0 DAG encodings need not be mutually interpretable. There is no
+known existing-user migration obligation; do not claim a migration path until
+one is designed and verified.
+
+Deployment metadata in `.roam` (such as deployment-relative paths) is a later
+extension candidate for v0.3.0 at the earliest, not part of this protocol work.
 
 ## Separate future capabilities and release boundary
 
@@ -111,9 +149,9 @@ Large-scale content changes across many independent Node branches could use
 batch tooling to perform ordinary Git commits and coordinated ref updates,
 with deployed worktrees and dirty indexes handled conservatively. None of these
 features blocks v0.1.0 or is automatically required by the new Checkpoint
-semantics. Do not start them as part of release preparation.
+semantics. Do not start them as part of the protocol cutover.
 
-Immediate sequence: the freeze, the `NEXT -> DONE` transition and the annotated
-`v0.1.0` tag are committed on project main; author the v0.2.0 public semantic
-redesign and implementation plan next. The v0.1.0 README and release notes
-must continue to describe the implemented old protocol, not this future one.
+Immediate sequence: plan and implement the application cutover to the v0.2.0
+protocol, including the temporary-namespace cleanup. The v0.1.0 README and
+release notes must continue to describe the implemented old protocol, not this
+future one, until that cutover changes the documented interface.

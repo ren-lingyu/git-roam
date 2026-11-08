@@ -2,25 +2,24 @@
 
 ## Objective and actual progress
 
-Current objective: v0.1.0 is frozen and locally finalized (a `DONE` entry plus
-an annotated tag) as a valuable, independently recoverable first release; the
-next work is to redesign Checkpoint semantics for v0.2.0. The user confirms no
-actual callers and no workflow built on v0.1.0, so no existing deployment
-requires migration. Do not promise automatic compatibility with the proposed
-successor protocol.
+Current objective: complete the v0.2.0 context-Checkpoint redesign by cutting
+the application layer over to the new protocol. v0.1.0 is finalized, tagged and
+documented as the first implementation. Phase one of v0.2.0 - an isolated pure
+protocol and its tests - is committed behind the temporary
+`GitRoam.Protocol.V2.*` namespace; the production CLI, Hook and application
+modules still run the v0.1.0 protocol. The user confirms no actual callers and
+no workflow built on v0.1.0, so no existing deployment requires migration. Do
+not promise automatic compatibility between the two protocols.
 
-At inspection, project main HEAD is the v0.1.0 release commit
-`docs(changelog): move v0.1.0 from NEXT to DONE`; its `CHANGELOG.org` entry is
-`DONE v0.1.0` with `CLOSED: [2026-11-07 Sat 18:59]` (UTC) and
-`CUSTOM_ID: v0.1.0`. The annotated tag `v0.1.0` peels to that same commit, whose
-tree contains the detailed `CHANGELOGS/v0.1.0.org` manuscript added by
-`docs(changelog): promote v0.1.0 to NEXT and add detailed release notes`; a later
-commit refined that manuscript's precondition wording for `deploy`. The human
-performed the state transition and the tag. No publication evidence has been
-observed and a tag is not proof of publication. The user excludes alternative
-deployment naming and full-deployment acceleration from the v0.1.0 release
-scope. The project README still says the version is being prepared and not yet
-published; reconcile that status separately.
+At inspection, project main HEAD is `feat(protocol): introduce isolated v0.2.0
+history model`, the phase-one protocol commit. Earlier commits finalized v0.1.0
+(`DONE v0.1.0` with `CLOSED: [2026-11-07 Sat 18:59]` UTC and the annotated tag
+`v0.1.0`), added the detailed `CHANGELOGS/v0.1.0.org` manuscript, and documented
+the v0.2.0 direction in `README.org` and a `TODO v0.2.0` checklist in
+`CHANGELOG.org`. README now states that v0.1.0 is finalized and tagged and that
+the documented commands still describe v0.1.0. No publication evidence has been
+observed and a tag is not proof of publication. Alternative deployment naming and
+full-deployment acceleration remain outside the v0.1.0 release scope.
 
 The original serial implementation plan was accepted on 2026-11-01 and is now
 complete. The detailed milestone and verification history follows.
@@ -129,9 +128,10 @@ Ordinary test work has no independent archival requirement.
 
 - [design.md](design.md): effective v0.1.0 knowledge-dependency protocol,
   Content/Checkpoint encoding/projection, managed closure and lifecycle.
-- [context-checkpoint-direction.md](context-checkpoint-direction.md): the
-  post-v0.1.0 context-fixing direction, reasons for the change, and open design
-  work; not yet a replacement for the current product protocol or README.
+- [context-checkpoint-direction.md](context-checkpoint-direction.md): the agreed
+  v0.2.0 context-Checkpoint protocol, its constraints and rationale, the
+  phase-one pure implementation and the remaining application cutover; the
+  product protocol stays v0.1.0 until that cutover.
 - [implementation.md](implementation.md): accepted historical implementation plan,
   experiment gate, serial
   project commits, execution defaults, validation and authorization boundaries.
@@ -149,6 +149,10 @@ different concepts. The final user decisions supersede conflicting assumptions
 from the original design ZIP. Current memory is not a reconstruction of proposals.
 
 ## Adopted design changes needed for recovery
+
+These record the v0.1.0 model; the v0.2.0 successor is recorded in the
+phase-one section below and in
+[context-checkpoint-direction.md](context-checkpoint-direction.md).
 
 - Formal versions have complete direct dependencies and possibly multiple
   same-Node formal predecessors. Content does not have a formal dependency set.
@@ -192,10 +196,12 @@ Protection lifecycle, worktree deployment/removal, Node creation, Checkpoint
 creation and confirmed discard are now committed through node 11. Their later
 verification sections below supersede the earlier milestone descriptions.
 
-README.org retains the user's title/author and now documents the implementation's actual
-help/version and inspection interfaces, build/check commands, native Git selection and tests.
-The committed CHANGELOG.org preserves its canonical Org header and now records
-`DONE v0.1.0` with its UTC `CLOSED` time.
+README.org retains the user's title/author, records that v0.1.0 is finalized and
+tagged, documents the implemented help/version and inspection interfaces,
+build/check commands, native Git selection and tests, and outlines the planned
+v0.2.0 direction without claiming an implemented interface. The committed
+CHANGELOG.org preserves its canonical Org header, records `DONE v0.1.0` with its
+UTC `CLOSED` time, and carries a `TODO v0.2.0` development checklist.
 Implemented and verified capabilities are checked through node 13, and after that
 batch the user committed five further capability changes plus one test-fixture
 fix (see "Post-node-13 capability changes" below): explicit `node create --id`
@@ -983,6 +989,57 @@ widened: the user committed the identity change as
 `feat(node-create): allow explicit Nil and Max UUID identities`, the first
 feature-level scope; earlier production commits use `feat(git-roam):`.
 
+## v0.2.0 protocol phase one
+
+The user committed `docs: outline v0.2.0 protocol redesign` (README direction
+plus the `TODO v0.2.0` CHANGELOG checklist) and then
+`feat(protocol): introduce isolated v0.2.0 history model`. Phase one implements
+the pure protocol only, in the temporary `GitRoam.Protocol.V2.*` namespace.
+
+- `Protocol.V2.History` validates Root (no parents), Content (exactly one
+  same-Node parent) and Checkpoint (first parent plus at least one context
+  parent). A Checkpoint must keep its first parent's tree and its tree must not
+  overlap a context commit's tree (enforced as a different Node identity,
+  because each validated tree has exactly one top-level UUID directory).
+  Repeated parent OIDs are refused, and one Node UUID keeps one Root across the
+  validated graph.
+- A commit tree has exactly one top-level canonical-UUID directory;
+  `<uuid>/.roam` must be a regular or executable file whose content may change.
+  A Root's UUID directory contains only that marker.
+- Validation reads only the supplied local tips and their Git ancestors,
+  memoizes immutable objects per invocation, and rejects mixed object formats,
+  cycles, unavailable objects and wrong-type evidence. No remote query or
+  unreachable-object scan is performed, and context commits need not remain
+  reachable from their own Node's current branch.
+- Queries are `firstParentHistory`, `contextParents` and `reachableHistory`
+  (the last follows all parents).
+- `Protocol.V2.Repository` exposes `ManagedState` as validated history plus
+  managed refs, with no retained-Checkpoint set or cross-Node dependency
+  closure. `validateManagedState` checks tip identity and missing tips;
+  `validateOrdinaryTransition` lets a branch be rewritten but not removed and
+  not silently assigned a different Root.
+- `cabal/git-roam.cabal` registers both modules and the separate
+  `protocol-v2-tests` suite. `cabal/test/ProtocolV2.hs` has 26 cases across
+  SHA-1/SHA-256: Root/Content/editable markers, multiple context versions from
+  one external Node, same-Node overlap rejection, duplicate parents, identity
+  and Root conflicts, missing/cyclic evidence, local-ref retention limits and
+  ordinary transition protection.
+
+Only the Checkpoint-to-context tree disjointness is a protocol requirement;
+pairwise disjointness among context commits is a recommended caller convention,
+so several historical versions of the same external Node may all be contexts of
+one Checkpoint.
+
+The user reported that the phase-one patch applied cleanly and that its checks
+passed. Both project main and origin/main point at that commit, so the commit and
+push are observed; the check result is the user's report. No independent
+post-commit run by the agent is recorded, and the suite was not re-executed here.
+
+Phase one is not a usable product change: `check`, `status`, `checkpoint`,
+`deploy`, `undeploy`, `node create`, `node delete`, `discard` and the
+reference-transaction Hook still use v0.1.0, and README documents v0.1.0
+commands. Do not describe v0.2.0 as available.
+
 ## Completed reader verification and prior authorization
 
 The user requested a new isolated flake-managed performance retest of the
@@ -997,7 +1054,7 @@ archived stream/result digests. Three runs per scale were serial, one capability
 1 GiB managed heap, single Nix job/core; no timeout, failed run or retry. No
 product edits, original archive edits or old run replacement. Follow the
 committed-retest section in raw-reader-implementation.md for measurements,
-controls and limits. The requested retest is complete; await the next user task.
+controls and limits. That retest is complete and is not the current next action.
 
 ### Completed production implementation
 
@@ -1070,7 +1127,8 @@ and its documentation in v0.1.0; do not insert the proposed v0.2.0 semantics
 into its README or release notes. The freeze, the `NEXT -> DONE` transition with
 its UTC `CLOSED` time and the annotated `v0.1.0` tag are all recorded in project
 main; the human performed that transition and the tag. Publication is not
-established, and the README release-status sentence still describes preparation.
+established; the README now states that v0.1.0 is finalized and tagged and keeps
+its command documentation on v0.1.0.
 
 The deferred deployment-directory naming and full-set deployment acceleration
 are non-blockers. Existing deployment already supports the complete Node set,
@@ -1079,10 +1137,10 @@ cross-Node Content-edit workflow may reduce manual repeated `git commit` work;
 it is an optional later capability, not a v0.1.0 prerequisite. Do not start
 these implementations during the freeze.
 
-Next action: reconcile the README release status with the committed `DONE`
-entry and tag, then author the v0.2.0 public design and implementation plan,
-including the README and protocol documentation for the context-fixing model,
-without a default promise to migrate v0.1.0 repositories.
+Next action: plan and implement the application-layer cutover to the v0.2.0
+protocol (phase two), including the temporary-namespace cleanup described in
+[context-checkpoint-direction.md](context-checkpoint-direction.md), without a
+default promise to migrate v0.1.0 repositories.
 Follow [context-checkpoint-direction.md](context-checkpoint-direction.md) for
 accepted semantic direction and unresolved engineering details. Do not modify
 v0.1.0 history or retroactively recast its formal dependencies as contexts.

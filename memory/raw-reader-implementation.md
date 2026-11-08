@@ -104,7 +104,8 @@ association. Measurement source predates only the final documentation checkbox;
 the performance manifest above continues to identify that measured copy exactly.
 No build or performance rerun was necessary merely to confirm the commit.
 
-Next: await the next user task. The optimization, correctness checks, production
+Next: the reader work is complete; see [current.md](current.md) for the project
+next action. The optimization, correctness checks, production
 performance measurements and documentation are complete. Keep the minimum-Git,
 other-platform and benchmark workload limits explicit. Do not start unrelated
 worktree optimizations, release changes or archival expansion automatically.

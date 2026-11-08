@@ -5,9 +5,10 @@
 This is the completed, historical v0.1.0 implementation plan, not the active
 post-release development schedule. Its milestone instructions, checkbox
 conventions and candidate-scope uncertainties record the earlier work phase;
-[current.md](current.md) gives the present release decision, and
+[current.md](current.md) gives the current state and next action, and
 [context-checkpoint-direction.md](context-checkpoint-direction.md) records the
-proposed successor semantics. The user requested implementation of the formal
+adopted successor protocol and its phase-one pure implementation. The user
+requested implementation of the formal
 plan on 2026-11-01 after concluding the design discussion. [design.md](design.md)
 records the v0.1.0 product model; [current.md](current.md) distinguishes actual
 work from intended features.

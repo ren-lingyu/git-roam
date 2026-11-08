@@ -4,11 +4,13 @@
 
 This records the implemented v0.1.0 knowledge-dependency protocol adopted
 through the user's decisions and accepted plan on 2026-11-01. Its semantics
-remain authoritative for v0.1.0 release preparation. The user has selected a
-post-release context-fixing successor; see
-[context-checkpoint-direction.md](context-checkpoint-direction.md). Do not
-reinterpret this document as the new protocol or update the product README to
-the successor design before v0.1.0 is released. The earlier supplied design
+remain the v0.1.0 record; that version is finalized and tagged, and its release
+notes keep describing this protocol. The successor context-fixing protocol has
+a phase-one pure implementation behind the temporary `GitRoam.Protocol.V2.*`
+namespace; see [context-checkpoint-direction.md](context-checkpoint-direction.md).
+Do not reinterpret this document as the new protocol or update the product
+README to the successor design before the application cutover. The earlier
+supplied design
 document was the initial knowledge source; the final decisions supersede its
 conflicting assumptions. This is current memory, not a replay of design history.
 See [implementation.md](implementation.md) for the accepted execution sequence
