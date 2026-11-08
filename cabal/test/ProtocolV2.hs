@@ -201,7 +201,7 @@ forkTest = do
 checkpointTest :: IO ()
 checkpointTest = do
     let ((ar, a, k, br, bc), fixture) = build Sha1 $ do
-            (builtAr, at) <- root uuidA
+            (builtAr, _) <- root uuidA
             edited <- nodeTree uuidA True
             builtA <- commit edited [builtAr]
             (builtBr, bt) <- root uuidB
