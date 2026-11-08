@@ -1077,8 +1077,8 @@ snapshot. The user committed the production optimization as
 Read-only comparison confirms all 50 committed files match the final verified
 snapshot, with no additional tracked files; the project worktree is clean.
 The committed implementation is complete. No duplicate build or performance
-rerun is needed solely for the commit acknowledgment. Await the next user task;
-do not start unrelated optimizations or a release. Nix command authorization
+rerun is needed solely for the commit acknowledgment. Do not start unrelated
+optimizations or a release. Nix command authorization
 applies to the completed task and does not broaden future task scope.
 
 The preceding independent experiment (before production authorization) was an
@@ -1135,7 +1135,7 @@ are non-blockers. Existing deployment already supports the complete Node set,
 but does not implement the proposed bulk checkout acceleration. A separate
 cross-Node Content-edit workflow may reduce manual repeated `git commit` work;
 it is an optional later capability, not a v0.1.0 prerequisite. Do not start
-these implementations during the freeze.
+these implementations as part of the protocol cutover.
 
 Next action: plan and implement the application-layer cutover to the v0.2.0
 protocol (phase two), including the temporary-namespace cleanup described in

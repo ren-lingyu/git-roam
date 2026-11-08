@@ -156,6 +156,7 @@ No archive expansion is necessary for this retest; do not copy generated large
 fixture data into GAW by default. Project working tree/index/refs/lock and the
 original archive remained unchanged, and the worktree is clean.
 
-The explicitly requested retest is complete. Report its production-only results
-and limitations; await the user's next task. No duplicate full test-suite run
-or product edit was needed for this isolated performance measurement.
+The explicitly requested retest is complete. See [current.md](current.md) for
+the project next action; report its production-only results and limitations. No
+duplicate full test-suite run or product edit was needed for this isolated
+performance measurement.
