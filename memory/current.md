@@ -4,22 +4,24 @@
 
 Current objective: complete the v0.2.0 context-Checkpoint redesign by cutting
 the application layer over to the new protocol. v0.1.0 is finalized, tagged and
-documented as the first implementation. Phase one of v0.2.0 - an isolated pure
-protocol and its tests - is committed behind the temporary
-`GitRoam.Protocol.V2.*` namespace, and the obsolete v0.1.0 `discard` workflow has
-since been removed in a separate refactor commit. The production CLI, Hook and
-application modules still run the v0.1.0 protocol, so the development branch is
-not yet a complete v0.2.0 implementation. The user confirms no actual callers
-and no workflow built on v0.1.0, so no existing deployment requires migration.
-Do not promise automatic compatibility between the two protocols.
+documented as the first implementation. The isolated `GitRoam.Protocol.V2.*`
+protocol, the retirement of the v0.1.0 `discard` workflow, and a read-only
+v0.2.0 native inspection layer (`GitRoam.Application.V2.Inspect`) with its own
+test suite are committed; every Cabal component now builds with `-Werror`. The
+production CLI, Hook and application modules still run the v0.1.0 protocol, so
+the development branch is not yet a complete v0.2.0 implementation. The user
+confirms no actual callers and no workflow built on v0.1.0, so no existing
+deployment requires migration. Do not promise automatic compatibility between
+the two protocols.
 
-At inspection, project main HEAD is `refactor(discard): retire formal-history
-discard workflow`, whose parent is `feat(protocol): introduce isolated v0.2.0
-history model` (the phase-one protocol commit). Earlier commits finalized v0.1.0
-(`DONE v0.1.0` with `CLOSED: [2026-11-07 Sat 18:59]` UTC and the annotated tag
-`v0.1.0`), added the detailed `CHANGELOGS/v0.1.0.org` manuscript, and documented
-the v0.2.0 direction in `README.org` and a `TODO v0.2.0` checklist in
-`CHANGELOG.org`. README still documents the v0.1.0 protocol for the remaining
+At inspection, project main HEAD is `feat(inspection): add isolated v0.2.0
+native history validation`, whose parent is
+`refactor(discard): retire formal-history discard workflow`; before that came
+`feat(protocol): introduce isolated v0.2.0 history model`. Earlier commits
+finalized v0.1.0 (`DONE v0.1.0` with `CLOSED: [2026-11-07 Sat 18:59]` UTC and the
+annotated tag `v0.1.0`), added the detailed `CHANGELOGS/v0.1.0.org` manuscript,
+and documented the v0.2.0 direction in `README.org` and a `TODO v0.2.0` checklist
+in `CHANGELOG.org`. README still documents the v0.1.0 protocol for the remaining
 commands, except that it records the retired `discard` command on the
 development branch. No publication evidence has been observed and a tag is not
 proof of publication. Alternative deployment naming and full-deployment
@@ -1091,6 +1093,48 @@ pre-fix source failed at `Cli.hs` because `Set.toList` was out of scope after
 local x86_64-linux results recorded from store logs; other platforms and the
 minimum Git version remain unverified.
 
+## v0.2.0 read-only inspection and build policy
+
+The commit `feat(inspection): add isolated v0.2.0 native history validation`
+adds `GitRoam.Application.V2.Inspect` and the separate `inspection-v2-tests`
+suite, and turns warnings into build errors for every Cabal component.
+
+- `V2.Inspect.inspectState` reads the local managed refs (or one requested Node),
+  validates them with `Protocol.V2.History`/`Repository`, refuses shallow
+  repositories, checks stored object connectivity through the raw object reader,
+  and reports per-Node tip, commit kind, latest Checkpoint, direct context and
+  the Checkpoint count in its first-parent history, plus Git-registered
+  worktrees. External context never expands the managed ref selection, unlike
+  the v0.1.0 dependency closure.
+- `V2.Inspect.validateCandidate` validates a candidate ref map, stored
+  connectivity and the resulting `ManagedState` without writing.
+- Errors are explicit: repository discovery, Git transport, invalid output,
+  symbolic Node branches, unmanaged Node, shallow repository, history failure,
+  missing reachable objects, changing refs and invalid candidate state.
+- `cabal/test/InspectionV2.hs` covers four scenarios plus a
+  files/reftable x SHA-1/SHA-256 context matrix (8 cases): identity mismatch,
+  conflicting Roots, overlap/tree-change refusal, Node-scoped inspection and
+  contextual inspection.
+- `cabal/test/ProtocolV2.hs` ignores one unused value with a wildcard so the
+  `-Werror` policy holds.
+- Every component (library, executable, 15 test suites) has
+  `ghc-options: ... -Werror`. Any `-Wall` warning is now a build error; keep the
+  tree warning-free.
+- Verification from the local store: the whole-tree source matching the
+  committed tree exactly (zero differences, no missing files) and the matching
+  cabal subtree (zero differences, no extra files) correspond to a `git-roam`
+  derivation with an existing output. Its log reports 15 of 15 suites, 282
+  cases, zero compiler warnings and zero errors, including `inspection-v2-tests`
+  (8 cases); `discard-tests` is absent. The matching `treefmt-check` derivation
+  exists and reports 55 files traversed and 53 formatted with zero changes.
+  These are local x86_64-linux results read from store logs, not a new agent
+  run; other platforms and the minimum Git version remain unverified.
+
+Production behavior is unchanged: `check`, `status`, `checkpoint`, `deploy`,
+`undeploy`, `node create`, `node delete` and the reference-transaction Hook still
+use `Application.Inspect` and the v0.1.0 protocol, and `V2.Inspect` is imported
+only by its test suite. Do not describe v0.2.0 as available.
+
 ## Completed reader verification and prior authorization
 
 The user requested a new isolated flake-managed performance retest of the
@@ -1189,11 +1233,11 @@ it is an optional later capability, not a v0.1.0 prerequisite. Do not start
 these implementations as part of the protocol cutover.
 
 Next action: implement the remaining application-layer cutover to the v0.2.0
-protocol, starting with the production history and managed-state validators.
-Discard retirement is complete and no longer pending. Include the
-temporary-namespace cleanup described in
-[context-checkpoint-direction.md](context-checkpoint-direction.md), without a
-default promise to migrate v0.1.0 repositories.
+protocol, starting with the production history and managed-state validators and
+then wiring read-only inspection into `check`/`status`. Discard retirement is
+complete and no longer pending. Include the temporary-namespace cleanup
+described in [context-checkpoint-direction.md](context-checkpoint-direction.md),
+without a default promise to migrate v0.1.0 repositories.
 Follow [context-checkpoint-direction.md](context-checkpoint-direction.md) for
 accepted semantic direction and unresolved engineering details. Do not modify
 v0.1.0 history or retroactively recast its formal dependencies as contexts.

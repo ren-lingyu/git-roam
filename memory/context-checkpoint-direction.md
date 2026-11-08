@@ -102,14 +102,21 @@ SHA-1 and SHA-256. Phase one left the application layer on v0.1.0 and did not
 make v0.2.0 usable through the CLI, Hook or worktrees. The subsequent
 `refactor(discard): retire formal-history discard workflow` removed the old
 specialized Discard command and its implementation; that is phase-two
-preparation, not the protocol cutover.
+preparation, not the protocol cutover. The read-only bridge is also committed:
+`GitRoam.Application.V2.Inspect` validates local managed refs with the V2
+protocol, refuses shallow repositories, checks stored connectivity and reports
+per-Node history and context views without expanding the ref set;
+`inspection-v2-tests` covers it on both object formats and backends. It is not
+wired into `check` or `status`. All Cabal components now use `-Werror`, so
+warnings are build errors.
 
 Still to derive and implement in the application cutover:
 
 - `checkpoint` construction and its CLI arguments, including how a caller
   selects context commits; the old `--depend`, `--drop-dependency` and
   `--clear-dependencies` interface is not assumed to survive.
-- `check`, `status` and history/context presentation under the new model.
+- `check`, `status` and history/context presentation under the new model;
+  `V2.Inspect` prototypes the reading side, but no command uses it yet.
 - Reference-transaction Hook validation without retained-Checkpoint or
   dependency-closure rules.
 - Deployment, Node creation and deletion adapted to the new protocol.
@@ -163,8 +170,8 @@ features blocks v0.1.0 or is automatically required by the new Checkpoint
 semantics. Do not start them as part of the protocol cutover.
 
 Immediate sequence: implement the remaining application cutover to the v0.2.0
-protocol, starting with the production history and managed-state validators;
-Discard retirement is complete. Include the temporary-namespace cleanup. The
-v0.1.0 README and release notes must continue to describe the implemented old
-protocol, not this future one, until that cutover changes the documented
-interface.
+protocol, starting with the production history and managed-state validators and
+then wiring `V2.Inspect` into `check`/`status`; Discard retirement is complete.
+Include the temporary-namespace cleanup. The v0.1.0 README and release notes
+must continue to describe the implemented old protocol, not this future one,
+until that cutover changes the documented interface.
