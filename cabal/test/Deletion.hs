@@ -10,7 +10,6 @@ import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GitRoam.Application.Delete
-import GitRoam.Application.Discard (previewDiscard, previewPlanId)
 import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Cli (Command (..), HelpTopic (..), parseCommand)
 import GitRoam.Git
@@ -231,9 +230,8 @@ stale git executable repo _ = do
     (k, _) <- version git repo r [] "K"
     putTip git repo nodeA k
     token <- preview git repo nodeA >>= identifier
-    discardToken <- previewDiscard git repo [oidText k] >>= expectRight >>= maybe (fail "No discard plan") pure . previewPlanId
     enable git executable repo
-    forM_ [BS.replicate 64 97, discardToken] $ \wrong -> executeDelete executable git repo nodeA wrong >>= expectLeft
+    executeDelete executable git repo nodeA (BS.replicate 64 97) >>= expectLeft
     w <- content git repo k "later content"
     putTip git repo nodeA w
     executeDelete executable git repo nodeA token >>= expectLeft

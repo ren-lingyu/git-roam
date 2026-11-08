@@ -6,7 +6,6 @@ import Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import GitRoam.Application.Worktree
 import GitRoam.Git
 import GitRoam.Git.Worktrees
@@ -29,7 +28,6 @@ main =
         , ("tracked index entries inside a pending target are refused", fixture "files" Sha1 trackedTarget)
         , ("tracked file ancestors of pending targets are refused", fixture "files" Sha1 trackedAncestor)
         , ("occupied pending targets are refused", fixture "files" Sha1 occupiedTarget)
-        , ("discard recreation preserves tracked outer siblings", fixture "files" Sha1 recreation)
         , ("existing moved and dirty deployments are preserved", fixture "files" Sha1 moved)
         , ("all removal targets are preflighted for user data", fixture "files" Sha1 dirty)
         , ("stale worktree and ref plans refuse mutation", fixture "files" Sha1 stale)
@@ -160,42 +158,6 @@ occupiedTarget git _ repo _ = do
     writeFile target "do not overwrite"
     planDeployment git repo state directory >>= expectLeft
     readFile target >>= assertEqual "do not overwrite"
-
--- An existing linked worktree has its own Git index. Discard's preflight
--- must inspect the parent repository instead, and restoring it must not
--- require the enclosing deployment directory to be ignored or empty.
-recreation :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
-recreation git executable repo _ = do
-    root git repo nodeA
-    enable git executable repo
-    let directory = repo </> "nodes"
-        target = directory </> shortName nodeA
-        sibling = directory </> "README.org"
-    createDirectory directory
-    writeFile sibling "keep\n"
-    _ <- ok git repo ["add", "--", "nodes/README.org"] ""
-    manual git repo target nodeA
-    state <- snapshot git repo
-    _ <- planDiscardRemoval git repo state (Set.singleton nodeA) >>= expectRight
-    plan <- planRemoval git repo state >>= expectRight
-    withProtectedSession
-        executable
-        git
-        repo
-        ( \session -> do
-            removed <- removePlannedWorktree session plan nodeA
-            case removed of
-                Left problem -> pure (Left problem)
-                Right () -> do
-                    checked <- checkRemovedWorktreePaths session (removalTargets plan)
-                    case checked of
-                        Left problem -> pure (Left problem)
-                        Right () -> case removalTargets plan of
-                            firstRemoval : _ -> restoreRemovedWorktree session state firstRemoval
-                            [] -> pure (Left "Removal plan has no targets")
-        )
-        >>= expectRight
-    readFile sibling >>= assertEqual "keep\n"
 
 moved :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 moved git _ repo parent = do

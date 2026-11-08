@@ -42,6 +42,8 @@ main =
                 , ["--version", "extra"]
                 , ["version", "extra"]
                 , ["help", "unknown"]
+                , ["discard"]
+                , ["help", "discard"]
                 , ["help", "version", "extra"]
                 ]
             )
@@ -58,6 +60,8 @@ main =
                 output <- responseStdout <$> runCli []
                 assertTrue "help missing" ("help [command]" `BS.isInfixOf` output)
                 assertTrue "Node deletion missing" ("node delete" `BS.isInfixOf` output)
+                assertTrue "retired discard command advertised" $
+                    not ("  discard " `BS.isInfixOf` output)
                 assertTrue "unimplemented command advertised" $
                     not ("node adopt" `BS.isInfixOf` output)
             )

@@ -10,7 +10,6 @@ module GitRoam.Application.Worktree (
     planDeploymentCandidateFor,
     planRemoval,
     planRemovalFor,
-    planDiscardRemoval,
     deploymentRoot,
     deploymentRefs,
     pendingDeployments,
@@ -20,8 +19,6 @@ module GitRoam.Application.Worktree (
     withProtectedSession,
     addPlannedWorktree,
     removePlannedWorktree,
-    restoreRemovedWorktree,
-    checkRemovedWorktreePaths,
 ) where
 
 import Control.Exception (IOException, throwIO, try)
@@ -260,25 +257,6 @@ planRemovalFor git directory state selected = guardIO $ runExceptT $ do
         ExceptT (removable git path nested)
     pure (RemovalPlan state targets mains records)
 
--- Recreating worktrees cannot preserve arbitrary private administration state.
--- Refuse those layouts before history changes rather than silently losing it.
-planDiscardRemoval :: Git IO -> FilePath -> ManagedState -> Set.Set NodeId -> IO (Either String RemovalPlan)
-planDiscardRemoval git directory state selected = guardIO $ runExceptT $ do
-    plan@(RemovalPlan _ targets mains records) <- ExceptT (planRemovalFor git directory state selected)
-    unless (null mains) (throwE "Affected Node is checked out in the main worktree; undeploy or safely change that checkout first")
-    forM_ targets $ \record -> do
-        when (any (\other -> treePath other /= treePath record && (treePath record <> "/") `BS.isPrefixOf` treePath other) records) $
-            throwE "Affected worktree contains a nested worktree; undeploy before discarding this history"
-        path <- lift (decodePath (treePath record))
-        ExceptT (checkOuterTargetsFrom git path (takeDirectory path) [path])
-        config <- ExceptT (command git path ["rev-parse", "--path-format=absolute", "--git-path", "config.worktree"] BS.empty)
-        configPath <- lift (decodePath (BS.init config))
-        configured <- lift (exists configPath)
-        when configured (throwE "Affected worktree has private configuration that recreation cannot preserve")
-        refs <- ExceptT (command git path ["for-each-ref", "--format=%(refname)", "refs/worktree/", "refs/bisect/", "refs/rewritten/"] BS.empty)
-        unless (BS.null refs) (throwE "Affected worktree has private refs that recreation cannot preserve")
-    pure plan
-
 removable :: Git IO -> FilePath -> [FilePath] -> IO (Either String ())
 removable git path nested = runExceptT $ do
     -- In-progress sequencers may have an otherwise completely clean index/tree.
@@ -373,41 +351,3 @@ removePlannedWorktree (ProtectedSession git directory removedRef) (RemovalPlan s
     remaining <- ExceptT (listWorktrees git directory (repositoryObjectFormat repository))
     when (present || any ((== treePath record) . treePath) remaining) (throwE "Worktree removal left residual state")
     lift (modifyIORef' removedRef (Set.insert (treePath record)))
-
--- Only the session that confirmed removal can restore a path. An occupied path,
--- competing checkout or changed ref set is never overwritten or force-cleaned.
-restoreRemovedWorktree :: ProtectedSession -> ManagedState -> Worktree -> IO (Either String ())
-restoreRemovedWorktree (ProtectedSession git directory removedRef) state original = guardIO $ runExceptT $ do
-    removed <- lift (readIORef removedRef)
-    unless (Set.member (treePath original) removed) (throwE "Worktree removal was not confirmed by this operation")
-    node <- maybe (throwE "Restoration target is not a Node worktree") pure (worktreeNode original)
-    oid <- maybe (throwE "Restoration Node branch is absent") pure (Map.lookup node (managedRefs state))
-    (_, records) <- ExceptT (observation git directory state)
-    when (any (\r -> treePath r == treePath original || worktreeNode r == Just node) records) (throwE "Restoration path or Node checkout is already registered")
-    path <- ExceptT (restorationPath git original)
-    _ <- ExceptT (command git directory (ownHookBypass ++ ["worktree", "add", "--no-guess-remote", "--", path, BSC.unpack (nodeIdBytes node)]) BS.empty)
-    (repository, after) <- ExceptT (observation git directory state)
-    restored <- case [r | r <- after, treePath r == treePath original, worktreeNode r == Just node, treeHead r == Just oid] of
-        [r] -> pure r
-        _ -> throwE "Restored worktree could not be verified; inspect residual state"
-    _ <- ExceptT (registered git repository restored)
-    ExceptT (removable git path [])
-    lift (modifyIORef' removedRef (Set.delete (treePath original)))
-
-checkRemovedWorktreePaths :: ProtectedSession -> [Worktree] -> IO (Either String ())
-checkRemovedWorktreePaths (ProtectedSession git _ removedRef) records = guardIO $ runExceptT $ do
-    removed <- lift (readIORef removedRef)
-    forM_ records $ \record -> do
-        unless (Set.member (treePath record) removed) (throwE "Worktree removal was not confirmed")
-        _ <- ExceptT (restorationPath git record)
-        pure ()
-
-restorationPath :: Git IO -> Worktree -> IO (Either String FilePath)
-restorationPath git record = runExceptT $ do
-    path <- lift (decodePath (treePath record)) >>= ExceptT . safeAbsolutePath
-    occupied <- lift (exists path)
-    when occupied (throwE "Restoration path is occupied; user data is retained")
-    parent <- lift (doesDirectoryExist (takeDirectory path))
-    unless parent (throwE "Restoration parent directory disappeared")
-    ExceptT (checkOuterTargets git path [path])
-    pure path

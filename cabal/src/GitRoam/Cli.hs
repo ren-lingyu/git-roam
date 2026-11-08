@@ -21,7 +21,6 @@ import qualified GitRoam.Application.Checkpoint as Checkpoints
 import qualified GitRoam.Application.Create as Creation
 import qualified GitRoam.Application.Delete as Deletion
 import qualified GitRoam.Application.Deploy as Deployment
-import qualified GitRoam.Application.Discard as Discard
 import GitRoam.Application.Inspect
 import qualified GitRoam.Application.Protection as Protection
 import qualified GitRoam.Application.Undeploy as Undeployment
@@ -30,7 +29,6 @@ import GitRoam.Git
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import qualified GitRoam.Output as Output
-import GitRoam.Protocol.Discard
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Objects (ObjectProblem (..))
@@ -40,12 +38,12 @@ import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, hIsTerminalDevice, stderr, stdin)
 
-data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp | NodeDeleteHelp | CheckpointHelp | DiscardHelp
+data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp | NodeDeleteHelp | CheckpointHelp
     deriving (Eq, Show)
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) Output.OutputFormat | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDiscard [String] | ExecuteDiscard [String] (Maybe String) | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) Output.OutputFormat | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -79,10 +77,6 @@ parseCommand arguments = case arguments of
     ["checkpoint", "--help"] -> help CheckpointHelp
     ["checkpoint", "-h"] -> help CheckpointHelp
     "checkpoint" : args -> checkpointArgs Nothing Nothing False [] [] args
-    ["help", "discard"] -> help DiscardHelp
-    ["discard", "--help"] -> help DiscardHelp
-    ["discard", "-h"] -> help DiscardHelp
-    "discard" : args -> discardArgs False Nothing [] args
     ["help", "node"] -> help NodeHelp
     ["help", "node", "create"] -> help NodeCreateHelp
     ["help", "node", "delete"] -> help NodeDeleteHelp
@@ -154,13 +148,6 @@ parseCommand arguments = case arguments of
     validValue value = not (null value) && take 1 value /= "-" && '\0' `notElem` value
     quoted = Text.pack . show
     uuid node = either (const (Left ("Invalid Node UUID: " <> quoted node))) Right (parseNodeId (Encoding.encodeUtf8 (Text.pack node)))
-    discardArgs dry confirmation targets args = case args of
-        [] | dry && not (null targets) -> Right (PreviewDiscard (reverse targets))
-        [] | not dry && not (null targets) -> Right (ExecuteDiscard (reverse targets) confirmation)
-        "--dry-run" : rest | not dry && confirmation == Nothing -> discardArgs True confirmation targets rest
-        "--confirm" : value : rest | not dry && confirmation == Nothing && length value == 64 && all (`elem` ("0123456789abcdef" :: String)) value -> discardArgs False (Just value) targets rest
-        value : rest | validValue value -> discardArgs dry confirmation (value : targets) rest
-        _ -> Left "Usage: git roam discard [--dry-run | --confirm <plan-id>] <ref-or-oid>..."
     checkpointArgs node message clear drops adds args = case args of
         [] -> case message of
             Nothing -> Left "Checkpoint requires exactly one -m or -F message"
@@ -191,7 +178,6 @@ renderHelp topic = case topic of
             , "  node create     Create a Node and editable linked worktree"
             , "  node delete     Explicitly delete an unchecked-out, unreferenced Node"
             , "  checkpoint      Confirm committed Content and complete dependencies"
-            , "  discard         Preview or explicitly confirm Checkpoint discard"
             , ""
             , "Options:"
             , "  -h, --help      Show general help"
@@ -209,7 +195,6 @@ renderHelp topic = case topic of
     NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Every other Node's retained historical dependency is checked; incoming edges block deletion.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
     NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]", "", "Create an identity, empty-marker Root, persistent local branch and linked worktree.", "--id accepts UUIDv4, Nil UUID or Max UUID; without it, a fresh UUIDv4 is generated.", "--format text (default) preserves the existing output; json and cbor provide structured machine output.", "JSON paths contain UTF-8 text when valid plus a lossless Base64 byte representation; CBOR paths are byte strings.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
     CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       [--depend <ref-or-oid>] [--drop-dependency <uuid>] [--clear-dependencies]", "", "Select an explicit Node or infer its worktree; Root requires committed Content first.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Inherit the previous full dependency set; --depend adds/replaces one external Checkpoint per UUID.", "Dependencies accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "Repeat --depend/--drop-dependency for different Nodes. Clear may combine with additions, not removals.", "Conflicting edits, self dependencies and unretained/non-Checkpoint inputs are refused.", "Uses the committed tree, preserving all Content history and uncommitted index/worktree data."]
-    DiscardHelp -> Text.unlines ["usage: git roam discard --dry-run <ref-or-oid>...", "       git roam discard --confirm <plan-id> <ref-or-oid>...", "       git roam discard <ref-or-oid>...", "", "Preview the exact minimal successor closure, old/new tips, Content loss and affected worktrees.", "Refs or unambiguous commit OIDs must identify currently retained Checkpoints.", "--dry-run is read-only and prints a plan ID only when all preconditions pass.", "Execution requires matching enabled protection and confirmation of that complete plan ID.", "Without --confirm, terminal input/stderr are required: review the preview and type its plan ID.", "Stale plans, multiple remaining maxima and unsafe worktrees refuse; there is no force option.", "Affected clean linked worktrees are recreated at their original paths around one ref transaction.", "Main/nested target worktrees and private worktree configuration/refs require prior manual handling.", "Failures report actual state; committed discards are never rolled back and recovery is not promised."]
   where
     inspectionHelp command description =
         Text.unlines
@@ -220,62 +205,6 @@ renderHelp topic = case topic of
             , "Node scope includes the persistent branches needed by its retained history."
             , "Read-only; repository protection need not be enabled."
             ]
-
-renderDiscard :: Discard.DiscardPreview -> Text
-renderDiscard preview =
-    Text.unlines $
-        ["Read-only Checkpoint discard preview; no changes were made."]
-            ++ ["plan " <> Text.pack (BSC.unpack identifier) | Just identifier <- [Discard.previewPlanId preview]]
-            ++ ["target " <> oid value | value <- Set.toList (discardTargets impact)]
-            ++ concat
-                [ ["discard " <> oid value] ++ map reason (Set.toList causes)
-                | (value, causes) <- Map.toList (discardReasons impact)
-                ]
-            ++ concatMap node (discardNodes impact)
-            ++ ["worktree " <> maybe "unknown" uuid (Worktrees.worktreeNode record) <> " " <> Text.pack (show (Worktrees.treePath record)) <> if Worktrees.treeMain record then " (main)" else " (linked)" | record <- Discard.previewWorktrees preview]
-            ++ ["Affected linked worktrees will be recreated at the same paths with fresh Git administration." | any (not . Worktrees.treeMain) (Discard.previewWorktrees preview)]
-            ++ ["blocked " <> Text.pack problem | problem <- Discard.previewProblems preview]
-            ++ [if null (Discard.previewProblems preview) then "Preview complete. Execution requires explicit confirmation of this plan ID; recovery is not guaranteed." else "Preview blocked. No executable candidate is authorized."]
-  where
-    impact = Discard.previewImpact preview
-    oid = Text.pack . BSC.unpack . objectIdBytes
-    uuid = Text.pack . BSC.unpack . nodeIdBytes
-    reason ExplicitTarget = "  reason explicitly requested"
-    reason (FormalSuccessor parent) = "  reason formal-history successor of " <> oid parent
-    reason (DependencySuccessor parent) = "  reason depends on " <> oid parent
-    node change =
-        [ "node " <> uuid (discardNode change)
-        , "  old " <> oid (discardOldTip change)
-        , "  new " <> maybe "unrepresentable" (\value -> oid value <> if Set.null (discardRemainingMaxima change) then " (Root)" else "") (discardNewTip change)
-        , "  Checkpoints to discard: " <> Text.pack (show (Set.size (discardNodeVersions change)))
-        ]
-            ++ ["  checkpoint " <> oid value | value <- Set.toList (discardNodeVersions change)]
-            ++ ["  remaining maximum " <> oid value | value <- Set.toList (discardRemainingMaxima change)]
-            ++ case discardLostContent change of
-                Nothing -> ["  Content impact unavailable: remaining formal history is not representable."]
-                Just values -> ["  Content commits losing managed entry: " <> Text.pack (show (Set.size values))] ++ ["  content " <> oid value | value <- Set.toList values]
-
-interactiveDiscard :: FilePath -> [String] -> IO (Either String BS.ByteString)
-interactiveDiscard directory references = do
-    outcome <- try $ do
-        inputTerminal <- hIsTerminalDevice stdin
-        outputTerminal <- hIsTerminalDevice stderr
-        if not (inputTerminal && outputTerminal)
-            then pure (Left "Noninteractive discard requires --dry-run review followed by --confirm <plan-id>")
-            else do
-                outcome <- Discard.previewDiscard (nativeGit defaultGitExecutable) directory references
-                case outcome of
-                    Left problem -> pure (Left problem)
-                    Right preview -> do
-                        BS.hPut stderr (Encoding.encodeUtf8 (renderDiscard preview))
-                        case Discard.previewPlanId preview of
-                            Nothing -> pure (Left "Discard preview is blocked")
-                            Just identifier -> do
-                                BSC.hPutStr stderr "Type this plan ID to discard: "
-                                hFlush stderr
-                                answer <- BSC.hGetLine stdin
-                                pure (if answer == identifier then Right identifier else Left "Discard confirmation declined; no changes were made")
-    pure $ either (Left . show) id (outcome :: Either IOException (Either String BS.ByteString))
 
 renderDelete :: Deletion.DeletePreview -> Text
 renderDelete report =
@@ -352,25 +281,6 @@ runCli arguments = case parseCommand arguments of
                 pure $ case result of
                     Left (Deletion.DeleteFailure reason details) -> failure 1 (Text.unlines (map Text.pack (reason : details)))
                     Right report -> success ("Deleted local Node branch " <> Text.pack (BSC.unpack (nodeIdBytes (Deletion.deleteNode report))) <> ". Git objects and remote refs were not erased.\n")
-    Right (PreviewDiscard references) -> do
-        directory <- getCurrentDirectory
-        result <- Discard.previewDiscard (nativeGit defaultGitExecutable) directory references
-        pure $ case result of
-            Left problem -> failure 1 (Text.pack problem)
-            Right preview -> CliResponse (if null (Discard.previewProblems preview) then ExitSuccess else ExitFailure 1) (Encoding.encodeUtf8 (renderDiscard preview)) (if null (Discard.previewProblems preview) then "" else "git-roam: discard preview is blocked; no changes were made.\n")
-    Right (ExecuteDiscard references confirmation) -> do
-        directory <- getCurrentDirectory
-        executable <- getExecutablePath
-        authorized <- case confirmation of
-            Just identifier -> pure (Right (BSC.pack identifier))
-            Nothing -> interactiveDiscard directory references
-        case authorized of
-            Left problem -> pure (failure 1 (Text.pack problem))
-            Right identifier -> do
-                outcome <- Discard.executeDiscard executable (nativeGit defaultGitExecutable) directory references identifier
-                pure $ case outcome of
-                    Left (Discard.DiscardFailure reason details) -> failure 1 (Text.unlines (map Text.pack (reason : details)))
-                    Right result -> success (Text.unlines (["Discarded " <> decimal (Set.size (Discard.resultDiscarded result)) <> " Checkpoints.", "plan " <> Text.pack (BSC.unpack (Discard.resultPlanId result))] ++ ["node " <> nodeText node <> " " <> oidText oid | (node, oid) <- Map.toList (Discard.resultRefs result)] ++ ["restored " <> Text.pack (show (Worktrees.treePath r)) | r <- Discard.resultWorktrees result]))
     Right (CreateCheckpoint node source edits) -> do
         loaded <-
             try

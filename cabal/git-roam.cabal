@@ -12,7 +12,6 @@ library
     GitRoam.Application.Create
     GitRoam.Application.Delete
     GitRoam.Application.Deploy
-    GitRoam.Application.Discard
     GitRoam.Application.Inspect
     GitRoam.Application.Protection
     GitRoam.Application.Undeploy
@@ -23,7 +22,6 @@ library
     GitRoam.Git.Worktrees
     GitRoam.ObjectId
     GitRoam.Output
-    GitRoam.Protocol.Discard
     GitRoam.Protocol.History
     GitRoam.Protocol.Identity
     GitRoam.Protocol.Objects
@@ -272,28 +270,6 @@ test-suite checkpoint-tests
     , filepath
     , git-roam
     , text
-
-  default-language:   Haskell2010
-  ghc-options:        -Wall -threaded
-
-test-suite discard-tests
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     test
-  main-is:            Discard.hs
-  other-modules:
-    TestSupport
-    WorktreeFixture
-
-  build-tool-depends: git-roam:git-roam
-  build-depends:
-    , base        >=4.16 && <5
-    , bytestring
-    , containers
-    , directory
-    , filepath
-    , git-roam
-    , process
-    , unix
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded

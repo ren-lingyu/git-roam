@@ -151,17 +151,12 @@ lifecycle backend format git executable repo parent = do
     _ <- roam clone ["deploy", "--path", cloneRoot]
     check clone
 
-    -- Deletion cannot hide a dependency. Explicit discard removes precisely
-    -- B0's retained formal successors and A0, leaving each identity at Root.
+    -- Deletion cannot hide an incoming dependency: remove the referencing
+    -- Node before removing the referenced Node, without cascading or rewriting.
     reject clone ["node", "delete", "--node", uuid b, "--dry-run"]
-    plan <- roam clone ["discard", "--dry-run", oid b0] >>= field "plan"
-    _ <- roam clone ["discard", "--confirm", BSC.unpack plan, oid b0]
-    discarded <- snapshot git clone
-    assertEqual (Map.fromList [(a, Set.empty), (b, Set.empty)]) (retainedCheckpoints discarded)
     original <- snapshot git repo
     assertEqual (Just b3) (Map.lookup b (managedRefs original))
     assertEqual (Just a1) (Map.lookup a (managedRefs original))
-    reject clone ["node", "delete", "--node", uuid b, "--dry-run"]
     _ <- roam clone ["undeploy"]
     confirmDelete clone a
     confirmDelete clone b

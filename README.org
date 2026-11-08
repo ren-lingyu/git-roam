@@ -5,7 +5,8 @@
 Version v0.1.0 has been finalized and tagged. Its [[file:CHANGELOG.org][Changelog]]
 summary and [[file:CHANGELOGS/v0.1.0.org][release notes]] describe the
 implemented protocol. The commands and technical behavior documented below
-refer to v0.1.0, not to the proposed v0.2.0 protocol.
+refer to the v0.1.0 protocol, except that the obsolete =discard= command has
+been retired on the development branch ahead of the v0.2.0 cutover.
 
 Git-roam represents independently versioned, UUID-identified Nodes in standard
 Git repositories. In v0.1.0, Content commits preserve ordinary editing history,
@@ -86,7 +87,6 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam node create --path /path/to/worktrees --format cbor > creation.cbor
   git roam node delete --node <uuid> --dry-run
   git roam checkpoint -m 'Confirm this knowledge version'
-  git roam discard --dry-run <checkpoint-ref-or-oid>
   git roam deploy --path /path/to/worktrees
   git roam undeploy
 #+end_src
@@ -143,7 +143,7 @@ The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal
 
 The test suites cover CLI behavior, SHA-1 and SHA-256 object IDs, native Git failures, binary input/output, argument boundaries, and repository discovery for ordinary, bare, and linked worktrees. Git integration tests use dedicated temporary repositories and isolated configuration.
 
-The end-to-end suite runs the public CLI through the tutorial lifecycle below on SHA-1/SHA-256 and files/reftable repositories. It checks exact historical dependencies, explicit push to a local bare remote, clone/fetch, missing tracking branches, safe and refused native fast-forwards, complete multi-ref updates, full deployment/removal, explicit discard and non-cascading deletion. This is a local-repository test matrix, not a claim of all-platform or minimum-version compatibility.
+The end-to-end suite runs the public CLI through the tutorial lifecycle below on SHA-1/SHA-256 and files/reftable repositories. It checks exact historical dependencies, explicit push to a local bare remote, clone/fetch, missing tracking branches, safe and refused native fast-forwards, complete multi-ref updates, full deployment/removal, non-cascading deletion after removing the referencing Node. This is a local-repository test matrix, not a claim of all-platform or minimum-version compatibility.
 
 Cabal declares the CLI test dependency through =build-tool-depends=. The tests locate the resulting executable on =PATH=. The Nix package selects the GHC 9.12 package set, including its Cabal build driver. No test executable path is injected by Nix.
 
@@ -190,7 +190,11 @@ New B Content and Checkpoints do not move A's dependency: A still refers to B0 u
 
 Clone obtains the existing objects and remote-tracking refs. Deploy validates the final Node set, creates missing local tracking branches together and checks out all Nodes. It does not create new knowledge versions. The synchronization section below describes subsequent updates.
 
-Deletion and discard have different effects. While A's retained history depends on B0, deleting B is refused even if a newer A Checkpoint drops that dependency. To withdraw B0 and every retained formal successor that depends on it, review =git roam discard --dry-run <B0>= and execute only with the displayed plan ID. This can affect both Nodes and their Content history. It leaves each affected branch at its unique remaining formal maximum or Root, with its clean linked worktree recreated. It does not erase Git objects or change the source clone.
+Under the v0.1.0 dependency-closure protocol still used by the current
+Checkpoint creator, deleting B is blocked while the retained A history refers
+to B. The development branch has retired the old specialized =discard= workflow.
+Instead, after undeployment, delete A first, then B, using separate reviewed
+confirmation plans; deleting A does not cascade into B.
 
 After reviewing the result, whole-set undeployment allows explicit Node deletion. From the main worktree:
 
@@ -371,44 +375,21 @@ Failed attempts may leave unreachable objects. Once a ref update succeeds, follo
 
 Deletion requires an explicit canonical UUID. The read-only preview lists the Root, old branch tip, withdrawn Checkpoints, Content losing its managed entry, incoming historical dependencies, checked-out worktrees, and local branch configuration keys to remove. It produces an executable plan ID only when all preconditions pass. Execution requires matching enabled protection. With neither flag, a terminal preview requires typing the complete plan ID; noninteractive execution requires =--confirm=.
 
-Any incoming dependency from another Node's retained Checkpoint blocks deletion, including older versions and non-first-parent formal history. The target's own history and outgoing dependencies do not block it. Deletion never cascades: explicitly discard the blocking history first. Any main or linked worktree checking out the target branch also blocks deletion. No worktree is implicitly undeployed or modified.
+Any incoming dependency from another Node's retained Checkpoint blocks deletion, including older versions and non-first-parent formal history. The target's own history and outgoing dependencies do not block it. Deletion never cascades: remove other referencing Node branches explicitly before deleting this Node. Any main or linked worktree checking out the target branch also blocks deletion. No worktree is implicitly undeployed or modified.
 
 The plan binds the complete managed refs, exact impact, worktree registrations and reviewed local branch configuration. One conditional ref transaction deletes the target and verifies the other managed refs. Other Nodes retain their exact tips and formal history. The shared validator checks the actual result. Reviewed local =branch.<uuid>.*= values are then removed by exact value; included, global and unrelated configuration remain untouched. Valueless local branch entries require prior manual handling. Configuration cleanup is separate from the ref transaction: failure reports the committed deletion and residual state without recreating the branch.
 
 Git objects, tags and remote-tracking refs are retained; deletion does not erase a UUID globally or guarantee recovery. A later full deploy can recreate the local Node branch from fetched remote candidates. Arbitrary external concurrent writers remain outside the transaction guarantee.
 
-* Preview explicit Checkpoint discard
-#+begin_src sh
-  git roam discard --dry-run <checkpoint-ref-or-oid> [<another-checkpoint-ref-or-oid> ...]
-#+end_src
-
-This read-only command accepts explicit refs or unambiguous OIDs naming currently retained Checkpoints, including annotated tags and unique OID abbreviations. It does not infer a target from the current directory, interpret full revision expressions, or require enabled protection. Root, Content, unretained versions, and invalid or incomplete initial managed states are refused. Duplicate targets coalesce.
-
-The preview includes the targets themselves and exactly their retained Checkpoint successors through formal history and knowledge dependencies. Historical dependencies and non-first-parent formal branches count. Each discarded Checkpoint lists its direct causal relationships, distinguishing explicit targets, formal-history successors and external dependency successors. No extra formal versions are selected for convenience.
-
-For each affected Node, the candidate tip is its unique maximal remaining Checkpoint, or its Root if none remain. Unaffected branches keep their exact tips, including unconfirmed Content. Multiple remaining formal maxima block the candidate; the report keeps the exact discard set and lists those maxima. It never chooses a side branch or creates a replacement Checkpoint. For a representable candidate, the shared validator checks that each Node retains exactly its expected remaining formal history and that full dependency closure holds.
-
-The report lists old/new tips, per-Node Checkpoint counts and OIDs, Content commits losing their managed branch entry, and actual affected worktrees. Content still reachable through retained history is excluded from the loss report. If no candidate is representable, actual Content loss is reported as unavailable rather than guessed. Other refs or reflogs may retain Git objects; the preview neither deletes objects nor promises future recovery.
-
-Affected linked worktrees use the conservative safety preflight, including dirty, ignored, locked and in-progress checks. Main worktrees, affected parents containing nested worktrees, and worktrees with private configuration or refs block execution in this implementation. These require prior safe handling or undeployment. Unrelated worktrees are left alone. Ref and worktree registrations are rechecked before returning; a preview is an observation, not a frozen execution plan or authorization.
-
-Exit status is 0 for a preview without detected blockers, 1 for a blocked preview or invalid/unavailable evidence, and 2 for invalid command arguments. Blocked previews retain their impact report on stdout and return failure. Dry runs change no refs, objects, configuration, index or working files. An unblocked preview prints a 64-character plan identifier.
-
-* Explicitly discard confirmed history
-Review the entire dry-run report, then pass its exact identifier with the same targets:
-
-#+begin_src sh
-  git roam discard --dry-run <checkpoint-ref-or-oid>
-  git roam discard --confirm <plan-id> <checkpoint-ref-or-oid>
-#+end_src
-
-Alternatively, =git roam discard <checkpoint-ref-or-oid>...= displays the complete preview on a terminal and requires typing its plan identifier. A different reply declines. Noninteractive execution requires =--confirm=; there is no force or blanket yes option. Execution requires matching enabled protection. The plan identifier binds the repository, current managed refs, exact formal and Content impact, and worktree registrations. It is derived rather than stored; changed refs, moved worktrees, unsafe contents or changed targets require a fresh review. Cleanliness and administration state are rechecked independently of the identifier.
-
-Under the common-directory operation lock, Git-roam recomputes and validates the plan, safely removes affected clean linked worktrees, then commits all changed Node refs in one conditional transaction. Other managed refs are verified at their expected OIDs. Only Git-roam's own named Hook is bypassed. Affected worktrees are recreated at their original paths, with the new branch tips and fresh Git worktree administration; objects and branch tracking configuration remain in place. Existing private worktree configuration/refs are refused because recreation cannot preserve them. Restoration paths are checked before the transaction and again before checkout; occupied paths and new user files are never overwritten or force-cleaned.
-
-The discarded formal set is exactly the previewed minimal successor closure. Affected Nodes keep their unique maximal remaining Checkpoint or Root; unaffected Nodes keep their original tips. This withdraws managed history retention, leaves Git objects immutable, and does not guarantee recovery of discarded Checkpoints or Content.
-
-Failure is reported even if refs were already committed. Before a successful transaction, confirmed removals can be restored at the unchanged original refs. If the candidate refs are observed after a failed or lost transaction response, safe restoration uses that candidate state. Other or unverifiable ref states prevent automatic restoration. No committed formal history is rolled back. Diagnostics report transaction confirmation, actual refs, worktree restoration and remaining registrations; some worktrees may remain undeployed. A failed checkout may leave a registered worktree or newly created user data, which are retained for inspection. Success requires validated final history and all original target paths restored. Ref transactions and worktree operations do not form a filesystem transaction or provide isolation from arbitrary external Git processes.
+* Retired formal discard workflow
+The old =git roam discard= command was specific to the v0.1.0 formal
+Checkpoint-successor and dependency-closure model. It is removed from the
+current development interface in preparation for the v0.2.0 protocol switch.
+The tagged v0.1.0 release retains its historical implementation and detailed
+release notes. Other commands on this intermediate development branch still
+use the v0.1.0 protocol and its Hook protection: this change does not authorize
+rewriting retained Checkpoints through ordinary Git. The v0.2.0 cutover will
+replace those validation and transition rules as one coherent change.
 
 * Full undeployment
 #+begin_src sh
