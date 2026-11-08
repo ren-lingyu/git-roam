@@ -28,6 +28,8 @@ library
     GitRoam.Protocol.Identity
     GitRoam.Protocol.Objects
     GitRoam.Protocol.Repository
+    GitRoam.Protocol.V2.History
+    GitRoam.Protocol.V2.Repository
     GitRoam.Repository
     GitRoam.Worktree.Paths
 
@@ -148,6 +150,22 @@ test-suite protocol-tests
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Protocol.hs
+  other-modules:    TestSupport
+  build-depends:
+    , base          >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , git-roam
+    , transformers
+
+  default-language: Haskell2010
+  ghc-options:      -Wall
+
+test-suite protocol-v2-tests
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          ProtocolV2.hs
   other-modules:    TestSupport
   build-depends:
     , base          >=4.16 && <5
