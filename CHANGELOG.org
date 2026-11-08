@@ -18,7 +18,7 @@ interfaces and compatibility handling have not yet been finalized.
 *** Validation and lifecycle
 - [ ] Validate referenced commits by their own Node histories without requiring them to remain in the current branch history of the referenced Node.
 - [ ] Rework history validation, =check=, =status=, repository protection, deployment, and Node deletion without managed dependency-closure or mandatory Checkpoint-retention rules.
-- [ ] Reassess the specialized =discard= workflow and its cross-Node successor-closure semantics under ordinary Git history rewriting and reachability.
+- [X] Remove the specialized =discard= workflow and its cross-Node successor-closure semantics, leaving history rewriting subject to ordinary Git reachability and the revised protocol.
 
 ** Added
 - [ ] Allow Checkpoints to reference ordinary Content commits of external Nodes, without requiring those Nodes to create Checkpoints.
