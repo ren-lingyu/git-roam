@@ -98,8 +98,11 @@ wrong-type evidence; it exposes `firstParentHistory`, `contextParents` and
 dependency closure with validated history plus managed refs, and validates
 ordinary transitions that may rewrite history but not remove a managed branch or
 change its Root. A separate `protocol-v2-tests` suite covers these rules on
-SHA-1 and SHA-256. The application layer is unchanged: phase one does not make
-v0.2.0 usable through the CLI, Hook or worktrees.
+SHA-1 and SHA-256. Phase one left the application layer on v0.1.0 and did not
+make v0.2.0 usable through the CLI, Hook or worktrees. The subsequent
+`refactor(discard): retire formal-history discard workflow` removed the old
+specialized Discard command and its implementation; that is phase-two
+preparation, not the protocol cutover.
 
 Still to derive and implement in the application cutover:
 
@@ -110,9 +113,17 @@ Still to derive and implement in the application cutover:
 - Reference-transaction Hook validation without retained-Checkpoint or
   dependency-closure rules.
 - Deployment, Node creation and deletion adapted to the new protocol.
-- Removal or replacement of the v0.1.0 `discard` and formal successor-closure
-  machinery.
 - Application-level, end-to-end and documentation updates.
+
+Completed phase-two preparation: the v0.1.0 `discard` command, its
+`Application.Discard` and `Protocol.Discard` modules, the Discard-only worktree
+helpers and the dedicated `discard-tests` suite are removed. That operation
+existed only to withdraw a selected formal-successor closure required by the
+v0.1.0 retention model; the adopted context model needs no such closure, so its
+removal is deliberate architectural simplification, not a new rewrite API.
+Read-only queries over reachability, first-parent history or context remain
+compatible with this direction. The remaining commands still use v0.1.0
+validation, so ordinary history rewriting is not yet unrestricted.
 
 Temporary namespace cleanup is part of the cutover, not a separate release
 task: when the v0.2.0 protocol becomes the production protocol, delete
@@ -151,7 +162,9 @@ with deployed worktrees and dirty indexes handled conservatively. None of these
 features blocks v0.1.0 or is automatically required by the new Checkpoint
 semantics. Do not start them as part of the protocol cutover.
 
-Immediate sequence: plan and implement the application cutover to the v0.2.0
-protocol, including the temporary-namespace cleanup. The v0.1.0 README and
-release notes must continue to describe the implemented old protocol, not this
-future one, until that cutover changes the documented interface.
+Immediate sequence: implement the remaining application cutover to the v0.2.0
+protocol, starting with the production history and managed-state validators;
+Discard retirement is complete. Include the temporary-namespace cleanup. The
+v0.1.0 README and release notes must continue to describe the implemented old
+protocol, not this future one, until that cutover changes the documented
+interface.

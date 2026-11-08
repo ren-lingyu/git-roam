@@ -6,20 +6,24 @@ Current objective: complete the v0.2.0 context-Checkpoint redesign by cutting
 the application layer over to the new protocol. v0.1.0 is finalized, tagged and
 documented as the first implementation. Phase one of v0.2.0 - an isolated pure
 protocol and its tests - is committed behind the temporary
-`GitRoam.Protocol.V2.*` namespace; the production CLI, Hook and application
-modules still run the v0.1.0 protocol. The user confirms no actual callers and
-no workflow built on v0.1.0, so no existing deployment requires migration. Do
-not promise automatic compatibility between the two protocols.
+`GitRoam.Protocol.V2.*` namespace, and the obsolete v0.1.0 `discard` workflow has
+since been removed in a separate refactor commit. The production CLI, Hook and
+application modules still run the v0.1.0 protocol, so the development branch is
+not yet a complete v0.2.0 implementation. The user confirms no actual callers
+and no workflow built on v0.1.0, so no existing deployment requires migration.
+Do not promise automatic compatibility between the two protocols.
 
-At inspection, project main HEAD is `feat(protocol): introduce isolated v0.2.0
-history model`, the phase-one protocol commit. Earlier commits finalized v0.1.0
+At inspection, project main HEAD is `refactor(discard): retire formal-history
+discard workflow`, whose parent is `feat(protocol): introduce isolated v0.2.0
+history model` (the phase-one protocol commit). Earlier commits finalized v0.1.0
 (`DONE v0.1.0` with `CLOSED: [2026-11-07 Sat 18:59]` UTC and the annotated tag
 `v0.1.0`), added the detailed `CHANGELOGS/v0.1.0.org` manuscript, and documented
 the v0.2.0 direction in `README.org` and a `TODO v0.2.0` checklist in
-`CHANGELOG.org`. README now states that v0.1.0 is finalized and tagged and that
-the documented commands still describe v0.1.0. No publication evidence has been
-observed and a tag is not proof of publication. Alternative deployment naming and
-full-deployment acceleration remain outside the v0.1.0 release scope.
+`CHANGELOG.org`. README still documents the v0.1.0 protocol for the remaining
+commands, except that it records the retired `discard` command on the
+development branch. No publication evidence has been observed and a tag is not
+proof of publication. Alternative deployment naming and full-deployment
+acceleration remain outside the v0.1.0 release scope.
 
 The original serial implementation plan was accepted on 2026-11-01 and is now
 complete. The detailed milestone and verification history follows.
@@ -962,9 +966,9 @@ update, so protection fails closed.
 `checkOuterTargets` uses the outer repository index instead of `check-ignore`: a
 shared root may hold unrelated tracked content, may be the outer worktree root
 itself or sit inside an existing linked worktree, while occupied targets, indexed
-targets and tracked file/gitlink ancestors are refused. Discard's recreated
-worktrees reuse the same check, and outer ignore configuration is still never
-edited.
+targets and tracked file/gitlink ancestors are refused. The now-retired Discard
+workflow reused the same check for its recreated worktrees, and outer ignore
+configuration is still never edited.
 - The discard recreation fixture stopped using partial `head`; an empty removal
 plan returns an explicit failure instead of raising.
 - CHANGELOG.org marks the matching Changed and Added items as checked; the entry
@@ -1035,10 +1039,57 @@ passed. Both project main and origin/main point at that commit, so the commit an
 push are observed; the check result is the user's report. No independent
 post-commit run by the agent is recorded, and the suite was not re-executed here.
 
-Phase one is not a usable product change: `check`, `status`, `checkpoint`,
-`deploy`, `undeploy`, `node create`, `node delete`, `discard` and the
-reference-transaction Hook still use v0.1.0, and README documents v0.1.0
-commands. Do not describe v0.2.0 as available.
+Phase one did not change product behavior. The remaining production commands
+(`check`, `status`, `checkpoint`, `deploy`, `undeploy`, `node create`,
+`node delete`) and the reference-transaction Hook still use v0.1.0. Do not
+describe v0.2.0 as available.
+
+## Discard retirement (phase-two preparation)
+
+The commit `refactor(discard): retire formal-history discard workflow` removes
+the specialized v0.1.0 successor-closure operation.
+
+- Removed: the public `git roam discard` command with its argument parser,
+  help topic, preview renderer, interactive confirmation and execution dispatch
+  from `GitRoam.Cli`; `GitRoam.Protocol.Discard`;
+  `GitRoam.Application.Discard`; the Discard-only worktree helpers
+  `planDiscardRemoval`, `restoreRemovedWorktree` and
+  `checkRemovedWorktreePaths`; the `discard-tests` suite and
+  `cabal/test/Discard.hs`; and their Cabal registrations.
+- Tests: `Unit.hs` now rejects `discard` and `help discard` as invalid arguments
+  and asserts that help does not advertise the command. `Deletion.hs` no longer
+  derives a mismatched plan token from a Discard preview. `Worktree.hs` drops
+  the Discard-specific recreation cases. `EndToEnd.hs` now removes the
+  referencing Node before the referenced Node, still under the v0.1.0 rule that
+  an incoming dependency blocks deletion; this is not v0.2.0 context behavior.
+- Documentation: `README.org` records that the command is retired on the
+  development branch and that the remaining commands still use v0.1.0. The
+  tagged v0.1.0 tree, `CHANGELOGS/v0.1.0.org` and the v0.1.0 history keep their
+  original Discard documentation.
+- Rationale: v0.1.0 needed retained formal Checkpoints and complete dependency
+  closure, so withdrawing a selected successor closure was a required
+  operation. v0.2.0 Checkpoints record caller-selected context with no inherited
+  mapping or cross-Node branch-maintained closure, so the specialized command
+  has no required role. Its removal is architectural simplification, not a new
+  history-rewriting API; future read-only queries of reachability, first-parent
+  history or context remain possible.
+
+Operational state after this commit: `check`, `status`, `checkpoint`, `deploy`,
+`undeploy`, `node create`, `node delete` and the reference-transaction Hook are
+unchanged and still use v0.1.0 validation, so ordinary history rewriting is not
+yet unrestricted. Discard retirement alone does not complete v0.2.0.
+
+Verification of the committed tree is available from the local Nix store rather
+than from a new agent run. The store source whose files match the committed tree
+exactly (zero differences across all tracked files) has a `git-roam` derivation
+with an existing output whose log reports 14 of 14 suites passing, 274 cases, no
+compiler warnings and no `discard-tests`; `protocol-v2-tests` contributes 26
+cases. The matching `treefmt-check` derivation also exists and its log reports 53
+files traversed and 51 formatted with zero changes. An earlier build of the
+pre-fix source failed at `Cli.hs` because `Set.toList` was out of scope after
+`Data.Set` had been removed; the committed source restores that import. These are
+local x86_64-linux results recorded from store logs; other platforms and the
+minimum Git version remain unverified.
 
 ## Completed reader verification and prior authorization
 
@@ -1137,8 +1188,10 @@ cross-Node Content-edit workflow may reduce manual repeated `git commit` work;
 it is an optional later capability, not a v0.1.0 prerequisite. Do not start
 these implementations as part of the protocol cutover.
 
-Next action: plan and implement the application-layer cutover to the v0.2.0
-protocol (phase two), including the temporary-namespace cleanup described in
+Next action: implement the remaining application-layer cutover to the v0.2.0
+protocol, starting with the production history and managed-state validators.
+Discard retirement is complete and no longer pending. Include the
+temporary-namespace cleanup described in
 [context-checkpoint-direction.md](context-checkpoint-direction.md), without a
 default promise to migrate v0.1.0 repositories.
 Follow [context-checkpoint-direction.md](context-checkpoint-direction.md) for
