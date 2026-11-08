@@ -9,6 +9,10 @@ Planned incompatible revision of the Checkpoint history protocol. The items belo
 are development goals, not functionality available in v0.1.0; exact command
 interfaces and compatibility handling have not yet been finalized.
 
+The pure protocol, native inspection, Checkpoint construction and transaction
+validator currently exist only in temporary V2 modules. Production commands
+and the installed reference-transaction Hook still enforce v0.1.0 rules.
+
 ** Changed
 *** Checkpoint semantics and encoding
 - [ ] Interpret a Checkpoint's external parents as caller-selected historical context, not a complete declaration of knowledge dependencies.
