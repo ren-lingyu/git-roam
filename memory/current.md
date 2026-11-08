@@ -213,10 +213,11 @@ batch the user committed five further capability changes plus one test-fixture
 fix (see "Post-node-13 capability changes" below): explicit `node create --id`
 with bundle reporting and Nil/Max admission, selectable text/JSON/CBOR creation
 output, a PATH-resolved protection Hook with legacy-command migration, and
-deployment into a shared root with unrelated tracked content. The project tree
-now holds 52 files and Cabal declares 14 test suites (288 cases in the last
-successful build). Optional naming and acceleration candidates remain separate
-from the current batch. No no-op/scaffolding claims are included.
+deployment into a shared root with unrelated tracked content. At that point the
+project tree held 52 files and Cabal declared 14 test suites (288 cases in that
+build); later counts are recorded in the v0.2.0 sections. Optional naming and
+acceleration candidates remain separate from the current batch. No
+no-op/scaffolding claims are included.
 
 ## Verification and provenance limits
 
