@@ -2,10 +2,10 @@
 
 ## Status and reason for the change
 
-This records the agreed v0.2.0 protocol, whose phase-one pure implementation is
-committed behind the temporary `GitRoam.Protocol.V2.*` namespace. It is not a
-released interface, not a published release note and not permission to edit the
-project README. The user chose to release the completed v0.1.0
+This records the agreed v0.2.0 protocol, whose pure implementation and isolated
+application modules are committed behind the temporary `GitRoam.*.V2.*`
+namespaces. It is not a released interface, not a published release note and
+not permission to edit the project README. The user chose to release the completed v0.1.0
 knowledge-dependency DAG as a valuable first implementation, even though its
 semantics are now being replaced. There are no known actual callers and no
 workflow built upon v0.1.0. Therefore no existing deployment requires migration;
@@ -107,8 +107,21 @@ preparation, not the protocol cutover. The read-only bridge is also committed:
 protocol, refuses shallow repositories, checks stored connectivity and reports
 per-Node history and context views without expanding the ref set;
 `inspection-v2-tests` covers it on both object formats and backends. It is not
-wired into `check` or `status`. All Cabal components now use `-Werror`, so
-warnings are build errors.
+wired into `check` or `status`. Checkpoint construction, transaction validation
+and non-cascading deletion are also implemented in V2
+(`Application.V2.Checkpoint`, `V2.Protection`, `V2.Delete`) with their own
+tests. All Cabal components use `-Werror`, so warnings are build errors.
+
+A development handoff now fixes the next strategy: stop adding parallel V2
+application modules (`Create.V2`, `Deploy.V2`, `Worktree.V2` are rejected), use
+the V2 modules as the prototype, refactor the formal modules against them, and
+reuse the existing Git, worktree, transaction and diagnostics machinery. The
+cutover is organized as stages A (unify formal protocol/state/inspection
+interfaces), B (wire every command and the installed Hook, remove the `V2`
+namespace, no dual production path) and C (real-CLI end-to-end verification,
+documentation and release preparation). Renaming `Protocol.V2.*` to
+`Protocol.*` must not leave old callers uncompilable; merge that rename with B
+when necessary.
 
 Still to derive and implement in the application cutover:
 
@@ -169,9 +182,9 @@ with deployed worktrees and dirty indexes handled conservatively. None of these
 features blocks v0.1.0 or is automatically required by the new Checkpoint
 semantics. Do not start them as part of the protocol cutover.
 
-Immediate sequence: implement the remaining application cutover to the v0.2.0
-protocol, starting with the production history and managed-state validators and
-then wiring `V2.Inspect` into `check`/`status`; Discard retirement is complete.
-Include the temporary-namespace cleanup. The v0.1.0 README and release notes
-must continue to describe the implemented old protocol, not this future one,
-until that cutover changes the documented interface.
+Immediate sequence: execute stage A, then the atomic stage B cutover and the
+mandatory `V2` namespace removal, followed by stage C end-to-end verification
+and release preparation. Do not add new `Application.V2.*` lifecycle modules.
+The v0.1.0 README and release notes must continue to describe the implemented
+old protocol, not this future one, until the cutover changes the documented
+interface.

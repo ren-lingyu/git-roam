@@ -2,29 +2,34 @@
 
 ## Objective and actual progress
 
-Current objective: complete the v0.2.0 context-Checkpoint redesign by cutting
-the application layer over to the new protocol. v0.1.0 is finalized, tagged and
-documented as the first implementation. The isolated `GitRoam.Protocol.V2.*`
-protocol, the retirement of the v0.1.0 `discard` workflow, and a read-only
-v0.2.0 native inspection layer (`GitRoam.Application.V2.Inspect`) with its own
-test suite are committed; every Cabal component now builds with `-Werror`. The
-production CLI, Hook and application modules still run the v0.1.0 protocol, so
-the development branch is not yet a complete v0.2.0 implementation. The user
-confirms no actual callers and no workflow built on v0.1.0, so no existing
-deployment requires migration. Do not promise automatic compatibility between
-the two protocols.
+Current objective: complete the v0.2.0 context-Checkpoint redesign by
+performing the production cutover. v0.1.0 is finalized, tagged and documented as
+the first implementation. Six isolated preparation commits are in place: the V2
+pure protocol, retirement of the v0.1.0 `discard` workflow, native inspection,
+context Checkpoint construction, reference-transaction validation and
+non-cascading Node deletion, each with its own V2 test suite; every Cabal
+component builds with `-Werror`. A development handoff now fixes the cutover
+strategy: stop adding parallel `Application.V2.*` modules, refactor the formal
+modules against the V2 prototype, and switch every public command and the
+installed Hook in one buildable sequence. The production CLI, Hook, Create,
+Deploy and Undeploy still run the v0.1.0 protocol, so the development branch is
+not yet a usable v0.2.0 implementation. The user confirms no actual callers and
+no workflow built on v0.1.0, so no existing deployment requires migration. Do
+not promise automatic compatibility between the two protocols.
 
-At inspection, project main HEAD is `feat(inspection): add isolated v0.2.0
-native history validation`, whose parent is
-`refactor(discard): retire formal-history discard workflow`; before that came
-`feat(protocol): introduce isolated v0.2.0 history model`. Earlier commits
-finalized v0.1.0 (`DONE v0.1.0` with `CLOSED: [2026-11-07 Sat 18:59]` UTC and the
-annotated tag `v0.1.0`), added the detailed `CHANGELOGS/v0.1.0.org` manuscript,
-and documented the v0.2.0 direction in `README.org` and a `TODO v0.2.0` checklist
-in `CHANGELOG.org`. README still documents the v0.1.0 protocol for the remaining
-commands, except that it records the retired `discard` command on the
-development branch. No publication evidence has been observed and a tag is not
-proof of publication. Alternative deployment naming and full-deployment
+At inspection, project main HEAD is `feat(deletion): add isolated v0.2.0 native
+Node deletion`, directly after `feat(protection): add isolated v0.2.0 reference
+transaction validation`, `feat(checkpoint): add isolated v0.2.0 context
+checkpoint construction`, `feat(inspection): add isolated v0.2.0 native history
+validation`, `refactor(discard): retire formal-history discard workflow` and
+`feat(protocol): introduce isolated v0.2.0 history model`. Project main and
+`origin/main` agree. Earlier commits finalized v0.1.0 (`DONE v0.1.0` with
+`CLOSED: [2026-11-07 Sat 18:59]` UTC and the annotated tag `v0.1.0`), added the
+detailed `CHANGELOGS/v0.1.0.org` manuscript, and documented the v0.2.0 direction
+in `README.org` and a `TODO v0.2.0` checklist in `CHANGELOG.org`, where only the
+retired-Discard item is checked. README still documents the v0.1.0 protocol for
+the remaining commands. No publication evidence has been observed and a tag is
+not proof of publication. Alternative deployment naming and full-deployment
 acceleration remain outside the v0.1.0 release scope.
 
 The original serial implementation plan was accepted on 2026-11-01 and is now
@@ -136,8 +141,8 @@ Ordinary test work has no independent archival requirement.
   Content/Checkpoint encoding/projection, managed closure and lifecycle.
 - [context-checkpoint-direction.md](context-checkpoint-direction.md): the agreed
   v0.2.0 context-Checkpoint protocol, its constraints and rationale, the
-  phase-one pure implementation and the remaining application cutover; the
-  product protocol stays v0.1.0 until that cutover.
+  isolated V2 implementations, and the A/B/C cutover strategy; the product
+  protocol stays v0.1.0 until that cutover.
 - [implementation.md](implementation.md): accepted historical implementation plan,
   experiment gate, serial
   project commits, execution defaults, validation and authorization boundaries.
@@ -1136,6 +1141,91 @@ Production behavior is unchanged: `check`, `status`, `checkpoint`, `deploy`,
 use `Application.Inspect` and the v0.1.0 protocol, and `V2.Inspect` is imported
 only by its test suite. Do not describe v0.2.0 as available.
 
+## v0.2.0 isolated Checkpoint, protection and deletion
+
+Three further isolated commits complete the V2 preparation; production routes
+remain on v0.1.0.
+
+- `feat(checkpoint)` adds `GitRoam.Application.V2.Checkpoint.checkpoint`. It
+  uses the Node's current tip as the first parent and the caller-selected
+  commits as extra parents, keeping `tree(K) = tree(p)`; it never creates a
+  synthetic Content commit or an inherited dependency map. Before construction
+  it validates each context's own history and Git objects, refuses duplicate
+  OIDs, self-history and invalid input, and preserves other named Hooks and
+  failure diagnostics. It reuses the protected session, candidate validation
+  and conditional ref updates, and checks that other managed refs did not
+  change.
+- `feat(protection)` adds `Application.V2.Protection.evaluateTransaction`. It
+  accepts ordinary Content commits, amends and same-Root history rewrites
+  without retained-Checkpoint or cross-Node closure rules, and rejects
+  uncontrolled managed-branch creation/deletion, Root changes, duplicate
+  updates to one Node, malformed updates and invalid history. Direct Content
+  and amend use a single-Node check; Checkpoint updates, general rewrites and
+  multi-ref transactions validate the complete managed state, so the fast path
+  does not mask a cross-branch Root conflict. It checks actual managed refs
+  rather than OIDs supplied by the Hook input.
+- `feat(deletion)` adds `Application.V2.Delete.previewDelete` and
+  `executeDelete`. A context edge no longer blocks deleting the referenced Node
+  branch. The preview reports exclusive commits that are no longer reachable
+  from the remaining managed tips and does not claim Git object deletion.
+  Worktree checks, the confirmation token, operation lock, conditional refs,
+  post-state validation and scoped local branch-configuration cleanup are
+  retained.
+- `CheckpointV2.hs`, `ProtectionV2.hs` and `DeletionV2.hs` each add 8 cases.
+  They cover external context from unretained Content, invalid requests, dirty
+  worktree preservation, other named Hooks, Root conflicts, locking,
+  checked-out worktrees, stale plans and configuration cleanup.
+- `CHANGELOG.org` notes that the V2 implementations exist only in temporary
+  modules and checks only the retired-Discard item; the other v0.2.0 goals
+  remain open.
+
+Verification: the local store contains a whole-tree source and a cabal-subtree
+source that match HEAD exactly (zero differences, no missing or extra files).
+The corresponding `git-roam` derivation output exists and its log reports 18 of
+18 suites, 306 cases, zero compiler warnings and zero errors; the matching
+`treefmt-check` reports 61 files traversed and 59 formatted with zero changes.
+The user reported each stage's tests passing; no independent agent rerun is
+recorded. Only x86_64-linux is covered; other platforms and the minimum Git
+version remain unverified.
+
+## v0.2.0 cutover strategy and plan
+
+The development handoff fixes the remaining strategy.
+
+- Do not add more parallel `Application.V2.*` modules; `Create.V2`,
+  `Deploy.V2` and `Worktree.V2` are explicitly rejected. Use the V2 modules as
+  the prototype, refactor the formal modules against them, and reuse the
+  existing Git object reading, worktree safety planning, conditional ref
+  updates, operation lock, compensation and diagnostics instead of copying
+  them.
+- Port and de-duplicate the existing V2 application modules selectively; do
+  not overwrite the v0.1.0 implementations wholesale.
+
+Stages are task boundaries, not a fixed commit count:
+
+- A: unify the formal protocol, repository-state and inspection interfaces and
+  enumerate every remaining old dependency-closure coupling. A rename of
+  `Protocol.V2.*` to `Protocol.*` that leaves old callers uncompilable is not a
+  valid intermediate state; merge that rename with B when necessary.
+- B: wire every public command and the installed `reference-transaction` Hook
+  to the single v0.2.0 protocol, remove the temporary `V2` namespace and old
+  protocol-only modules, tests and aliases, and keep no dual production path.
+  The public Checkpoint CLI spelling and arguments, `check`/`status` wording
+  and the safety boundary of the single-Node fast path remain open interface
+  decisions.
+- C: migrate and extend end-to-end tests through the real CLI and installed
+  Hook (context anchoring, Root conflicts, non-cascading deletion, multi-ref
+  races, object-format matrices, dirty/locked/moved worktrees, missing or
+  shallow evidence, other Hooks), then update README, help and CHANGELOG and run
+  the full build and check before release. Tag creation and a release page are
+  separate events.
+
+Non-blockers for v0.2.0: deployment acceleration, alternative deployment
+layouts or `.roam` deployment metadata (v0.3.0 or later), cross-Node batch
+content tooling, Org-link auto-synchronization, v0.1.0 migration or
+compatibility guarantees, and any extra rule that a referenced Checkpoint can
+never expire.
+
 ## Completed reader verification and prior authorization
 
 The user requested a new isolated flake-managed performance retest of the
@@ -1233,12 +1323,11 @@ cross-Node Content-edit workflow may reduce manual repeated `git commit` work;
 it is an optional later capability, not a v0.1.0 prerequisite. Do not start
 these implementations as part of the protocol cutover.
 
-Next action: implement the remaining application-layer cutover to the v0.2.0
-protocol, starting with the production history and managed-state validators and
-then wiring read-only inspection into `check`/`status`. Discard retirement is
-complete and no longer pending. Include the temporary-namespace cleanup
-described in [context-checkpoint-direction.md](context-checkpoint-direction.md),
-without a default promise to migrate v0.1.0 repositories.
+Next action: execute stages A/B/C of the v0.2.0 cutover described above, first
+listing every production call site and choosing one atomic buildable cutover
+boundary. Discard retirement is complete and no longer pending. Include the
+mandatory removal of the temporary `V2` namespace, without a default promise to
+migrate v0.1.0 repositories.
 Follow [context-checkpoint-direction.md](context-checkpoint-direction.md) for
 accepted semantic direction and unresolved engineering details. Do not modify
 v0.1.0 history or retroactively recast its formal dependencies as contexts.
