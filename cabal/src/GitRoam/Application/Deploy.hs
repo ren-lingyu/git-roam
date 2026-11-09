@@ -196,9 +196,8 @@ transaction git directory stable writes sources = query git directory (ownHookBy
                 ++ ["prepare", "commit"]
             )
 
--- Compensation never rewrites history. A changed/checked-out new branch stays;
--- dependencies required by retained histories stay with it. Unknown observations
--- cause conservative refusal rather than guessed rollback.
+-- Compensation never rewrites history. A changed/checked-out new branch stays.
+-- Unknown observations cause conservative refusal rather than guessed rollback.
 compensate :: Git IO -> ProtectedSession -> FilePath -> ObjectFormat -> Map.Map NodeId Source -> Set.Set NodeId -> DeploymentPlan -> IO [String]
 compensate git session directory format sources attempted plan = do
     outcome <- runExceptT $ do
@@ -233,7 +232,7 @@ compensate git session directory format sources attempted plan = do
                         )
                 pure ["Worktree compensation refused/failed: " ++ problem | Left problem <- outcomes]
         Snapshot current _ <- ExceptT (readSnapshot git directory format)
-        currentState <- ExceptT (fmap (either (Left . show) Right) (validateCandidate git directory current))
+        _ <- ExceptT (fmap (either (Left . show) Right) (validateCandidate git directory current))
         remaining <- ExceptT (listWorktrees git directory format)
         configurations <- forM (Map.toList sources) $ \(node, Source remote _ _) -> do
             section <- configSection git directory node
@@ -246,13 +245,7 @@ compensate git session directory format sources attempted plan = do
                     , all ((/= Just node) . worktreeNode) remaining
                     , lookup node configurations == Just True
                     ]
-            keepClosed candidates = case validateManagedState (managedHistory currentState) (Map.withoutKeys current candidates) of
-                Right _ -> candidates
-                Left problems ->
-                    let required = Set.fromList [node | MissingDependencyBranch _ node _ <- problems]
-                        smaller = candidates `Set.difference` required
-                     in if Set.null required || smaller == candidates then Set.empty else keepClosed smaller
-            deletions = keepClosed eligible
+            deletions = eligible
         unless (Set.null deletions) $ do
             _ <- ExceptT (transaction git directory current [("delete", node, oid) | node <- Set.toList deletions, Just oid <- [Map.lookup node current]] [])
             -- Remove only the exact tracking settings written by this invocation.

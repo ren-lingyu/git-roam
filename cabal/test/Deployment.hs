@@ -27,16 +27,16 @@ main :: IO ()
 main =
     runTests $
         [("deploy CLI requires path and rejects subset selection", cliArguments)]
-            ++ [("fetch/deploy tracking and closure " ++ backend ++ " " ++ show format, fixture backend format batch) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [("fetch/deploy tracking and independent context histories " ++ backend ++ " " ++ show format, fixture backend format batch) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [ ("ordinary clone followed by CLI enable/deploy", fixture "files" Sha1 cloneFlow)
                , ("equivalent remote sources coalesce", fixture "files" Sha1 equalSources)
                , ("divergent candidates need explicit remote; locals never advance", fixture "files" Sha1 ambiguity)
-               , ("deployment can complete initially missing dependency branches", fixture "files" Sha1 repairClosure)
-               , ("incomplete or invalid targets refuse all writes", fixture "files" Sha1 invalidTargets)
+               , ("deployment selects all available remote Nodes despite cyclic Node contexts", fixture "files" Sha1 independentSources)
+               , ("missing context branch is optional; malformed candidate refuses all writes", fixture "files" Sha1 invalidTargets)
                , ("occupied deployment target refuses before branch creation", fixture "files" Sha1 unsafeRoot)
                , ("deploy shares a tracked, nonempty root", fixture "files" Sha1 mixedRoot)
                , ("failed checkout compensates clean newly created state", fixture "files" Sha1 cleanFailure)
-               , ("user changes retain new branch and required dependencies", fixture "files" Sha1 dirtyFailure)
+               , ("user changes retain newly deployed branches and worktree data", fixture "files" Sha1 dirtyFailure)
                , ("conditional transaction refuses stale existing refs", fixture "files" Sha1 racingRefs)
                , ("compensation preserves refs created by another transaction", fixture "files" Sha1 competingCreation)
                , ("empty deployment and protection prerequisite", fixture "files" Sha1 emptyDeployment)
@@ -55,11 +55,10 @@ tip :: Git IO -> FilePath -> NodeId -> IO BS.ByteString
 tip git directory node = BSC.init <$> ok git directory ["rev-parse", BSC.unpack (nodeIdBytes node)] ""
 
 checkpoint :: Git IO -> FilePath -> NodeId -> [BS.ByteString] -> IO BS.ByteString
-checkpoint git directory node dependencies = do
+checkpoint git directory node contexts = do
     base <- tip git directory node
     tree <- BSC.init <$> ok git directory ["rev-parse", BSC.unpack (nodeIdBytes node) ++ "^{tree}"] ""
-    content <- commit git directory tree [base]
-    version <- commit git directory tree (base : content : dependencies)
+    version <- commit git directory tree (base : contexts)
     _ <- ok git directory ["update-ref", BSC.unpack ("refs/heads/" <> nodeIdBytes node), BSC.unpack version] ""
     pure version
 
@@ -71,7 +70,8 @@ source git repo parent = do
     _ <- ok git directory ["init", "-q", "--initial-branch=main", "--object-format=" ++ BSC.unpack format] ""
     root git directory nodeA
     root git directory nodeB
-    b <- checkpoint git directory nodeB []
+    aRoot <- tip git directory nodeA
+    b <- checkpoint git directory nodeB [aRoot]
     a <- checkpoint git directory nodeA [b]
     _ <- checkpoint git directory nodeB [a]
     tree <- BSC.init <$> ok git directory ["mktree"] ""
@@ -144,7 +144,8 @@ ambiguity :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 ambiguity git executable repo parent = do
     upstream <- source git repo parent
     fetch git repo "origin" upstream
-    _ <- checkpoint git upstream nodeA []
+    b <- tip git upstream nodeB
+    _ <- checkpoint git upstream nodeA [b]
     fetch git repo "backup" upstream
     _ <- ok git repo ["config", "checkout.defaultRemote", "backup"] ""
     enable git executable repo
@@ -158,29 +159,48 @@ ambiguity git executable repo parent = do
     tip git repo nodeA >>= assertEqual old
     deploy executable git repo (parent </> "other") (Just "unknown") >>= expectLeft
 
-repairClosure :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
-repairClosure git executable repo parent = do
+independentSources :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+independentSources git executable repo parent = do
     upstream <- source git repo parent
     fetch git repo "origin" upstream
     a <- tip git upstream nodeA
+    b <- tip git upstream nodeB
+    -- A is already present locally, while its history has context edges to B.
+    -- Deploy must independently discover B's fetched branch; it must not need
+    -- a Node-level dependency closure to construct the complete target state.
     _ <- ok git repo ["update-ref", BSC.unpack ("refs/heads/" <> nodeIdBytes nodeA), BSC.unpack a] ""
     enable git executable repo
-    _ <- deploy executable git repo (parent </> "work") Nothing >>= expectRight
-    _ <- snapshot git repo
-    pure ()
+    report <- deploy executable git repo (parent </> "work") Nothing >>= expectRight
+    assertEqual [nodeA, nodeB] (map fst (deployedWorktrees report))
+    assertEqual [nodeB] (map fst (trackingSources report))
+    state <- snapshot git repo
+    assertEqual (Map.fromList [(nodeA, a), (nodeB, b)]) (Map.map objectIdBytes (managedRefs state))
 
 invalidTargets :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 invalidTargets git executable repo parent = do
     upstream <- source git repo parent
     fetch git repo "origin" upstream
+    a <- tip git upstream nodeA
     b <- tip git upstream nodeB
     _ <- ok git repo ["update-ref", "-d", BSC.unpack ("refs/remotes/origin/" <> nodeIdBytes nodeB)] ""
     enable git executable repo
+    -- A's recorded context from B remains valid even though B has no fetched
+    -- tracking branch. Deploy discovers and installs only the available A ref.
+    report <- deploy executable git repo (parent </> "work") Nothing >>= expectRight
+    assertEqual 1 (length (deployedWorktrees report))
+    state <- snapshot git repo
+    assertEqual
+        (Map.singleton nodeA a)
+        (Map.map objectIdBytes (managedRefs state))
+    -- In a fresh candidate observation, a UUID ref pointing to another
+    -- Node's history is still invalid and must cause no partial writes.
+    removed <- cli executable repo ["undeploy"]
+    assertEqual ExitSuccess (gitExitCode removed)
+    _ <- ok git repo (ownHookBypass ++ ["update-ref", "-d", BSC.unpack ("refs/heads/" <> nodeIdBytes nodeA), BSC.unpack a]) ""
+    _ <- ok git repo ["config", "--local", "--remove-section", "branch." ++ BSC.unpack (nodeIdBytes nodeA)] ""
+    _ <- ok git repo ["update-ref", BSC.unpack ("refs/remotes/origin/" <> nodeIdBytes nodeA), BSC.unpack b, BSC.unpack a] ""
     before <- refs git repo
-    deploy executable git repo (parent </> "work") Nothing >>= expectLeft
-    refs git repo >>= assertEqual before
-    _ <- ok git repo ["update-ref", BSC.unpack ("refs/remotes/origin/" <> nodeIdBytes nodeA), BSC.unpack b] ""
-    deploy executable git repo (parent </> "work") Nothing >>= expectLeft
+    deploy executable git repo (parent </> "invalid-work") Nothing >>= expectLeft
     refs git repo >>= assertEqual before
 
 unsafeRoot :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
@@ -239,15 +259,20 @@ dirtyFailure :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 dirtyFailure git executable repo parent = do
     upstream <- source git repo parent
     fetch git repo "origin" upstream
+    a <- tip git upstream nodeA
     enable git executable repo
     let path = parent </> "work"; userFile = path </> shortName nodeA </> "user-file"
     failureHook git repo ("printf user > '" ++ userFile ++ "'; false")
     deploy executable git repo path Nothing >>= expectLeft
     readFile userFile >>= assertEqual "user"
     state <- snapshot git repo
-    assertEqual 2 (Map.size (managedRefs state))
+    -- The dirty A worktree keeps A's branch. B is not retained merely because
+    -- A's historical context graph contains B; no dependency closure is kept.
+    assertEqual
+        (Map.singleton nodeA a)
+        (Map.map objectIdBytes (managedRefs state))
     records <- listWorktrees git repo Sha1 >>= expectRight
-    assertEqual 1 (length [r | r <- records, worktreeNode r /= Nothing])
+    assertEqual [Just nodeA] [worktreeNode r | r <- records, worktreeNode r /= Nothing]
 
 racingRefs :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 racingRefs git executable repo parent = do

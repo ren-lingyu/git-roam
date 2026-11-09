@@ -144,7 +144,8 @@ planDeployment :: Git IO -> FilePath -> ManagedState -> FilePath -> IO (Either S
 planDeployment git directory state = planDeploymentCandidate git directory (managedRefs state) state
 
 -- Preflight the complete target before creating missing local branches. Current
--- refs may lack dependency branches; only the supplied final state is validated.
+-- refs may lack branches for Nodes referenced by context parents; only the
+-- supplied final state is validated.
 planDeploymentCandidate :: Git IO -> FilePath -> Map NodeId ObjectId -> ManagedState -> FilePath -> IO (Either String DeploymentPlan)
 planDeploymentCandidate git directory current state = planDeploymentCandidateFor git directory current state (Map.keysSet (managedRefs state))
 

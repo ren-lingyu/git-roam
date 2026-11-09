@@ -5,7 +5,7 @@ module Main (main) where
 import Control.Monad (forM_, unless)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import GitRoam.Application.V2.Protection (evaluateTransaction)
+import GitRoam.Application.Protection (evaluateTransaction)
 import GitRoam.Git
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
@@ -51,12 +51,12 @@ reject directory input = evaluateTransaction directory "prepared" input >>= expe
 main :: IO ()
 main =
     runTests $
-        [ ("v2 unrelated reference events and non-prepared phases", fixture "files" Sha1 phases)
-        , ("v2 rejects malformed, duplicate and unmanaged updates", fixture "files" Sha1 invalidInput)
-        , ("v2 rejects external Root conflicts during single-Node Checkpoint updates", fixture "files" Sha1 crossRoot)
-        , ("v2 operation lock blocks concurrent reference checks", fixture "files" Sha1 locking)
+        [ ("unrelated reference events and non-prepared phases", fixture "files" Sha1 phases)
+        , ("rejects malformed, duplicate and unmanaged updates", fixture "files" Sha1 invalidInput)
+        , ("rejects external Root conflicts during single-Node Checkpoint updates", fixture "files" Sha1 crossRoot)
+        , ("operation lock blocks concurrent reference checks", fixture "files" Sha1 locking)
         ]
-            ++ [ ("v2 prepared ref validation " ++ backend ++ " " ++ show format, fixture backend format (matrix format))
+            ++ [ ("prepared ref validation " ++ backend ++ " " ++ show format, fixture backend format (matrix format))
                | backend <- ["files", "reftable"]
                , format <- [Sha1, Sha256]
                ]

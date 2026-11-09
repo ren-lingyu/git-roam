@@ -17,16 +17,17 @@ import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
-import GitRoam.Application.Inspect
+import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Git
-import GitRoam.Git.Objects
+import GitRoam.Git.Objects (readOnlyEnvironment)
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
-import GitRoam.Protocol.History
+import GitRoam.Protocol.History (CommitKind (..), lookupCommit, validatedKind)
 import GitRoam.Protocol.Identity
-import GitRoam.Protocol.Repository
+import GitRoam.Protocol.Repository (ManagedState, managedHistory, validateOrdinaryTransition)
 import GitRoam.Repository
 import System.Directory (createDirectory, removeDirectory)
 import System.Exit (ExitCode (..))
@@ -164,7 +165,9 @@ disableProtection directory = withOperationLock directory $ runExceptT $ do
             )
             configuration
 
--- Prepared sees actual old refs, even when an unchecked update reports zero old.
+-- Prepared is the only phase where a native Git ref transaction may be
+-- rejected. The supplied old OID is not authoritative (it can be all zeros);
+-- read the actual local refs under the operation lock instead.
 evaluateTransaction :: FilePath -> String -> BS.ByteString -> IO (Either String ())
 evaluateTransaction _ phase _ | phase /= "prepared" = pure (Right ())
 evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines input) of
@@ -175,41 +178,39 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
             discovered <- lift (inspectRepository native directory readOnlyEnvironment)
             repository <- either (throwE . show) pure discovered
             let format = repositoryObjectFormat repository
+                nodes = map fst updates
+            when (length nodes /= Set.size (Set.fromList nodes)) (throwE "Duplicate Node branch updates in one transaction")
             raw <- ExceptT (checked directory ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/"])
             before <- Map.fromList . concat <$> mapM (decodeRef format) (BSC.lines raw)
             after <- foldM (apply format before) before updates
-            -- Local Content rewrites keep the same formal set and dependencies.
+            -- A direct Content extension or amendment adds no context edges.
+            -- Only these cases can safely validate a single Node: any new
+            -- Checkpoint or arbitrary rewrite must be checked against *all*
+            -- managed refs, so two different Roots of an external Node cannot
+            -- evade cross-branch conflict detection.
             local <- case updates of
                 [(node, _)] -> do
-                    let old = before Map.! node
-                        new = after Map.! node
-                    result <- lift $ withHistorySource native directory format [] $ \provider -> runExceptT $ do
-                        loaded <- lift (validateHistory format provider [old, new])
-                        case loaded of
-                            Left problem -> throwE (show problem)
-                            Right history -> do
-                                let formal tip = either (const Nothing) Just (formalHistory history tip)
-                                    sameRoot = (validatedRoot <$> lookupCommit history old) == (validatedRoot <$> lookupCommit history new)
-                                let unchanged = sameRoot && formal old == formal new
-                                when unchanged $ do
-                                    shallow <- ExceptT (checked directory ["rev-parse", "--is-shallow-repository"])
-                                    unless (shallow == "false\n") (throwE "Content updates require complete, non-shallow history")
-                                    evidence <- lift (checkStoredConnectivity native directory [] provider [new]) >>= either (throwE . show) pure
-                                    unless (null evidence) (throwE "Content history has missing objects")
-                                pure unchanged
-                    either (throwE . show) (either throwE pure) result
+                    let selected = \refs -> Map.restrictKeys refs (Set.singleton node)
+                    oldState <- lift (Inspection.validateCandidate native directory (selected before)) >>= either (throwE . show) pure
+                    newState <- lift (Inspection.validateCandidate native directory (selected after)) >>= either (throwE . show) pure
+                    let oldTip = before Map.! node
+                        newTip = after Map.! node
+                        simpleContent = localContent oldTip newTip oldState newState
+                    when simpleContent (either (throwE . show) pure (validateOrdinaryTransition oldState newState))
+                    pure simpleContent
                 _ -> pure False
             unless local $ do
-                old <- lift (validateCandidate native directory before) >>= either (throwE . show) pure
-                new <- lift (validateCandidate native directory after) >>= either (throwE . show) pure
-                either (throwE . show) pure (validateOrdinaryTransition old new)
+                oldState <- lift (Inspection.validateCandidate native directory before) >>= either (throwE . show) pure
+                newState <- lift (Inspection.validateCandidate native directory after) >>= either (throwE . show) pure
+                either (throwE . show) pure (validateOrdinaryTransition oldState newState)
   where
     parseUpdate row = case BSC.words row of
         [_old, new, ref] -> case BS.stripPrefix "refs/heads/" ref >>= either (const Nothing) Just . parseNodeId of
             Nothing -> Right Nothing
             Just node -> Right (Just (node, new))
-        -- Symbolic HEAD transactions have 'ref:<target>' values; HEAD is unrelated.
+        -- HEAD and other non-Node refs may coexist in the same transaction.
         _ -> Left "Malformed reference-transaction input"
+
     decodeRef format row = case BS.split 0 row of
         [ref, oid, symbolic] -> case BS.stripPrefix "refs/heads/" ref >>= either (const Nothing) Just . parseNodeId of
             Nothing -> pure []
@@ -218,8 +219,22 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
                 object <- either throwE pure (parseObjectId format oid)
                 pure [(node, object)]
         _ -> throwE "Malformed managed reference observation"
+
     apply format before state (node, bytes) = do
         unless (Map.member node before) (throwE "New Node branches require a controlled Git-roam operation")
-        when (BS.all (== 48) bytes) (throwE "Node deletion requires an explicit Git-roam operation")
+        when (BS.null bytes || BS.all (== 48) bytes) (throwE "Node deletion requires an explicit Git-roam operation")
         oid <- either throwE pure (parseObjectId format bytes)
         pure (Map.insert node oid state)
+
+-- Never use the scoped fast path for newly introduced Checkpoints or more
+-- general rewrites: they may introduce historical context from another Root.
+localContent :: ObjectId -> ObjectId -> ManagedState -> ManagedState -> Bool
+localContent oldTip newTip oldState newState =
+    case (lookupCommit (managedHistory oldState) oldTip, lookupCommit (managedHistory newState) newTip) of
+        (Just old, Just new) -> case validatedKind new of
+            Content parent ->
+                parent == oldTip || case validatedKind old of
+                    Content oldParent -> parent == oldParent
+                    _ -> False
+            _ -> False
+        _ -> False

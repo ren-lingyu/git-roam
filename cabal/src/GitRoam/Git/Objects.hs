@@ -206,8 +206,8 @@ peelStoredCommit git directory format environment start = runExceptT (go Set.emp
                 [Just kind] -> throwE (oid, WrongObjectType kind)
                 _ -> throwE (oid, ObjectReadFailure "Invalid tag metadata")
 
--- Shared input boundary for explicit knowledge-version selection. Git resolves
--- refs and unique object prefixes; all subsequent history interpretation is raw.
+-- Shared input boundary for explicit context selection. Git resolves refs and
+-- unique object prefixes; all subsequent history interpretation is raw.
 resolveCommitReference :: (Monad m) => Git m -> FilePath -> ObjectFormat -> [(String, Maybe String)] -> String -> m (Either String ObjectId)
 resolveCommitReference git directory format environment reference = runExceptT $ do
     when (null reference || '\0' `elem` reference) (throwE "Expected a Git ref or unambiguous commit OID")

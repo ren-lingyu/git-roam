@@ -12,7 +12,6 @@ module GitRoam.Cli (
 import Control.Exception (IOException, try)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -43,7 +42,7 @@ data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp |
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) Output.OutputFormat | CreateCheckpoint (Maybe NodeId) CheckpointMessage Checkpoints.DependencyEdits | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
+data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) Output.OutputFormat | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -76,7 +75,7 @@ parseCommand arguments = case arguments of
     ["help", "checkpoint"] -> help CheckpointHelp
     ["checkpoint", "--help"] -> help CheckpointHelp
     ["checkpoint", "-h"] -> help CheckpointHelp
-    "checkpoint" : args -> checkpointArgs Nothing Nothing False [] [] args
+    "checkpoint" : args -> checkpointArgs Nothing Nothing [] args
     ["help", "node"] -> help NodeHelp
     ["help", "node", "create"] -> help NodeCreateHelp
     ["help", "node", "delete"] -> help NodeDeleteHelp
@@ -148,17 +147,16 @@ parseCommand arguments = case arguments of
     validValue value = not (null value) && take 1 value /= "-" && '\0' `notElem` value
     quoted = Text.pack . show
     uuid node = either (const (Left ("Invalid Node UUID: " <> quoted node))) Right (parseNodeId (Encoding.encodeUtf8 (Text.pack node)))
-    checkpointArgs node message clear drops adds args = case args of
-        [] -> case message of
-            Nothing -> Left "Checkpoint requires exactly one -m or -F message"
-            Just text -> Right (CreateCheckpoint node text (Checkpoints.DependencyEdits clear (reverse drops) (reverse adds)))
-        "--node" : value : rest | node == Nothing -> uuid value >>= \selected -> checkpointArgs (Just selected) message clear drops adds rest
-        "-m" : value : rest | message == Nothing -> checkpointArgs node (Just (InlineMessage value)) clear drops adds rest
-        "-F" : value : rest | message == Nothing && not (null value) && '\0' `notElem` value -> checkpointArgs node (Just (FileMessage value)) clear drops adds rest
-        "--depend" : value : rest | not (null value) && '\0' `notElem` value -> checkpointArgs node message clear drops (value : adds) rest
-        "--drop-dependency" : value : rest -> uuid value >>= \dep -> checkpointArgs node message clear (dep : drops) adds rest
-        "--clear-dependencies" : rest | not clear -> checkpointArgs node message True drops adds rest
-        _ -> Left "Usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>) [--depend <revision>] [--drop-dependency <uuid>] [--clear-dependencies]"
+    checkpointArgs node message contexts args = case args of
+        [] -> case (message, reverse contexts) of
+            (Nothing, _) -> Left "Checkpoint requires exactly one -m or -F message"
+            (Just _, []) -> Left "Checkpoint requires at least one --context revision"
+            (Just text, selected) -> Right (CreateCheckpoint node text selected)
+        "--node" : value : rest | node == Nothing -> uuid value >>= \selected -> checkpointArgs (Just selected) message contexts rest
+        "-m" : value : rest | message == Nothing -> checkpointArgs node (Just (InlineMessage value)) contexts rest
+        "-F" : value : rest | message == Nothing && not (null value) && '\0' `notElem` value -> checkpointArgs node (Just (FileMessage value)) contexts rest
+        "--context" : value : rest | not (null value) && '\0' `notElem` value && take 1 value /= "-" -> checkpointArgs node message (value : contexts) rest
+        _ -> Left "Usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>) --context <revision> [--context <revision> ...]"
 
 renderHelp :: HelpTopic -> Text
 renderHelp topic = case topic of
@@ -169,15 +167,15 @@ renderHelp topic = case topic of
             , "Commands:"
             , "  help [command]  Show general or command-specific help"
             , "  version         Print the package version"
-            , "  check           Validate Node history and managed dependencies"
-            , "  status          Show Node history, dependencies and worktrees"
+            , "  check           Validate Node history and recorded contexts"
+            , "  status          Show Node history, Checkpoint contexts and worktrees"
             , "  enable          Install or verify repository reference protection"
             , "  disable         Disable protection after full undeployment"
             , "  deploy          Deploy all local and fetched candidate Nodes"
             , "  undeploy        Safely remove all Node linked worktrees"
             , "  node create     Create a Node and editable linked worktree"
-            , "  node delete     Explicitly delete an unchecked-out, unreferenced Node"
-            , "  checkpoint      Confirm committed Content and complete dependencies"
+            , "  node delete     Delete an unchecked-out local Node without cascading"
+            , "  checkpoint      Record a Checkpoint with explicit context parents"
             , ""
             , "Options:"
             , "  -h, --help      Show general help"
@@ -185,16 +183,16 @@ renderHelp topic = case topic of
             ]
     HelpHelp -> Text.unlines ["usage: git roam help [command]", "", "Show general help or help for an available command."]
     VersionHelp -> Text.unlines ["usage: git roam version", "       git roam --version", "", "Print the package version."]
-    CheckHelp -> inspectionHelp "check" "Validate the complete protocol and managed dependency closure."
-    StatusHelp -> inspectionHelp "status" "Show actual Node history, dependencies, worktrees and diagnostics."
+    CheckHelp -> inspectionHelp "check" "Validate the complete protocol history reachable from the selected managed Node refs."
+    StatusHelp -> inspectionHelp "status" "Show Node history, the latest Checkpoint's direct contexts, worktrees and diagnostics."
     EnableHelp -> Text.unlines ["usage: git roam enable", "", "Install or validate the repository-local reference-transaction Hook.", "The Hook runs git-roam --reference-transaction from Git's PATH, not a pinned executable path.", "An existing canonical Hook is unchanged; recognized old absolute-path Git-roam Hooks are migrated.", "Incomplete, inherited or divergent configuration is refused; Node history is not changed."]
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
     NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path> [--id <uuid>] [--format text|json|cbor]  Create a Node with an editable linked worktree", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
-    NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Every other Node's retained historical dependency is checked; incoming edges block deletion.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
+    NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Deletion does not cascade into other Nodes whose history records contexts from this Node.", "The preview lists commits that become unreachable from the remaining managed refs; Git objects are not erased.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
     NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]", "", "Create an identity, empty-marker Root, persistent local branch and linked worktree.", "--id accepts UUIDv4, Nil UUID or Max UUID; without it, a fresh UUIDv4 is generated.", "--format text (default) preserves the existing output; json and cbor provide structured machine output.", "JSON paths contain UTF-8 text when valid plus a lossless Base64 byte representation; CBOR paths are byte strings.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
-    CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       [--depend <ref-or-oid>] [--drop-dependency <uuid>] [--clear-dependencies]", "", "Select an explicit Node or infer its worktree; Root requires committed Content first.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Inherit the previous full dependency set; --depend adds/replaces one external Checkpoint per UUID.", "Dependencies accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "Repeat --depend/--drop-dependency for different Nodes. Clear may combine with additions, not removals.", "Conflicting edits, self dependencies and unretained/non-Checkpoint inputs are refused.", "Uses the committed tree, preserving all Content history and uncommitted index/worktree data."]
+    CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       --context <revision> [--context <revision> ...]", "", "Select an explicit Node or infer it from the current Node worktree. A Checkpoint may directly follow Root.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Each --context selects one external commit parent; argument order determines parent order.", "Contexts accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "A context may be a Root, Content or Checkpoint and need not be retained by its Node's current branch.", "Duplicate context OIDs and contexts belonging to the target Node are refused.", "Multiple distinct contexts from one external Node are accepted with a compatibility warning.", "Uses the current committed tree, preserving uncommitted index/worktree data."]
   where
     inspectionHelp command description =
         Text.unlines
@@ -202,7 +200,7 @@ renderHelp topic = case topic of
             , ""
             , description
             , "Select an explicit Node, infer the current Node worktree, or inspect the repository."
-            , "Node scope includes the persistent branches needed by its retained history."
+            , "A selected Node is validated through its complete Git parent ancestry; other local Node branches are not required."
             , "Read-only; repository protection need not be enabled."
             ]
 
@@ -215,13 +213,11 @@ renderDelete report =
         , "root " <> oid (Deletion.deleteRoot report)
         ]
             ++ ["plan " <> Text.pack (BSC.unpack identifier) | Just identifier <- [Deletion.deletePlanId report]]
-            ++ ["withdraw checkpoint " <> oid value | value <- Set.toList (Deletion.deleteVersions report)]
-            ++ ["lose managed Content entry " <> oid value | value <- Set.toList (Deletion.deleteContent report)]
-            ++ ["incoming " <> node other <> " " <> oid from <> " depends on " <> oid required | (other, from, required) <- Deletion.deleteIncoming report]
+            ++ ["exclusive commit " <> oid value | value <- Set.toList (Deletion.deleteExclusiveCommits report)]
             ++ ["checked out " <> Text.pack (show (Worktrees.treePath record)) <> if Worktrees.treeMain record then " (main)" else " (linked)" | record <- Deletion.deleteWorktrees report]
             ++ ["remove local config " <> Text.pack (BSC.unpack key) | key <- Deletion.deleteConfigKeys report]
             ++ ["blocked " <> Text.pack problem | problem <- Deletion.deleteProblems report]
-            ++ ["No cascading removal, object erasure or recovery guarantee. Remote refs remain; deploy may recreate this Node."]
+            ++ ["Exclusive commits are not erased; they are unreachable from the remaining managed refs at this observation.", "No cascading removal, object erasure or recovery guarantee. Remote refs remain; deploy may recreate this Node."]
   where
     node = Text.pack . BSC.unpack . nodeIdBytes
     oid = Text.pack . BSC.unpack . objectIdBytes
@@ -281,7 +277,7 @@ runCli arguments = case parseCommand arguments of
                 pure $ case result of
                     Left (Deletion.DeleteFailure reason details) -> failure 1 (Text.unlines (map Text.pack (reason : details)))
                     Right report -> success ("Deleted local Node branch " <> Text.pack (BSC.unpack (nodeIdBytes (Deletion.deleteNode report))) <> ". Git objects and remote refs were not erased.\n")
-    Right (CreateCheckpoint node source edits) -> do
+    Right (CreateCheckpoint node source contexts) -> do
         loaded <-
             try
                 ( case source of
@@ -294,16 +290,19 @@ runCli arguments = case parseCommand arguments of
             Right message -> do
                 directory <- getCurrentDirectory
                 executable <- getExecutablePath
-                result <- Checkpoints.checkpoint executable (nativeGit defaultGitExecutable) directory node message edits
+                result <- Checkpoints.checkpoint executable (nativeGit defaultGitExecutable) directory node message contexts
                 pure $ case result of
                     Left (Checkpoints.CheckpointFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
                     Right value ->
-                        success
-                            ( Text.unlines
-                                ( ["node " <> nodeText (Checkpoints.checkpointNode value), "checkpoint " <> oidText (Checkpoints.checkpointOid value), "content " <> oidText (Checkpoints.checkpointContent value)]
-                                    ++ ["dependency " <> nodeText dep <> " " <> oidText oid | (dep, oid) <- Map.toList (Checkpoints.checkpointDependencies value)]
-                                )
+                        CliResponse
+                            ExitSuccess
+                            ( Encoding.encodeUtf8 $
+                                Text.unlines
+                                    ( ["node " <> nodeText (Checkpoints.checkpointNode value), "checkpoint " <> oidText (Checkpoints.checkpointOid value), "predecessor " <> oidText (Checkpoints.checkpointPredecessor value)]
+                                        ++ ["context " <> oidText oid | oid <- Checkpoints.checkpointContexts value]
+                                    )
                             )
+                            (Text.unlines (map ("warning: " <>) (map Text.pack (Checkpoints.checkpointWarnings value))))
     Right (CreateNode path specifiedNode format) -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath
@@ -371,7 +370,7 @@ runCli arguments = case parseCommand arguments of
                             then renderStatus report
                             else
                                 if null issues
-                                    then "OK: " <> decimal (length (reportNodes report)) <> " Nodes; history and managed dependencies are valid.\n"
+                                    then "OK: " <> decimal (length (reportNodes report)) <> " Nodes; histories and recorded contexts are valid.\n"
                                     else ""
                     errors = Text.concat ["git-roam: " <> stateDiagnostic issue <> "\n" | issue <- issues]
                  in CliResponse (if null issues then ExitSuccess else ExitFailure 1) (Encoding.encodeUtf8 output) errors
@@ -391,8 +390,6 @@ stateDiagnostic :: StateProblem -> Text
 stateDiagnostic issue = case issue of
     UnknownNodeTip node tip -> "history-unavailable: " <> nodeText node <> " points to unknown " <> oidText tip
     RefIdentityMismatch node actual tip -> "identity-mismatch: branch " <> nodeText node <> " points to Node " <> nodeText actual <> " at " <> oidText tip
-    MissingDependencyBranch from node oid -> "missing-node-branch: " <> oidText from <> " requires " <> nodeText node <> " at " <> oidText oid
-    DependencyVersionNotRetained from node oid -> "version-not-retained: " <> oidText from <> " requires " <> nodeText node <> " at " <> oidText oid
 
 inspectionExit :: InspectionError -> Int
 inspectionExit problem = case problem of
@@ -425,20 +422,15 @@ renderStatus report
             [ "node " <> nodeText (viewNode node)
             , "  tip " <> oidText (viewTip node) <> " (" <> kind (viewKind node) <> ")"
             , "  checkpoint " <> maybe "none" oidText (viewLatestCheckpoint node)
-            , "  content-tail " <> (case viewKind node of Content _ _ -> "yes"; _ -> "no")
-            , "  retained-checkpoints " <> decimal (viewFormalCount node)
-            , "  dependencies " <> dependencyLabel node
+            , "  content-tail " <> (case viewKind node of Content _ -> "yes"; _ -> "no")
+            , "  checkpoints " <> decimal (viewCheckpointCount node)
+            , "  contexts " <> (if null (viewContextParents node) then "none" else "")
             ]
-                ++ ["    " <> nodeText dep <> " " <> oidText oid | (dep, oid) <- Map.toList (viewDependencies node)]
+                ++ ["    " <> oidText oid | oid <- viewContextParents node]
                 ++ [ "  worktree " <> Text.pack (show (worktreePath worktree)) <> if worktreeIsMain worktree then " (main; not a removable deployment)" else " (linked)"
                    | worktree <- reportWorktrees report
                    , worktreeNode worktree == Just (viewNode node)
                    ]
     kind Root = "root"
-    kind (Content _ _) = "content"
-    kind (Checkpoint _) = "checkpoint"
-    dependencyLabel node = case viewLatestCheckpoint node of
-        Nothing -> "not declared (no Checkpoint)"
-        Just _ ->
-            (case viewKind node of Content _ _ -> "of latest Checkpoint"; _ -> "complete")
-                <> if Map.null (viewDependencies node) then ": none" else ":"
+    kind (Content _) = "content"
+    kind (Checkpoint _ _) = "checkpoint"

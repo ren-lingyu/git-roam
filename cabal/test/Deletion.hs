@@ -15,6 +15,7 @@ import GitRoam.Cli (Command (..), HelpTopic (..), parseCommand)
 import GitRoam.Git
 import GitRoam.Git.Objects
 import GitRoam.ObjectId
+import GitRoam.Protocol.History (reachableHistory)
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Objects
 import GitRoam.Protocol.Repository
@@ -59,12 +60,6 @@ commit git repo parent parents message = do
 content :: Git IO -> FilePath -> ObjectId -> BS.ByteString -> IO ObjectId
 content git repo parent = commit git repo parent [parent]
 
-version :: Git IO -> FilePath -> ObjectId -> [ObjectId] -> BS.ByteString -> IO (ObjectId, ObjectId)
-version git repo parent extra message = do
-    w <- content git repo parent (message <> " content")
-    k <- commit git repo w (parent : w : extra) message
-    pure (k, w)
-
 preview :: Git IO -> FilePath -> NodeId -> IO DeletePreview
 preview git repo node = previewDelete git repo node >>= expectRight
 
@@ -79,11 +74,14 @@ main =
     runTests $
         [("Node deletion arguments require explicit UUID and complete confirmation", arguments)]
             ++ [("delete Root, Content and Checkpoint histories " ++ backend ++ " " ++ show format, fixture backend format basic) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [ ("deleting a context source is non-cascading " ++ backend ++ " " ++ show format, fixture backend format historical)
+               | backend <- ["files", "reftable"]
+               , format <- [Sha1, Sha256]
+               ]
             ++ [ (name, fixture "files" Sha1 action)
                | (name, action) <-
-                    [ ("old historical incoming dependency blocks non-cascading deletion", historical)
-                    , ("non-first-parent formal history incoming dependency blocks deletion", merged)
-                    , ("own outgoing dependencies do not block deletion", outgoing)
+                    [ ("reverse context references remain valid after source branch deletion", merged)
+                    , ("deleting a Node with outgoing contexts does not alter other Nodes", outgoing)
                     , ("main, manual and moved linked worktrees block deletion", checkedOut)
                     , ("detached worktree remains untouched", detached)
                     , ("preview is read-only and protection is required only for execution", readOnly)
@@ -91,9 +89,8 @@ main =
                     , ("local branch configuration is bound and conditionally cleaned", configuration)
                     , ("configuration changes invalidate confirmation", staleConfig)
                     , ("new checkout invalidates confirmation", staleCheckout)
-                    , ("incomplete initial managed closure refuses", incomplete)
                     , ("conditional target deletion rejects competing Content update", targetRace)
-                    , ("dependency verify rejects competing unrelated ref update", verifyRace)
+                    , ("managed-ref verification rejects competing unrelated ref update", verifyRace)
                     , ("other named Hook continues to protect the transaction", otherHook)
                     , ("lost transaction response reports failure without recreating Node", lostResponse)
                     , ("post-delete configuration failure reports actual state", failedCleanup)
@@ -114,20 +111,20 @@ arguments = do
 basic :: Case
 basic git executable repo _ = do
     r <- newRoot git repo nodeA
+    b <- newRoot git repo nodeB
     rootReport <- preview git repo nodeA
     assertEqual r (deleteRoot rootReport)
-    assertEqual Set.empty (deleteVersions rootReport)
+    assertEqual (Set.singleton r) (deleteExclusiveCommits rootReport)
     w <- content git repo r "unconfirmed"
     putTip git repo nodeA w
     contentReport <- preview git repo nodeA
-    assertEqual (Set.singleton w) (deleteContent contentReport)
+    assertEqual (Set.fromList [r, w]) (deleteExclusiveCommits contentReport)
     edit <- content git repo w "more Content"
-    k <- commit git repo edit [r, edit] "K"
+    k <- commit git repo edit [edit, b] "K"
     tailCommit <- content git repo k "tail"
     putTip git repo nodeA tailCommit
     report <- preview git repo nodeA
-    assertEqual (Set.singleton k) (deleteVersions report)
-    assertEqual (Set.fromList [w, edit, tailCommit]) (deleteContent report)
+    assertEqual (Set.fromList [r, w, edit, k, tailCommit]) (deleteExclusiveCommits report)
     before <- snapshot git repo
     enable git executable repo
     token <- identifier report
@@ -138,50 +135,59 @@ basic git executable repo _ = do
 
 historical :: Case
 historical git executable repo _ = do
-    ra <- newRoot git repo nodeA
+    _ <- newRoot git repo nodeA
     rb <- newRoot git repo nodeB
-    (a0, _) <- version git repo ra [] "A"
-    (b0, _) <- version git repo rb [a0] "B depends on A"
-    (b1, _) <- version git repo b0 [] "B removes current dependency"
-    putTip git repo nodeA a0
-    putTip git repo nodeB b1
-    report <- preview git repo nodeA
-    assertEqual [(nodeB, b0, a0)] (deleteIncoming report)
-    assertEqual Nothing (deletePlanId report)
+    bContent <- content git repo rb "B advances after its Root"
+    putTip git repo nodeB bContent
+    ra <- tip git repo nodeA
+    aCheckpoint <- commit git repo ra [ra, rb] "A records B Root"
+    putTip git repo nodeA aCheckpoint
+    report <- preview git repo nodeB
+    assertEqual (Set.singleton bContent) (deleteExclusiveCommits report)
+    assertEqual [] (deleteProblems report)
     before <- snapshot git repo
     enable git executable repo
-    executeDelete executable git repo nodeA (BS.replicate 64 97) >>= expectLeft
-    snapshot git repo >>= assertEqual before
+    token <- identifier report
+    _ <- executeDelete executable git repo nodeB token >>= expectRight
+    after <- snapshot git repo
+    assertEqual (Map.delete nodeB (managedRefs before)) (managedRefs after)
+    history <- expectRight (reachableHistory (managedHistory after) aCheckpoint)
+    assertTrue "Context Root was lost after deleting its Node branch" (Set.member rb history)
 
 merged :: Case
-merged git _ repo _ = do
+merged git executable repo _ = do
     ra <- newRoot git repo nodeA
     rb <- newRoot git repo nodeB
-    (a, _) <- version git repo ra [] "A"
-    (b, _) <- version git repo rb [] "B main"
-    (side, _) <- version git repo rb [a] "B side depends on A"
-    (join, _) <- version git repo b [side] "B joins side"
-    putTip git repo nodeA a
-    putTip git repo nodeB join
+    a0 <- content git repo ra "A historical Content"
+    putTip git repo nodeA a0
+    bCheckpoint <- commit git repo rb [rb, a0] "B records A history"
+    bTail <- content git repo bCheckpoint "B continues after context"
+    putTip git repo nodeB bTail
     report <- preview git repo nodeA
-    assertEqual [(nodeB, side, a)] (deleteIncoming report)
-    assertEqual Nothing (deletePlanId report)
+    assertEqual Set.empty (deleteExclusiveCommits report)
+    assertEqual [] (deleteProblems report)
+    enable git executable repo
+    token <- identifier report
+    _ <- executeDelete executable git repo nodeA token >>= expectRight
+    state <- snapshot git repo
+    assertEqual (Map.singleton nodeB bTail) (managedRefs state)
+    history <- expectRight (reachableHistory (managedHistory state) bTail)
+    assertTrue "Reverse context ancestry was lost" (Set.member a0 history && Set.member ra history)
 
 outgoing :: Case
 outgoing git executable repo _ = do
     ra <- newRoot git repo nodeA
     rb <- newRoot git repo nodeB
-    (b, _) <- version git repo rb [] "B"
-    (a, _) <- version git repo ra [b] "A depends on B"
+    a <- commit git repo ra [ra, rb] "A records B"
     putTip git repo nodeA a
-    putTip git repo nodeB b
+    putTip git repo nodeB rb
     before <- snapshot git repo
     token <- preview git repo nodeA >>= identifier
     enable git executable repo
     _ <- executeDelete executable git repo nodeA token >>= expectRight
     after <- snapshot git repo
     assertEqual (Map.delete nodeA (managedRefs before)) (managedRefs after)
-    assertEqual (Map.delete nodeA (retainedCheckpoints before)) (retainedCheckpoints after)
+    assertEqual (Just rb) (Map.lookup nodeB (managedRefs after))
 
 checkedOut :: Case
 checkedOut git executable repo parent = do
@@ -227,7 +233,7 @@ readOnly git executable repo _ = do
 stale :: Case
 stale git executable repo _ = do
     r <- newRoot git repo nodeA
-    (k, _) <- version git repo r [] "K"
+    k <- content git repo r "K"
     putTip git repo nodeA k
     token <- preview git repo nodeA >>= identifier
     enable git executable repo
@@ -273,16 +279,6 @@ staleCheckout git executable repo parent = do
     enable git executable repo
     executeDelete executable git repo nodeA token >>= expectLeft
     doesDirectoryExist (parent </> "later") >>= assertEqual True
-
-incomplete :: Case
-incomplete git _ repo _ = do
-    ra <- newRoot git repo nodeA
-    rb <- newRoot git repo nodeB
-    (b, _) <- version git repo rb [] "B"
-    (a, _) <- version git repo ra [b] "A"
-    putTip git repo nodeA a
-    _ <- ok git repo ["update-ref", "-d", ref nodeB] ""
-    previewDelete git repo nodeA >>= expectLeft
 
 targetRace :: Case
 targetRace = race nodeA

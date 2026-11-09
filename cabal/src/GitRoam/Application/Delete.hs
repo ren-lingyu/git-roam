@@ -13,7 +13,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import GitRoam.Application.Inspect (inspectState, reportManagedState, validateCandidate)
+import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
 import GitRoam.Application.Worktree (withProtectedSession)
 import GitRoam.Git
@@ -27,14 +27,13 @@ import GitRoam.Repository
 import GitRoam.Worktree.Paths (decodePath)
 import System.Exit (ExitCode (..))
 
--- Diagnostic data cannot authorize an update; the private Plan is rebuilt.
+-- A preview never authorizes mutation. executeDelete rebuilds its private
+-- Plan under the operation lock and compares the complete confirmation token.
 data DeletePreview = DeletePreview
     { deleteNode :: NodeId
     , deleteOldTip :: ObjectId
     , deleteRoot :: ObjectId
-    , deleteVersions :: Set.Set ObjectId
-    , deleteContent :: Set.Set ObjectId
-    , deleteIncoming :: [(NodeId, ObjectId, ObjectId)]
+    , deleteExclusiveCommits :: Set.Set ObjectId
     , deleteWorktrees :: [Worktree]
     , deleteConfigKeys :: [BS.ByteString]
     , deleteProblems :: [String]
@@ -70,63 +69,39 @@ localConfig git directory node = do
 
 loadState :: Git IO -> FilePath -> IO (Either String ManagedState)
 loadState git directory = do
-    result <- inspectState git directory [] Nothing
-    pure $ either (Left . show) (either (Left . show) Right . reportManagedState) result
+    result <- Inspection.inspectState git directory [] Nothing
+    pure $ either (Left . show) (either (Left . show) Right . Inspection.reportManagedState) result
 
 collect :: Git IO -> FilePath -> NodeId -> IO (Either String Plan)
 collect git directory node = runExceptT $ do
     repository <- ExceptT (fmap (either (Left . show) Right) (inspectRepository git directory readOnlyEnvironment))
     before <- ExceptT (loadState git directory)
     old <- maybe (throwE "The explicit UUID has no managed local Node branch") pure (Map.lookup node (managedRefs before))
-    value <- maybe (throwE "Validated Node tip is missing") pure (lookupCommit (managedHistory before) old)
     let history = managedHistory before
-        versions = Map.findWithDefault Set.empty node (retainedCheckpoints before)
-    incoming <- fmap concat $ mapM (edges history) [(other, oid) | (other, oids) <- Map.toList (retainedCheckpoints before), other /= node, oid <- Set.toList oids]
-    let candidateRefs = Map.delete node (managedRefs before)
-        -- A blocked preview still reports all incoming edges and checkouts.
-        target = validateManagedState history candidateRefs
-    after <- if null incoming then either (throwE . show) pure target else pure before
-    unless (not (null incoming) || retainedCheckpoints after == Map.delete node (retainedCheckpoints before)) (throwE "Deletion would alter another Node's formal history")
-    whenValid incoming $ do
-        checked <- ExceptT (fmap (either (Left . show) Right) (validateCandidate git directory candidateRefs))
-        unless (retainedCheckpoints checked == retainedCheckpoints after) (throwE "Candidate changed during validation")
+        candidateRefs = Map.delete node (managedRefs before)
+    tip <- maybe (throwE "Validated Node tip is missing") pure (lookupCommit history old)
+    -- Unlike v0.1.0, a context reference does not prevent removing this
+    -- branch. Git keeps all objects still reachable through the other tips.
+    target <- ExceptT (fmap (either (Left . show) Right) (Inspection.validateCandidate git directory candidateRefs))
+    fromTarget <- either (throwE . show) pure (reachableHistory history old)
+    fromOthers <- fmap Set.unions $ mapM (either (throwE . show) pure . reachableHistory history) (Map.elems candidateRefs)
+    let exclusive = fromTarget `Set.difference` fromOthers
     records <- ExceptT (listWorktrees git directory (repositoryObjectFormat repository))
     config <- ExceptT (localConfig git directory node)
-    contents <- either throwE pure (contentHistory history [old])
-    remaining <- either throwE pure (contentHistory history (Map.elems candidateRefs))
     let checkouts = filter ((== Just node) . worktreeNode) records
-        problems = ["Other retained Node history depends on the target; discard that history explicitly first" | not (null incoming)] ++ ["Target Node branch is checked out; safely handle its worktrees before deletion" | not (null checkouts)]
-        payload = "git-roam-node-delete-v1\0" <> repositoryCommonDirectory repository <> "\0" <> BSC.pack (show (Map.toList (managedRefs before), node, versions, contents `Set.difference` remaining, incoming, sortOn treePath records, config))
+        problems = ["Target Node branch is checked out; safely handle its worktrees before deletion" | not (null checkouts)]
+        payload = "git-roam-node-delete-v2\0" <> repositoryCommonDirectory repository <> "\0" <> BSC.pack (show (Map.toList (managedRefs before), node, old, exclusive, sortOn treePath records, config))
         identifier = BS.concatMap hex (SHA256.hash payload)
-        report = DeletePreview node old (validatedRoot value) versions (contents `Set.difference` remaining) incoming checkouts (map fst config) problems (if null problems then Just identifier else Nothing)
+        report = DeletePreview node old (validatedRoot tip) exclusive checkouts (map fst config) problems (if null problems then Just identifier else Nothing)
     observed <- ExceptT (loadState git directory)
-    unless (managedRefs observed == managedRefs before && retainedCheckpoints observed == retainedCheckpoints before) (throwE "Managed state changed during deletion preview")
+    unless (managedRefs observed == managedRefs before) (throwE "Managed refs changed during deletion preview")
     refreshed <- ExceptT (listWorktrees git directory (repositoryObjectFormat repository))
     configNow <- ExceptT (localConfig git directory node)
     unless (records == refreshed && configNow == config) (throwE "Worktree or branch configuration changed during preview")
-    pure (Plan before after report records config repository)
+    pure (Plan before target report records config repository)
   where
-    whenValid incoming action = if null incoming then action else pure ()
-    edges history (other, oid) = case projectCheckpoint history oid of
-        Right (Just version) -> pure [(other, oid, required) | Just required <- [Map.lookup node (versionDependencies version)]]
-        _ -> throwE "Retained Checkpoint is missing"
     hex byte = BS.pack [digit (byte `div` 16), digit (byte `mod` 16)]
     digit n = if n < 10 then 48 + n else 87 + n
-
-contentHistory :: ValidatedHistory -> [ObjectId] -> Either String (Set.Set ObjectId)
-contentHistory history = walk Set.empty Set.empty
-  where
-    walk _ contents [] = Right contents
-    walk seen contents (oid : rest)
-        | Set.member oid seen = walk seen contents rest
-        | otherwise = case lookupCommit history oid of
-            Nothing -> Left "Reachable object is missing from validated history"
-            Just value -> case validatedKind value of
-                Root -> walk next contents rest
-                Content parent _ -> walk next (Set.insert oid contents) (parent : rest)
-                Checkpoint parents -> walk next contents (mainPredecessor parents : contentTip parents : Set.toList (mergedPredecessors parents) ++ Map.elems (directDependencies parents) ++ rest)
-      where
-        next = Set.insert oid seen
 
 previewDelete :: Git IO -> FilePath -> NodeId -> IO (Either String DeletePreview)
 previewDelete git directory node = do
@@ -138,8 +113,6 @@ executeDelete executable git directory node authorization = do
     attempted <- newIORef False
     confirmed <- newIORef False
     outcome <- try $ withProtectedSession executable git directory $ \_ -> runExceptT $ do
-        -- Resolve the common directory before any mutation, including invocation
-        -- from a detached worktree. Never move, clean or remove worktrees here.
         Plan _ _ _ _ _ repository <- ExceptT (collect git directory node)
         common <- lift (decodePath (repositoryCommonDirectory repository))
         Plan before after report original config _ <- ExceptT (collect git common node)
@@ -152,13 +125,13 @@ executeDelete executable git directory node authorization = do
         _ <- ExceptT (query git common (ownHookBypass ++ ["update-ref", "--stdin"]) (BSC.unlines (["start"] ++ changes ++ ["prepare", "commit"])))
         lift (writeIORef confirmed True)
         actual <- ExceptT (loadState git common)
-        unless (managedRefs actual == managedRefs after && retainedCheckpoints actual == retainedCheckpoints after) (throwE "Actual managed state differs after Node deletion")
+        unless (managedRefs actual == managedRefs after) (throwE "Actual managed refs differ after Node deletion")
         current <- ExceptT (listWorktrees git common (repositoryObjectFormat repository))
         unless (sortOn treePath current == sortOn treePath original) (throwE "Worktree registrations changed during Node deletion")
         observedConfig <- ExceptT (localConfig git common node)
         unless (observedConfig == config) (throwE "Branch configuration changed; ref deleted but configuration was left untouched")
-        -- Only remove exact reviewed local values, never a whole section or
-        -- included/global configuration. Partial cleanup is reported as failure.
+        -- Never clear a whole section or included/global settings. Remove only
+        -- the exact values reviewed in the confirmation plan.
         forM_ (Set.toList (Set.fromList config)) $ \(key, value) -> do
             name <- lift (decodePath key)
             literal <- lift (decodePath value)
@@ -167,7 +140,7 @@ executeDelete executable git directory node authorization = do
         residual <- ExceptT (localConfig git common node)
         unless (null residual) (throwE "Local branch configuration cleanup is incomplete")
         final <- ExceptT (loadState git common)
-        unless (managedRefs final == managedRefs after && retainedCheckpoints final == retainedCheckpoints after) (throwE "Managed state changed after configuration cleanup")
+        unless (managedRefs final == managedRefs after) (throwE "Managed refs changed after configuration cleanup")
         finalWorktrees <- ExceptT (listWorktrees git common (repositoryObjectFormat repository))
         unless (sortOn treePath finalWorktrees == sortOn treePath original) (throwE "Worktree registrations changed after configuration cleanup")
         ExceptT (requireProtectionFor executable common)

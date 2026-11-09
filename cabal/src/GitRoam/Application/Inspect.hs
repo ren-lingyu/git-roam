@@ -11,14 +11,13 @@ module GitRoam.Application.Inspect (
     validateCandidate,
 ) where
 
-import Control.Monad (foldM, unless)
+import Control.Monad (unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import GitRoam.Git
 import GitRoam.Git.Objects
 import qualified GitRoam.Git.Worktrees as Worktrees
@@ -55,8 +54,8 @@ data NodeView = NodeView
     , viewTip :: ObjectId
     , viewKind :: CommitKind
     , viewLatestCheckpoint :: Maybe ObjectId
-    , viewDependencies :: Map NodeId ObjectId
-    , viewFormalCount :: Int
+    , viewContextParents :: [ObjectId]
+    , viewCheckpointCount :: Int
     }
     deriving (Eq, Show)
 
@@ -68,6 +67,8 @@ data InspectionReport = InspectionReport
     }
     deriving (Eq, Show)
 
+-- Read only the selected local branch tips and their Git ancestor closure.
+-- Unlike v0.1.0, external context never expands the managed ref selection.
 inspectState :: Git IO -> FilePath -> [(String, Maybe String)] -> Maybe NodeId -> IO (Either InspectionError InspectionReport)
 inspectState git directory environment target = do
     discovery <- inspectRepository git directory (environment ++ readOnlyEnvironment)
@@ -77,22 +78,24 @@ inspectState git directory environment target = do
             result <- withHistorySource git directory (repositoryObjectFormat repository) environment $ \provider -> runExceptT $ do
                 before <- readRefs (repositoryObjectFormat repository)
                 let beforeRefs = Map.map fst before
-                -- Even a failed validation must distinguish a changing observation.
+                -- A changing ref observation takes precedence over failures
+                -- from the provisional view of the repository.
                 outcome <- lift $ runExceptT $ do
                     shallow <- query ["rev-parse", "--is-shallow-repository"]
                     unless (shallow == "false\n") $
                         if shallow == "true\n"
                             then throwE ShallowRepository
                             else throwE (InvalidGitOutput ["rev-parse", "--is-shallow-repository"] shallow)
-                    initial <- case target of
+                    selected <- case target of
                         Nothing -> pure beforeRefs
                         Just node -> case Map.lookup node beforeRefs of
                             Just oid -> pure (Map.singleton node oid)
                             Nothing -> throwE (NodeNotManaged node)
-                    (history, selected) <- closeSelection provider (repositoryObjectFormat repository) beforeRefs initial
                     case [(node, symbolic) | node <- Map.keys selected, Just (_, symbolic) <- [Map.lookup node before], not (BS.null symbolic)] of
                         (node, symbolic) : _ -> throwE (SymbolicNodeBranch node symbolic)
                         [] -> pure ()
+                    loaded <- lift (validateHistory (repositoryObjectFormat repository) provider (Map.elems selected))
+                    history <- either (throwE . HistoryFailure) pure loaded
                     connectivity provider (Map.elems selected)
                     worktrees <- query ["worktree", "list", "--porcelain", "-z"] >>= parseWorktrees (repositoryObjectFormat repository)
                     let validated = validateManagedState history selected
@@ -128,25 +131,6 @@ inspectState git directory environment target = do
                 pure (Just (node, (object, symbolic)))
         _ -> throwE (InvalidGitOutput arguments row)
 
-    closeSelection provider format available selected = do
-        outcome <- lift (validateHistory format provider (Map.elems selected))
-        history <- either (throwE . HistoryFailure) pure outcome
-        needed <- foldM (neededBy history) Set.empty (Map.elems selected)
-        let expanded = Map.union selected (Map.restrictKeys available needed)
-        if Map.keysSet expanded == Map.keysSet selected
-            then pure (history, selected)
-            else closeSelection provider format available expanded
-
-    neededBy history needed tip = do
-        versions <- either (const (throwE (InvalidGitOutput [] "Validated tip is absent"))) pure (formalHistory history tip)
-        pure $
-            Set.union needed $
-                Set.unions
-                    [ Map.keysSet (versionDependencies version)
-                    | oid <- Set.toList versions
-                    , Right (Just version) <- [projectCheckpoint history oid]
-                    ]
-
     connectivity provider tips = do
         outcome <- lift (checkStoredConnectivity git directory environment provider tips)
         missing <- either (throwE . HistoryFailure . uncurry ObjectUnavailable) pure outcome
@@ -154,23 +138,28 @@ inspectState git directory environment target = do
 
     nodeView history (node, tip) = do
         value <- maybe (throwE (InvalidGitOutput [] "Validated tip is absent")) pure (lookupCommit history tip)
-        let latest = case validatedKind value of
-                Root -> Nothing
-                Checkpoint _ -> Just tip
-                Content _ base -> case lookupCommit history base of
-                    Just anchor | Checkpoint _ <- validatedKind anchor -> Just base
-                    _ -> Nothing
-            dependencies = case latest >>= either (const Nothing) id . projectCheckpoint history of
-                Just version -> versionDependencies version
-                Nothing -> Map.empty
-            count = either (const 0) Set.size (formalHistory history tip)
-        pure (NodeView node tip (validatedKind value) latest dependencies count)
+        firstParents <- either (const (throwE (InvalidGitOutput [] "First-parent history is unavailable"))) pure (firstParentHistory history tip)
+        let checkpoints =
+                [ oid
+                | oid <- firstParents
+                , Just ancestor <- [lookupCommit history oid]
+                , Checkpoint _ _ <- [validatedKind ancestor]
+                ]
+            latest = case checkpoints of
+                oid : _ -> Just oid
+                [] -> Nothing
+        context <- case latest of
+            Nothing -> pure []
+            Just oid -> either (const (throwE (InvalidGitOutput [] "Checkpoint context is unavailable"))) pure (contextParents history oid)
+        pure (NodeView node tip (validatedKind value) latest context (length checkpoints))
 
     parseWorktrees format bytes = case Worktrees.decodeWorktrees format bytes of
         Left _ -> throwE (InvalidGitOutput ["worktree", "list"] bytes)
         Right records -> pure [WorktreeView (Worktrees.treePath r) (Worktrees.worktreeNode r) (Worktrees.treeMain r) | r <- records]
 
--- Inference is limited to an actual worktree on a canonical local Node branch.
+-- Infer a Node only from a linked worktree whose symbolic HEAD names a
+-- canonical local Node branch. Detached HEADs, the main worktree and ordinary
+-- branches deliberately do not imply a Node identity.
 inferNode :: Git IO -> FilePath -> IO (Either InspectionError (Maybe NodeId))
 inferNode git directory = do
     found <- inspectRepository git directory readOnlyEnvironment
@@ -187,13 +176,15 @@ inferNode git directory = do
                     Just (name, 10) -> Right (BS.stripPrefix "refs/heads/" name >>= either (const Nothing) Just . parseNodeId)
                     _ -> Left (InvalidGitOutput ["symbolic-ref"] (gitStdout value))
 
--- A caller-supplied final ref set; no ref writes or claim of a live snapshot.
+-- Validate an explicitly supplied candidate ref set. Its history may include
+-- context commits no longer retained by any current local Node branch.
+-- This function never observes or modifies the live managed ref set.
 validateCandidate :: Git IO -> FilePath -> Map NodeId ObjectId -> IO (Either InspectionError ManagedState)
 validateCandidate git directory refs = runExceptT $ do
     discovered <- lift (inspectRepository git directory readOnlyEnvironment)
     repository <- either (throwE . RepositoryDiscoveryFailure) pure discovered
     let format = repositoryObjectFormat repository
-    let arguments = ["rev-parse", "--is-shallow-repository"]
+        arguments = ["rev-parse", "--is-shallow-repository"]
     observed <- lift (runGit git (GitInvocation directory arguments BS.empty readOnlyEnvironment))
     result <- either (throwE . InspectionTransportFailure arguments) pure observed
     unless (gitExitCode result == ExitSuccess) (throwE (InspectionGitFailure arguments result))

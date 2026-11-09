@@ -5,8 +5,6 @@ module GitRoam.Protocol.History (
     ValidatedHistory,
     ValidatedCommit,
     CommitKind (..),
-    CheckpointParents (..),
-    FormalVersion (..),
     TreeProblem (..),
     HistoryError (..),
     QueryError (..),
@@ -17,10 +15,9 @@ module GitRoam.Protocol.History (
     validatedRoot,
     validatedTree,
     validatedKind,
-    projectCheckpoint,
-    formalHistory,
-    isFormalAncestor,
-    isKnowledgeAncestor,
+    firstParentHistory,
+    contextParents,
+    reachableHistory,
 ) where
 
 import Control.Monad (foldM, unless, when)
@@ -36,36 +33,19 @@ import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Objects
 
--- Constructors of the validated containers are private; accessors are functions,
--- not exported record fields that could be used to replace validated values.
+-- Private constructors prevent callers from manufacturing validated commits.
 newtype ValidatedHistory = ValidatedHistory (Map ObjectId ValidatedCommit)
     deriving (Eq, Show)
 
 data ValidatedCommit = ValidatedCommit ObjectId NodeId ObjectId ObjectId CommitKind
     deriving (Eq, Show)
 
+-- The first parent alone carries a Node's own history and Root identity.
+-- A multi-parent Checkpoint records explicit context, never inherited context.
 data CommitKind
     = Root
-    | Content ObjectId ObjectId -- immediate parent, editing-chain base (Root/K)
-    | Checkpoint CheckpointParents
-    deriving (Eq, Show)
-
-data CheckpointParents = CheckpointParents
-    { mainPredecessor :: ObjectId
-    , contentTip :: ObjectId
-    , mergedPredecessors :: Set ObjectId
-    , directDependencies :: Map NodeId ObjectId
-    }
-    deriving (Eq, Show)
-
--- A projection view, not an authority for mutating validated history.
-data FormalVersion = FormalVersion
-    { versionOid :: ObjectId
-    , versionNode :: NodeId
-    , versionTree :: ObjectId
-    , versionHistory :: Set ObjectId
-    , versionDependencies :: Map NodeId ObjectId
-    }
+    | Content ObjectId
+    | Checkpoint ObjectId [ObjectId]
     deriving (Eq, Show)
 
 data TreeProblem
@@ -84,17 +64,12 @@ data HistoryError
     | DuplicateParents ObjectId
     | IdentityChanged ObjectId NodeId NodeId
     | ConflictingRoots NodeId ObjectId ObjectId
-    | InvalidMainPredecessor ObjectId ObjectId
-    | InvalidContentTip ObjectId ObjectId
-    | ContentBaseMismatch ObjectId ObjectId ObjectId
     | CheckpointTreeMismatch ObjectId ObjectId
-    | ExtraParentNotCheckpoint ObjectId ObjectId
-    | DuplicateDependency ObjectId NodeId
+    | OverlappingContextTree ObjectId ObjectId
     | CyclicHistory ObjectId
     deriving (Eq, Show)
 
-data QueryError = UnknownCommit ObjectId | ExpectedCheckpoint ObjectId
-    deriving (Eq, Show)
+data QueryError = UnknownCommit ObjectId deriving (Eq, Show)
 
 data ValidationState = ValidationState
     { commits :: Map ObjectId ValidatedCommit
@@ -122,8 +97,8 @@ validatedKind (ValidatedCommit _ _ _ _ kind) = kind
 lookupCommit :: ValidatedHistory -> ObjectId -> Maybe ValidatedCommit
 lookupCommit (ValidatedHistory history) oid = Map.lookup oid history
 
--- Each invocation memoizes immutable commits and identity-bearing trees by OID.
--- Payload blob contents have no protocol semantics and are not interpreted here.
+-- Validate only the locally supplied starting points and their Git ancestors.
+-- Immutable objects and identity-bearing trees are memoized per invocation.
 validateHistory ::
     (Monad m) =>
     ObjectFormat ->
@@ -211,28 +186,17 @@ validateHistory format source tips =
                         pure (oid, Root)
                     [parent] -> do
                         sameNode oid node parent
-                        let base = case validatedKind parent of
-                                Content _ anchor -> anchor
-                                _ -> validatedOid parent
-                        pure (validatedRoot parent, Content (validatedOid parent) base)
-                    q : w : extra -> do
-                        sameNode oid node q
-                        sameNode oid node w
-                        case validatedKind q of
-                            Content _ _ -> throwE (InvalidMainPredecessor oid (validatedOid q))
-                            _ -> pure ()
-                        case validatedKind w of
-                            Content _ base ->
-                                unless (base == validatedOid q) $
-                                    throwE (ContentBaseMismatch oid (validatedOid q) base)
-                            _ -> throwE (InvalidContentTip oid (validatedOid w))
-                        unless (tree == validatedTree w) $
-                            throwE (CheckpointTreeMismatch oid (validatedOid w))
-                        (merged, dependencies) <- foldM (classify oid node) (Set.empty, Map.empty) extra
-                        pure
-                            ( validatedRoot q
-                            , Checkpoint (CheckpointParents (validatedOid q) (validatedOid w) merged dependencies)
-                            )
+                        pure (validatedRoot parent, Content (validatedOid parent))
+                    parent : context -> do
+                        sameNode oid node parent
+                        unless (tree == validatedTree parent) $
+                            throwE (CheckpointTreeMismatch oid (validatedOid parent))
+                        -- A validated tree has exactly one top-level UUID
+                        -- directory. Therefore path overlap is equivalent to
+                        -- equal Node UUIDs; context trees need not be pairwise
+                        -- disjoint from each other.
+                        mapM_ (nonoverlapping oid node) context
+                        pure (validatedRoot parent, Checkpoint (validatedOid parent) (map validatedOid context))
                 knownRoot <- lift (gets (Map.lookup node . roots))
                 case knownRoot of
                     Just other | other /= root -> throwE (ConflictingRoots node other root)
@@ -250,85 +214,45 @@ validateHistory format source tips =
         unless (node == validatedNode parent) $
             throwE (IdentityChanged oid node (validatedNode parent))
 
-    classify oid node (merged, dependencies) parent = do
-        case validatedKind parent of
-            Checkpoint _ -> pure ()
-            _ -> throwE (ExtraParentNotCheckpoint oid (validatedOid parent))
-        if validatedNode parent == node
-            then pure (Set.insert (validatedOid parent) merged, dependencies)
-            else do
-                when (Map.member (validatedNode parent) dependencies) $
-                    throwE (DuplicateDependency oid (validatedNode parent))
-                pure (merged, Map.insert (validatedNode parent) (validatedOid parent) dependencies)
+    nonoverlapping oid node parent =
+        when (node == validatedNode parent) $
+            throwE (OverlappingContextTree oid (validatedOid parent))
 
--- The formal dependency set is undefined for Content, not an empty declaration.
-projectCheckpoint :: ValidatedHistory -> ObjectId -> Either QueryError (Maybe FormalVersion)
-projectCheckpoint history oid = do
-    commit <- requireCommit history oid
-    case validatedKind commit of
-        Checkpoint parents -> do
-            q <- requireCommit history (mainPredecessor parents)
-            let prior = case validatedKind q of
-                    Checkpoint _ -> Set.singleton (validatedOid q)
-                    _ -> Set.empty
-            pure $
-                Just $
-                    FormalVersion
-                        oid
-                        (validatedNode commit)
-                        (validatedTree commit)
-                        (Set.union prior (mergedPredecessors parents))
-                        (directDependencies parents)
-        _ -> pure Nothing
-
-formalHistory :: ValidatedHistory -> ObjectId -> Either QueryError (Set ObjectId)
-formalHistory history tip = walk Set.empty Set.empty [tip]
+-- Both queries follow only first-parent edges; their results are ordered
+-- from the selected commit backwards, including the selected commit itself.
+firstParentHistory :: ValidatedHistory -> ObjectId -> Either QueryError [ObjectId]
+firstParentHistory history = go []
   where
-    walk _ result [] = Right result
-    walk seen result (oid : rest)
-        | Set.member oid seen = walk seen result rest
-        | otherwise = do
-            commit <- requireCommit history oid
-            let seen' = Set.insert oid seen
-            case validatedKind commit of
-                Root -> walk seen' result rest
-                Content parent _ -> walk seen' result (parent : rest)
-                Checkpoint parents ->
-                    walk seen' (Set.insert oid result) $
-                        mainPredecessor parents : Set.toList (mergedPredecessors parents) ++ rest
+    go accumulated oid = do
+        value <- requireCommit history oid
+        case validatedKind value of
+            Root -> Right (reverse (oid : accumulated))
+            Content parent -> go (oid : accumulated) parent
+            Checkpoint parent _ -> go (oid : accumulated) parent
 
-isFormalAncestor :: ValidatedHistory -> ObjectId -> ObjectId -> Either QueryError Bool
-isFormalAncestor history ancestor descendant = do
-    a <- requireCheckpoint history ancestor
-    b <- requireCheckpoint history descendant
-    if validatedNode a /= validatedNode b
-        then pure False
-        else Set.member ancestor <$> formalHistory history descendant
+-- Direct context is a caller-selected ordered list, not a dependency mapping.
+-- Ordinary Root/Content commits have no context.
+contextParents :: ValidatedHistory -> ObjectId -> Either QueryError [ObjectId]
+contextParents history oid = do
+    value <- requireCommit history oid
+    pure $ case validatedKind value of
+        Checkpoint _ context -> context
+        _ -> []
 
-isKnowledgeAncestor :: ValidatedHistory -> ObjectId -> ObjectId -> Either QueryError Bool
-isKnowledgeAncestor history ancestor descendant = do
-    _ <- requireCheckpoint history ancestor
-    _ <- requireCheckpoint history descendant
-    walk Set.empty [descendant]
+-- Ordinary Git reachability: this intentionally includes *all* parents.
+reachableHistory :: ValidatedHistory -> ObjectId -> Either QueryError (Set ObjectId)
+reachableHistory history oid = walk Set.empty [oid]
   where
-    walk _ [] = Right False
-    walk seen (oid : rest)
-        | oid == ancestor = Right True
-        | Set.member oid seen = walk seen rest
+    walk seen [] = Right seen
+    walk seen (current : remaining)
+        | Set.member current seen = walk seen remaining
         | otherwise = do
-            projected <- projectCheckpoint history oid
-            case projected of
-                Just version ->
-                    walk (Set.insert oid seen) $
-                        Set.toList (versionHistory version) ++ Map.elems (versionDependencies version) ++ rest
-                Nothing -> Left (ExpectedCheckpoint oid)
+            value <- requireCommit history current
+            let parents = case validatedKind value of
+                    Root -> []
+                    Content parent -> [parent]
+                    Checkpoint parent context -> parent : context
+            walk (Set.insert current seen) (parents ++ remaining)
 
 requireCommit :: ValidatedHistory -> ObjectId -> Either QueryError ValidatedCommit
 requireCommit history oid = maybe (Left (UnknownCommit oid)) Right (lookupCommit history oid)
-
-requireCheckpoint :: ValidatedHistory -> ObjectId -> Either QueryError ValidatedCommit
-requireCheckpoint history oid = do
-    commit <- requireCommit history oid
-    case validatedKind commit of
-        Checkpoint _ -> Right commit
-        _ -> Left (ExpectedCheckpoint oid)

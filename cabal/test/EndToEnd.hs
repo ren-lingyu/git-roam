@@ -11,7 +11,7 @@ import qualified Data.Set as Set
 import GitRoam.Git
 import GitRoam.Git.Worktrees
 import GitRoam.ObjectId
-import GitRoam.Protocol.History
+import GitRoam.Protocol.History (contextParents, reachableHistory)
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
 import GitRoam.Worktree.Paths (decodePath)
@@ -42,9 +42,6 @@ lifecycle backend format git executable repo parent = do
             result <- call location args
             assertEqual ExitSuccess (gitExitCode result)
             pure (gitStdout result)
-        reject location args = do
-            result <- call location args
-            assertEqual (ExitFailure 1) (gitExitCode result)
         field prefix bytes = case [value | line <- BSC.lines bytes, Just value <- [BS.stripPrefix (prefix <> " ") line]] of
             [value] -> pure value
             _ -> fail ("Missing output field: " ++ BSC.unpack prefix ++ " in " ++ show bytes)
@@ -66,6 +63,8 @@ lifecycle backend format git executable repo parent = do
             _ <- ok git path ["add", "--", uuid node ++ "/note.org"] ""
             _ <- ok git path ["commit", "-m", "Write a note"] ""
             pure path
+        checkpoint location message context =
+            roam location (["checkpoint", "-m", message] ++ concatMap (\revision -> ["--context", revision]) context) >>= checkpointFrom
         confirmDelete location node = do
             plan <- roam location ["node", "delete", "--node", uuid node, "--dry-run"] >>= field "plan"
             _ <- roam location ["node", "delete", "--node", uuid node, "--confirm", BSC.unpack plan]
@@ -81,21 +80,21 @@ lifecycle backend format git executable repo parent = do
     a <- roam repo ["node", "create", "--path", deploymentRoot] >>= nodeFrom
     b <- roam repo ["node", "create", "--path", deploymentRoot] >>= nodeFrom
     assertTrue "UUID collision" (a /= b)
+    aRoot <- tip repo a
     bPath <- edit repo b "* B version zero\n"
-    b0 <- roam bPath ["checkpoint", "-m", "Confirm B0"] >>= checkpointFrom
+    b0 <- checkpoint bPath "Confirm B0" [oid aRoot]
     aPath <- edit repo a "* A uses B0\n"
-    a0 <- roam aPath ["checkpoint", "-m", "Confirm A0", "--depend", oid b0] >>= checkpointFrom
+    a0 <- checkpoint aPath "Confirm A0" [oid b0]
     _ <- edit repo b "* B version one\n"
-    b1 <- roam bPath ["checkpoint", "-m", "Confirm B1"] >>= checkpointFrom
+    b1 <- checkpoint bPath "Confirm B1" [oid aRoot]
     source <- snapshot git repo
-    version <- expectRight (projectCheckpoint (managedHistory source) a0) >>= maybe (fail "No formal A version") pure
-    assertEqual (Map.singleton b b0) (versionDependencies version)
-    assertTrue "Exact old dependency not retained" (Set.member b0 (retainedCheckpoints source Map.! b))
+    contextsA0 <- expectRight (contextParents (managedHistory source) a0)
+    assertEqual [b0] contextsA0
     check repo
     _ <- roam aPath ["status"]
 
-    -- Clone transports objects/refs, enable installs protection independently,
-    -- and deploy establishes the complete missing local tracking-branch set.
+    -- Clone transports the Git DAG; deployment needs no dependency-closure
+    -- expansion because every context is already represented by Git parents.
     _ <- ok git parent ["init", "--bare", "--initial-branch=main", "--ref-format=" ++ backend, "--object-format=" ++ if format == Sha1 then "sha1" else "sha256", relay] ""
     _ <- ok git repo ["push", relay, "refs/heads/main:refs/heads/main"] ""
     pushNodes [a, b]
@@ -106,16 +105,15 @@ lifecycle backend format git executable repo parent = do
     _ <- roam clone ["deploy", "--path", cloneRoot]
     copied <- snapshot git clone
     assertEqual (managedRefs source) (managedRefs copied)
-    assertEqual (retainedCheckpoints source) (retainedCheckpoints copied)
     forM_ [a, b] $ \node -> do
         upstream <- ok git clone ["config", "--get", "branch." ++ uuid node ++ ".merge"] ""
         assertEqual (BSC.pack (branch node) <> "\n") upstream
     check clone
 
-    -- The source adds one formal version. Fetch and deploy leave an existing
-    -- local branch untouched; native --ff-only updates its deployed index/tree.
+    -- Fetch/deploy does not advance an existing local Node branch. Native
+    -- fast-forward remains available and the installed Hook validates it.
     _ <- edit repo b "* B version two\n"
-    b2 <- roam bPath ["checkpoint", "-m", "Confirm B2"] >>= checkpointFrom
+    b2 <- checkpoint bPath "Confirm B2" [oid aRoot]
     pushNodes [b]
     _ <- ok git clone ["fetch", "origin"] ""
     _ <- roam clone ["deploy", "--path", cloneRoot]
@@ -132,14 +130,12 @@ lifecycle backend format git executable repo parent = do
     tip clone b >>= assertEqual b2
     readFile (clonedB </> uuid b </> "note.org") >>= assertEqual "* B version two\n"
     check clone
-    retained <- snapshot git clone
-    assertTrue "Native advancement lost prior formal version" (Set.member b1 (retainedCheckpoints retained Map.! b))
 
-    -- A later source snapshot needs two local branch advances together. The
-    -- public Hook validates the complete native transaction without bypass.
+    -- A and B advance together. The transaction is validated against the
+    -- complete old/new managed states, including the selected context ancestry.
     _ <- edit repo b "* B version three\n"
-    b3 <- roam bPath ["checkpoint", "-m", "Confirm B3"] >>= checkpointFrom
-    a1 <- roam aPath ["checkpoint", "-m", "A now uses B3", "--depend", oid b3] >>= checkpointFrom
+    b3 <- checkpoint bPath "Confirm B3" [oid aRoot]
+    a1 <- checkpoint aPath "A now uses B3" [oid b3]
     pushNodes [a, b]
     _ <- roam clone ["undeploy"]
     _ <- ok git clone ["fetch", "origin"] ""
@@ -151,15 +147,18 @@ lifecycle backend format git executable repo parent = do
     _ <- roam clone ["deploy", "--path", cloneRoot]
     check clone
 
-    -- Deletion cannot hide an incoming dependency: remove the referencing
-    -- Node before removing the referenced Node, without cascading or rewriting.
-    reject clone ["node", "delete", "--node", uuid b, "--dry-run"]
+    -- Deleting B is non-cascading even while A's current Checkpoint records B3.
     original <- snapshot git repo
     assertEqual (Just b3) (Map.lookup b (managedRefs original))
     assertEqual (Just a1) (Map.lookup a (managedRefs original))
     _ <- roam clone ["undeploy"]
-    confirmDelete clone a
     confirmDelete clone b
+    afterB <- snapshot git clone
+    assertEqual (Map.singleton a a1) (managedRefs afterB)
+    retainedByA <- expectRight (reachableHistory (managedHistory afterB) a1)
+    assertTrue "Deleting B removed its referenced history" (Set.member b3 retainedByA)
+    check clone
+    confirmDelete clone a
     empty <- snapshot git clone
     assertEqual Map.empty (managedRefs empty)
     check clone
