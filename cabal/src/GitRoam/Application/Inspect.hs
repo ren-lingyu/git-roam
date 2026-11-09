@@ -157,9 +157,9 @@ inspectState git directory environment target = do
         Left _ -> throwE (InvalidGitOutput ["worktree", "list"] bytes)
         Right records -> pure [WorktreeView (Worktrees.treePath r) (Worktrees.worktreeNode r) (Worktrees.treeMain r) | r <- records]
 
--- Infer a Node only from a linked worktree whose symbolic HEAD names a
--- canonical local Node branch. Detached HEADs, the main worktree and ordinary
--- branches deliberately do not imply a Node identity.
+-- Infer a Node from the current worktree when its symbolic HEAD names a
+-- canonical local Node branch. Detached HEADs and ordinary branches do not
+-- imply a Node identity.
 inferNode :: Git IO -> FilePath -> IO (Either InspectionError (Maybe NodeId))
 inferNode git directory = do
     found <- inspectRepository git directory readOnlyEnvironment

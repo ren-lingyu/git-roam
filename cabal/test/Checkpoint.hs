@@ -106,9 +106,19 @@ main =
         , ("Checkpoint preserves staged, unstaged, untracked and ignored state", fixture "files" Sha1 dirtyState)
         , ("Checkpoint preserves a dirty main Node worktree", fixture "files" Sha1 dirtyMain)
         , ("CLI reads UTF-8 message files and stdin without changing encoding config", fixture "files" Sha1 cliMessages)
-        , ("Node inference refuses the main and detached worktrees", fixture "files" Sha1 selection)
+        ,
+            ( "Node inference refuses ordinary branches and detached HEADs"
+            , fixture "files" Sha1 selection
+            )
+        ,
+            ( "CLI infers a Node from the main worktree on a UUID branch"
+            , fixture "files" Sha1 mainWorktreeInference
+            )
         , ("other named reference Hooks can refuse installation", fixture "files" Sha1 otherHook)
-        , ("CLI infers the current Node worktree when --node is omitted", fixture "files" Sha1 inferNodeCli)
+        ,
+            ( "CLI infers Node from a linked worktree when --node is omitted"
+            , fixture "files" Sha1 inferNodeCli
+            )
         , ("CLI warns but accepts multiple contexts from one external Node", fixture "files" Sha1 repeatedNodeWarning)
         , ("competing target-ref updates are refused without overwriting the winner", fixture "files" Sha1 competingRef)
         , ("competing context-ref updates are detected by full-state verification", fixture "files" Sha1 competingContextRef)
@@ -364,12 +374,43 @@ selection :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 selection git executable directory parent = do
     setup git executable directory
     b <- tip git directory Sha1 nodeB
-    Checkpoints.checkpoint executable git directory Nothing "Cannot infer from main" [textOid b] >>= expectLeft
+    Checkpoints.checkpoint
+        executable
+        git
+        directory
+        Nothing
+        "Cannot infer from ordinary main branch"
+        [textOid b]
+        >>= expectLeft
     missing <- expectRight (parseNodeId "33333333-3333-4333-8333-333333333333")
     Checkpoints.checkpoint executable git directory (Just missing) "No managed Node" [textOid b] >>= expectLeft
     let detached = parent </> "detached"
     _ <- ok git directory ["worktree", "add", "--detach", detached, BSC.unpack (nodeIdBytes nodeA)] ""
     Checkpoints.checkpoint executable git detached Nothing "Cannot infer detached HEAD" [textOid b] >>= expectLeft
+
+mainWorktreeInference :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+mainWorktreeInference git executable directory _ = do
+    setup git executable directory
+    b <- tip git directory Sha1 nodeB
+    _ <- ok git directory ["switch", BSC.unpack (nodeIdBytes nodeA)] ""
+    headRef <- ok git directory ["symbolic-ref", "-q", "HEAD"] ""
+    assertEqual ("refs/heads/" <> nodeIdBytes nodeA <> "\n") headRef
+    inferred <- Inspection.inferNode git directory >>= expectRight
+    assertEqual (Just nodeA) inferred
+    result <-
+        cli
+            executable
+            directory
+            ["checkpoint", "-m", "Inferred from main worktree", "--context", textOid b]
+            ""
+    assertEqual ExitSuccess (gitExitCode result)
+    assertTrue
+        "Inferred Node UUID missing from output"
+        (nodeIdBytes nodeA `BS.isInfixOf` gitStdout result)
+    assertTrue "Unexpected warning for a single external Node context" (BS.null (gitStderr result))
+    report <- Inspection.inspectState git directory [] Nothing >>= expectRight
+    assertEqual [] (Inspection.reportProblems report)
+    assertEqual 2 (length (Inspection.reportNodes report))
 
 repeatedNodeWarning :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 repeatedNodeWarning git executable directory _ = do

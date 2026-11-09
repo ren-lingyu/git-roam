@@ -84,7 +84,11 @@ collect git directory node = runExceptT $ do
     -- branch. Git keeps all objects still reachable through the other tips.
     target <- ExceptT (fmap (either (Left . show) Right) (Inspection.validateCandidate git directory candidateRefs))
     fromTarget <- either (throwE . show) pure (reachableHistory history old)
-    fromOthers <- fmap Set.unions $ mapM (either (throwE . show) pure . reachableHistory history) (Map.elems candidateRefs)
+    fromOthers <-
+        either
+            (throwE . show)
+            pure
+            (reachableHistoryFrom history (Map.elems candidateRefs))
     let exclusive = fromTarget `Set.difference` fromOthers
     records <- ExceptT (listWorktrees git directory (repositoryObjectFormat repository))
     config <- ExceptT (localConfig git directory node)

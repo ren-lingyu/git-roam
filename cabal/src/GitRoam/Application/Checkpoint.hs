@@ -42,8 +42,8 @@ data CheckpointResult = CheckpointResult
 data CheckpointFailure = CheckpointFailure String [String] deriving (Eq, Show)
 
 -- Selection is ordered and explicit. No inherited context is consulted and
--- no synthetic Content object is made. An omitted Node is inferred only from
--- the current linked worktree's canonical local Node branch.
+-- no synthetic Content object is made. An omitted Node is inferred when the
+-- current worktree's symbolic HEAD names a canonical local Node branch.
 environment :: [(String, Maybe String)]
 environment = readOnlyEnvironment ++ [(name, Nothing) | name <- ["GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"]]
 

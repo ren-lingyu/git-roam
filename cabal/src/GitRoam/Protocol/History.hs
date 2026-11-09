@@ -18,6 +18,7 @@ module GitRoam.Protocol.History (
     firstParentHistory,
     contextParents,
     reachableHistory,
+    reachableHistoryFrom,
 ) where
 
 import Control.Monad (foldM, unless, when)
@@ -241,7 +242,12 @@ contextParents history oid = do
 
 -- Ordinary Git reachability: this intentionally includes *all* parents.
 reachableHistory :: ValidatedHistory -> ObjectId -> Either QueryError (Set ObjectId)
-reachableHistory history oid = walk Set.empty [oid]
+reachableHistory history oid = reachableHistoryFrom history [oid]
+
+-- Multiple starting commits share one visited set, so common ancestry is
+-- traversed only once.
+reachableHistoryFrom :: ValidatedHistory -> [ObjectId] -> Either QueryError (Set ObjectId)
+reachableHistoryFrom history starts = walk Set.empty starts
   where
     walk seen [] = Right seen
     walk seen (current : remaining)

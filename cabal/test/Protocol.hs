@@ -87,7 +87,9 @@ requireCommit history oid = maybe (ioError (userError "Missing validated commit"
 main :: IO ()
 main =
     runTests $
-        [ ("Root/Content and editable marker", contentTest)
+        [ ("canonical UUID labels", uuidTest)
+        , ("invalid UUID labels", invalidUuidTest)
+        , ("Root/Content and editable marker", contentTest)
         , ("a one-parent unchanged tree remains Content", emptyContentTest)
         , ("Root must contain only .roam", rootPayloadTest)
         , ("UUID tree isolation and .roam protection", malformedTreeTest)
@@ -109,9 +111,33 @@ main =
         , ("cyclic provider evidence rejects", cycleTest)
         , ("mixed object formats reject", mixedFormatTest)
         , ("unknown query starts are rejected", unknownQueryTest)
+        , ("multi-start reachability shares common ancestry", multiStartReachabilityTest)
         , ("immutable objects are memoized", cacheTest)
         ]
             ++ [("independent SHA formats " ++ show format, formatTest format) | format <- [Sha1, Sha256]]
+
+uuidTest :: IO ()
+uuidTest =
+    forM_
+        [ uuidA
+        , "00000000-0000-0000-0000-000000000000"
+        , "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        , "abcdef01-2345-1678-9abc-def012345678"
+        ]
+        $ \bytes -> do
+            node <- expectRight (parseNodeId bytes)
+            assertEqual bytes (nodeIdBytes node)
+
+invalidUuidTest :: IO ()
+invalidUuidTest =
+    mapM_
+        (expectLeft . parseNodeId)
+        [ BS.empty
+        , "ABCDEF01-2345-1678-9abc-def012345678"
+        , "11111111111141118111111111111111"
+        , uuidA <> "\n"
+        , BS.replicate 36 255
+        ]
 
 contentTest :: IO ()
 contentTest = do
@@ -372,6 +398,33 @@ unknownQueryTest = do
     assertEqual (Left (History.UnknownCommit unknown)) (History.firstParentHistory history unknown)
     assertEqual (Left (History.UnknownCommit unknown)) (History.contextParents history unknown)
     assertEqual (Left (History.UnknownCommit unknown)) (History.reachableHistory history unknown)
+
+multiStartReachabilityTest :: IO ()
+multiStartReachabilityTest = do
+    let ((rootOids, bContent, aCheckpoint, cCheckpoint, unknown), fixture) = build Sha1 $ do
+            (aRoot, aTree) <- root uuidA
+            (bRoot, bTree) <- root uuidB
+            (cRoot, cTree) <- root uuidC
+            bTip <- commit bTree [bRoot]
+            aTip <- commit aTree [aRoot, bTip]
+            cTip <- commit cTree [cRoot, bTip]
+            missing <- fresh
+            pure ([aRoot, bRoot, cRoot], bTip, aTip, cTip, missing)
+    history <- expectRight (validate fixture [aCheckpoint, cCheckpoint])
+    let expected = Set.fromList (rootOids ++ [bContent, aCheckpoint, cCheckpoint])
+    assertEqual expected
+        =<< expectRight (History.reachableHistoryFrom history [aCheckpoint, cCheckpoint])
+    assertEqual expected
+        =<< expectRight (History.reachableHistoryFrom history [aCheckpoint, cCheckpoint, aCheckpoint])
+    assertEqual Set.empty
+        =<< expectRight (History.reachableHistoryFrom history [])
+    assertEqual
+        (Left (History.UnknownCommit unknown))
+        (History.reachableHistoryFrom history [aCheckpoint, unknown])
+    fromA <- expectRight (History.reachableHistory history aCheckpoint)
+    fromC <- expectRight (History.reachableHistory history cCheckpoint)
+    assertEqual (Set.union fromA fromC)
+        =<< expectRight (History.reachableHistoryFrom history [aCheckpoint, cCheckpoint])
 
 cacheTest :: IO ()
 cacheTest = do
