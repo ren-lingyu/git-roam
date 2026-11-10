@@ -7,7 +7,7 @@ post-release development schedule. Its milestone instructions, checkbox
 conventions and candidate-scope uncertainties record the earlier work phase;
 [current.md](current.md) gives the current state and next action, and
 [context-checkpoint-direction.md](context-checkpoint-direction.md) records the
-adopted successor protocol and its phase-one pure implementation. The user
+successor protocol now used by every production command and the installed Hook. The user
 requested implementation of the formal
 plan on 2026-11-01 after concluding the design discussion. [design.md](design.md)
 records the v0.1.0 product model; [current.md](current.md) distinguishes actual

@@ -2,19 +2,16 @@
 
 ## Authority and scope
 
-This records the implemented v0.1.0 knowledge-dependency protocol adopted
-through the user's decisions and accepted plan on 2026-11-01. Its semantics
-remain the v0.1.0 record; that version is finalized and tagged, and its release
-notes keep describing this protocol. The successor context-fixing protocol has
-a phase-one pure implementation behind the temporary `GitRoam.Protocol.V2.*`
-namespace; see [context-checkpoint-direction.md](context-checkpoint-direction.md).
-Do not reinterpret this document as the new protocol or update the product
-README to the successor design before the application cutover. The earlier
-supplied design
-document was the initial knowledge source; the final decisions supersede its
-conflicting assumptions. This is current memory, not a replay of design history.
-See [implementation.md](implementation.md) for the accepted execution sequence
-and technical validation gates, and [current.md](current.md) for actual progress.
+This preserves the implemented v0.1.0 complete knowledge-dependency protocol,
+its motivations and constraints. That version is finalized and tagged. It is
+historical design, not the current production protocol: v0.2.0's atomic cutover
+has replaced formal dependencies with caller-selected historical contexts.
+See [context-checkpoint-direction.md](context-checkpoint-direction.md) for the
+production model and [current.md](current.md) for current work and evidence.
+The body below deliberately retains the v0.1.0 rules; do not apply them as
+v0.2.0 requirements or rewrite old release notes to the successor semantics.
+The initial design source was superseded by the user's final v0.1.0 decisions.
+See [implementation.md](implementation.md) for the completed historical sequence.
 
 Git Roam represents independent knowledge bundles and their exact dependencies.
 Knowledge construction, dependency changes, integration, and discard are local
