@@ -6,7 +6,7 @@ The context protocol is now the sole production protocol. The atomic cutover
 replaced formal Protocol.History/Repository, CLI and installed Hook together,
 adapted all lifecycle consumers and removed temporary V2 modules, tests and
 aliases. Stage C acceptance/documentation/release preparation remains. The current
-three-document draft is staged, not part of main; consult current.md for its
+three-document draft is now user-stashed, not part of main; consult current.md for its
 release-state observations. This is not evidence of a released v0.2.0.
 [current.md](current.md) gives the recoverable state and verification limits.
 
@@ -78,6 +78,14 @@ Root consistency, parent roles/duplicates, formats, cycles and missing/wrong-typ
 objects. Raw cat-file sessions preserve original objects without replacement or
 graft ancestry interpretation. Shallow or incomplete history is refused, not
 silently treated as empty; verification does not fetch or repair evidence.
+
+The recursive-tree validation repair (tested working-tree patch, see current.md)
+starts at the UUID directory and follows every Directory through the same
+readTree/entriesValid rules. A per-validation tree-OID visited set prevents
+repeated traversal of shared subtrees in addition to object-read memoization.
+Git.Objects connectivity checking remains separate and unchanged; it still
+checks payload existence/types, including nested content. This closes the
+previous gap where deeper entry names/duplicates escaped structural validation.
 
 - firstParentHistory: the selected Node's own history.
 - contextParents: one Checkpoint's direct ordered external parents.

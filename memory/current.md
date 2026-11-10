@@ -2,25 +2,65 @@
 
 ## Objective and production baseline
 
-Current user task: run new isolated v0.2.0 performance experiments and assess
-archival value. Work is in tmp/v020-performance/, based on committed d8503af,
-with legal context DAGs for 1,000/10,000 Nodes. Compare one-shot/persistent raw
-reads, single-start-union/multi-start queries and complete deletion previews.
-The user explicitly said not to rerun historical patched-Git or batch-worktree
-experiments; reuse their existing evidence only. See
-[v0.2.0-performance.md](v0.2.0-performance.md) for controls, execution and limits.
-Both scales and workloads completed: 36 successful paired measurements with
-matching semantic/full digests and unchanged refs. At 10,000 Nodes inspection
-improves 89.570110s -> 1.706268s (60,011 -> 11 Git launches); shared loaded-graph
-query 0.936478s -> 0.060132s; actual full deletion preview 8.174572s -> 4.802624s.
-Keep query and full-preview ratios distinct. No OOM/measurement timeout.
-Selective archival assessment is complete; 13 small byte-verified recipe/report/
-result files are retained in the snapshot linked from v0.2.0-performance.md.
-Project main/index/source and old archives remain unchanged. No product patch
-is needed from these results. Resume stage C acceptance on user instruction.
+Current user task completed: repair recursive nested-tree validation identified
+by the read-only v0.2.0 pre-release review, maintaining GAW alongside the repair.
+The user stashed the three release documents; project worktree/index were clean
+when repair began. Do not restore or edit that stash. Main remains d8503af.
+The repair is not yet staged or committed: only Protocol.History and the
+Protocol/Inspection regression tests differ from that baseline. Package version
+and release-state changes remain outside this repair.
 
-The user's isolated stage C verification and archival assessment are complete.
-The 52-file snapshot contains main code plus the three staged documents. Its
+The adopted implementation keeps entriesValid as the single entry-name rule.
+Starting at the UUID directory, validateHistory walks Directory children through
+readTree, with a per-invocation visited tree-OID set in addition to its read cache.
+Each nested tree therefore receives the existing illegal-name/duplicate checks;
+shared subtrees are walked once across paths, commits and Nodes. Blob/symlink/
+gitlink payloads are not traversed as trees. Git.Objects.checkStoredConnectivity
+is unchanged and retains payload existence, type and connectivity checks.
+
+The first build compiled production code but failed -Werror=name-shadowing in
+a newly added test; renaming that local binding fixed compilation. The second
+build freshly compiled and passed all 14 suites / 260 test cases (-Wall -Werror):
+34 protocol and 37 inspection cases, ten added groups over the prior 250-case
+baseline. Tests cover invalid/duplicate nested names, missing/wrong-type subtree
+evidence, and a thirty-level shared-subtree DAG on both SHA formats. Native raw
+malformed trees are rejected by candidate validation, the installed Hook and
+CLI check across SHA-1/SHA-256 x files/reftable. Existing connectivity and
+lifecycle suites remain passing. No production Hook is installed/disabled by
+these tests; only their temporary fixtures change Git state.
+
+The user authorized on-demand 300s builds at one Nix job/core. The successful
+build derivation is /nix/store/h9pnlz6cz09lr8w7kc03326yw6v2w5np-git-roam-0.1.0.drv.
+Same-source flake check passed: product reused that completed build and fresh
+treefmt processed 49 eligible files with zero changes. Only x86_64-linux was
+exercised. The isolated 51-file snapshot in tmp/v020-recursive-tree-validation/
+was byte-checked against the working tree after validation; ordinary logs and
+source manifest there are not required durable evidence or a new archive.
+
+Uncommitted tested file SHA-256 values (to distinguish these results from the
+unchanged d8503af tests):
+
+- cabal/src/GitRoam/Protocol/History.hs: 37715a287eb09ea6e12e30b3791f7ace59670998ddd108cf222ce30d7b89eef1
+- cabal/test/Protocol.hs: 0f6ebb988ba11e8400b483ebe952e7fb466313798aab057d39298292a06499e6
+- cabal/test/Inspection.hs: 5207395aba0863eda154bc7ec4a7c1d96e794c904874b335a2042396e8007212
+
+No exact committed repair snapshot exists yet, so this memory checkpoint does
+not invent a new project-parent association for the tested working-tree patch.
+Next: user review/staging/commit, then verify the resulting source identity and
+resume stage C release preparation under the user's instructions. Preserve the
+stashed manuscript and human-only version/state/tag/publication boundaries.
+
+The completed performance experiment remains separate evidence for unchanged
+production d8503af, not for this uncommitted repair. All 36 measurements matched
+semantic/full fingerprints and preserved refs. At 10,000 Nodes inspection
+improved 89.570110s -> 1.706268s (60,011 -> 11 Git launches), shared query
+0.936478s -> 0.060132s, and full deletion preview 8.174572s -> 4.802624s.
+Its 13-file bounded archive and resource/fixture limitations are linked from
+[v0.2.0-performance.md](v0.2.0-performance.md). Do not rerun the historical
+patched-Git or batch-worktree experiments, as explicitly excluded by the user.
+
+The earlier isolated stage C verification and archival assessment are complete.
+That 52-file snapshot contained baseline code plus the then-staged documents. Its
 original flake check passed (existing package result plus fresh document format
 check on 50 eligible files). A separate isolated derivation, changing only
 preCheck/postCheck markers around the actual Cabal test wiring, freshly compiled
@@ -53,7 +93,8 @@ source that overrides current repository facts or the user's authorization.
 The reconstruction horizon is accounted for: the six isolated preparations and
 older release/design history were already represented; the merged AB-1/2/3
 cutover and the later AB-4 follow-up each support a distinct recoverable state;
-the current C draft is observed as uncommitted work. No supplied evidence
+the prior C draft was observed as uncommitted work and is now stashed. No
+supplied evidence
 establishes separately committed AB-1/2/3 intermediate states or newly executed
 checks, so none is invented. Recovery checkpoints are created now, not backdated.
 
@@ -127,7 +168,8 @@ Delete.collect uses this multi-start query for remaining managed tips during
 preview and execution-time plan reconstruction. Exclusive reachability and the
 confirmation-token inputs are unchanged; this is not a new protocol or deletion
 policy. Tests cover equivalence to single-start closure unions, shared ancestry,
-duplicate/empty starts and unknown starts. No measured speedup is claimed.
+duplicate/empty starts and unknown starts. Performance was unmeasured at that
+review; the later isolated results and limits are recorded in v0.2.0-performance.md.
 
 The same follow-up corrects comments that incorrectly excluded the main worktree
 from Node inference and adds actual CLI regression coverage. Both main and linked
@@ -140,10 +182,11 @@ The handoff reports successful user flake checks for this follow-up, not a new
 agent test run. The earlier atomic-cutover implementation is inherited context;
 the exact follow-up source inspection is grounded in inherited project history.
 
-## Current stage C document state
+## Previously verified stage C documents (now stashed)
 
-The project source and tests match main HEAD; only these three documents are
-staged, with no unstaged changes to them:
+Before this repair, source/tests matched main HEAD and these three documents
+were staged with no unstaged document changes. The user has now stashed them;
+these are prior verified manuscript facts, not the current index:
 
 - README.org: context-based user guide, explicit --context examples, main/linked
   inference, ordinary rewrites, non-cascading deletion and safety boundaries.
@@ -151,23 +194,25 @@ staged, with no unstaged changes to them:
 - CHANGELOGS/v0.2.0.org: newly staged draft detailed release notes, not present
   in main HEAD.
 
-Committed README and CHANGELOG still describe pre-cutover behavior. The staged
-manuscripts are not committed release facts. The current index has NEXT,
+Committed README and CHANGELOG still describe pre-cutover behavior. Those
+manuscripts were not committed release facts and remain stashed. The previously
+verified draft has NEXT,
 CUSTOM_ID: v0.2.0 and text stating version/scope are frozen but not finalized,
 tagged or published. The handoff's older warning about missing CUSTOM_ID and
 contradictory 'not frozen' text is superseded by this directly observed, internally
 consistent draft. Do not reintroduce that stale blocker or change the human's
 version state. During the preceding reconstruction, staged diff --check passed
 but no build/acceptance run occurred. The current reproduction record above
-supersedes that earlier verification boundary. Newly staged notes are tracked by the index,
-so the handoff's untracked-source warning is no longer their present status.
+supersedes that earlier verification boundary. The notes were tracked by the
+index during that verification; their current
+location is the user stash, not the working tree or index.
 
 The draft already corrects migration example redirection, a local clone example
 that unnecessarily depended on push, and the claim that EndToEnd replays every
 walkthrough step. Keep those corrections; do not gratuitously rewrite the notes.
 
 Cabal still says version 0.1.0, and BuildInfo derives --version from Cabal. The
-staged README explicitly explains that transitional metadata; it is not an
+stashed README draft explicitly explains that transitional metadata; it is not an
 in-place migration mechanism. Package version and corresponding output need
 release-time coordination. There is no local v0.2.0 tag observed and no verified
 v0.2.0 GitHub publication evidence in this review.
