@@ -79,7 +79,7 @@ objects. Raw cat-file sessions preserve original objects without replacement or
 graft ancestry interpretation. Shallow or incomplete history is refused, not
 silently treated as empty; verification does not fetch or repair evidence.
 
-The recursive-tree validation repair (tested working-tree patch, see current.md)
+The committed recursive-tree validation repair (see current.md for verification)
 starts at the UUID directory and follows every Directory through the same
 readTree/entriesValid rules. A per-validation tree-OID visited set prevents
 repeated traversal of shared subtrees in addition to object-read memoization.

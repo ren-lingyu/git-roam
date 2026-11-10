@@ -5,10 +5,12 @@
 Current user task completed: repair recursive nested-tree validation identified
 by the read-only v0.2.0 pre-release review, maintaining GAW alongside the repair.
 The user stashed the three release documents; project worktree/index were clean
-when repair began. Do not restore or edit that stash. Main remains d8503af.
-The repair is not yet staged or committed: only Protocol.History and the
-Protocol/Inspection regression tests differ from that baseline. Package version
-and release-state changes remain outside this repair.
+when repair began. Do not restore or edit that stash. The user has now committed
+fix(protocol): validate nested tree entries recursively, advancing main from
+d8503af to 03c2073. The commit changes only Protocol.History and the Protocol/
+Inspection regression tests. All 51 committed source files match the exact
+snapshot that passed the repair checks; project worktree and index are clean.
+Package version and release-state changes remain outside this repair.
 
 The adopted implementation keeps entriesValid as the single entry-name rule.
 Starting at the UUID directory, validateHistory walks Directory children through
@@ -37,21 +39,15 @@ exercised. The isolated 51-file snapshot in tmp/v020-recursive-tree-validation/
 was byte-checked against the working tree after validation; ordinary logs and
 source manifest there are not required durable evidence or a new archive.
 
-Uncommitted tested file SHA-256 values (to distinguish these results from the
-unchanged d8503af tests):
-
-- cabal/src/GitRoam/Protocol/History.hs: 37715a287eb09ea6e12e30b3791f7ace59670998ddd108cf222ce30d7b89eef1
-- cabal/test/Protocol.hs: 0f6ebb988ba11e8400b483ebe952e7fb466313798aab057d39298292a06499e6
-- cabal/test/Inspection.hs: 5207395aba0863eda154bc7ec4a7c1d96e794c904874b335a2042396e8007212
-
-No exact committed repair snapshot exists yet, so this memory checkpoint does
-not invent a new project-parent association for the tested working-tree patch.
-Next: user review/staging/commit, then verify the resulting source identity and
-resume stage C release preparation under the user's instructions. Preserve the
-stashed manuscript and human-only version/state/tag/publication boundaries.
+After the user's commit, every retained source-manifest hash was compared
+against its committed blob, establishing exact source equivalence without
+rerunning unchanged tests. The associated project snapshot is this confirmed
+repair commit, not a guessed association with its pre-repair baseline.
+Next: resume stage C release preparation under the user's instructions. Preserve
+the stashed manuscript and human-only version/state/tag/publication boundaries.
 
 The completed performance experiment remains separate evidence for unchanged
-production d8503af, not for this uncommitted repair. All 36 measurements matched
+production d8503af, not a new measurement of the committed recursive-tree repair. All 36 measurements matched
 semantic/full fingerprints and preserved refs. At 10,000 Nodes inspection
 improved 89.570110s -> 1.706268s (60,011 -> 11 Git launches), shared query
 0.936478s -> 0.060132s, and full deletion preview 8.174572s -> 4.802624s.
@@ -83,8 +79,8 @@ acceptance, documentation and release preparation;
 do not repeat stages A/B or add parallel V2 lifecycle modules.
 
 The supplied root file git-roam-v0.2.0-handoff-C-2026-11-10.md was reviewed
-against local project history and the current index on 2026-11-10. Main HEAD is
-the inspected post-cutover follow-up, `d8503af`, immediately after the atomic
+against local project history and the then-current index on 2026-11-10. Main HEAD
+at that inspection was the post-cutover follow-up, `d8503af`, after the atomic
 production cutover. The project associations in inherited GAW history ground
 those inspected source states; the uncommitted document draft has no project
 commit association. The original handoff is input evidence, not an instruction
