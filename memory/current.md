@@ -2,15 +2,28 @@
 
 ## Objective and production baseline
 
-Current user task completed: repair recursive nested-tree validation identified
-by the read-only v0.2.0 pre-release review, maintaining GAW alongside the repair.
-The user stashed the three release documents; project worktree/index were clean
-when repair began. Do not restore or edit that stash. The user has now committed
-fix(protocol): validate nested tree entries recursively, advancing main from
-d8503af to 03c2073. The commit changes only Protocol.History and the Protocol/
-Inspection regression tests. All 51 committed source files match the exact
-snapshot that passed the repair checks; project worktree and index are clean.
-Package version and release-state changes remain outside this repair.
+Completed user task: address the two authorized pre-release documentation
+follow-ups: record the recursive-tree validation fix in CHANGELOG.org and
+CHANGELOGS/v0.2.0.org, and correct GAW's restored-document state. Use the
+git-maintenance changelog workflow. The user explicitly deferred package-version
+and release-state changes; keep 0.1.0 package metadata and NEXT v0.2.0 unchanged.
+
+Main is 03c2073, fix(protocol): validate nested tree entries recursively.
+The user restored the release manuscripts from stash and staged all three.
+README.org remains staged and unchanged by this task. Root and detailed
+CHANGELOG files now additionally have authorized unstaged Fixed entries:
+history inspection/protected updates reject invalid or duplicate names in nested
+content directories; detailed notes also explain shared-subtree traversal reuse.
+Only these two project files were edited; no project staging, commit, stash,
+version/time change or release operation was performed.
+
+The text was checked against the v0.1.0 and current implementation trees.
+Root header, NEXT, CUSTOM_ID and historical v0.1.0 content remain intact.
+Diff whitespace checks pass. No build/format/test was rerun for this prose-only
+change; the 260-case production evidence below applies to unchanged code.
+Next: user review/staging/commit of the release documents, then further version
+and finalization work only when authorized. Do not treat restored drafts or
+completed details as a released v0.2.0.
 
 The adopted implementation keeps entriesValid as the single entry-name rule.
 Starting at the UUID directory, validateHistory walks Directory children through
@@ -43,8 +56,8 @@ After the user's commit, every retained source-manifest hash was compared
 against its committed blob, establishing exact source equivalence without
 rerunning unchanged tests. The associated project snapshot is this confirmed
 repair commit, not a guessed association with its pre-repair baseline.
-Next: resume stage C release preparation under the user's instructions. Preserve
-the stashed manuscript and human-only version/state/tag/publication boundaries.
+Resume stage C release preparation under the user's instructions. Preserve
+the restored manuscript and human-only version/state/tag/publication boundaries.
 
 The completed performance experiment remains separate evidence for unchanged
 production d8503af, not a new measurement of the committed recursive-tree repair. All 36 measurements matched
@@ -89,8 +102,8 @@ source that overrides current repository facts or the user's authorization.
 The reconstruction horizon is accounted for: the six isolated preparations and
 older release/design history were already represented; the merged AB-1/2/3
 cutover and the later AB-4 follow-up each support a distinct recoverable state;
-the prior C draft was observed as uncommitted work and is now stashed. No
-supplied evidence
+the prior C draft was observed as uncommitted work, later stashed and restored.
+No supplied evidence
 establishes separately committed AB-1/2/3 intermediate states or newly executed
 checks, so none is invented. Recovery checkpoints are created now, not backdated.
 
@@ -178,40 +191,32 @@ The handoff reports successful user flake checks for this follow-up, not a new
 agent test run. The earlier atomic-cutover implementation is inherited context;
 the exact follow-up source inspection is grounded in inherited project history.
 
-## Previously verified stage C documents (now stashed)
+## Current stage C release manuscripts
 
-Before this repair, source/tests matched main HEAD and these three documents
-were staged with no unstaged document changes. The user has now stashed them;
-these are prior verified manuscript facts, not the current index:
+The user restored and staged README.org, CHANGELOG.org and the new
+CHANGELOGS/v0.2.0.org after committing the recursive-tree fix. The restored
+bytes were identical to the previously audited draft. This task then added
+Fixed entries to the two CHANGELOG worktree files, leaving the project index
+untouched: README is staged-only; root/detailed changelogs have staged drafts
+plus the additional unstaged text. These are not committed release facts.
 
-- README.org: context-based user guide, explicit --context examples, main/linked
+- README.org describes the context protocol, explicit --context, main/linked
   inference, ordinary rewrites, non-cascading deletion and safety boundaries.
-- CHANGELOG.org: user-visible Removed/Changed/Added summary under NEXT v0.2.0.
-- CHANGELOGS/v0.2.0.org: newly staged draft detailed release notes, not present
-  in main HEAD.
+- CHANGELOG.org summarizes Removed/Changed/Fixed/Added under NEXT v0.2.0.
+- CHANGELOGS/v0.2.0.org is the pre-release detailed manuscript with the matching
+  nested-tree repair, incompatible protocol/CLI and manual migration boundary.
 
-Committed README and CHANGELOG still describe pre-cutover behavior. Those
-manuscripts were not committed release facts and remain stashed. The previously
-verified draft has NEXT,
-CUSTOM_ID: v0.2.0 and text stating version/scope are frozen but not finalized,
-tagged or published. The handoff's older warning about missing CUSTOM_ID and
-contradictory 'not frozen' text is superseded by this directly observed, internally
-consistent draft. Do not reintroduce that stale blocker or change the human's
-version state. During the preceding reconstruction, staged diff --check passed
-but no build/acceptance run occurred. The current reproduction record above
-supersedes that earlier verification boundary. The notes were tracked by the
-index during that verification; their current
-location is the user stash, not the working tree or index.
+The root header matches the adopted Org profile. NEXT, CUSTOM_ID: v0.2.0 and
+scope-frozen/not-finalized prose agree. Only the human changes existing state
+keywords and version-level UTC CLOSED. Earlier handoff claims about missing
+CUSTOM_ID, contradictory freeze text and untracked notes are superseded.
+The prior corrections to migration redirection, local-clone flow and limits on
+README walkthrough test coverage remain intact; do not undo them.
 
-The draft already corrects migration example redirection, a local clone example
-that unnecessarily depended on push, and the claim that EndToEnd replays every
-walkthrough step. Keep those corrections; do not gratuitously rewrite the notes.
-
-Cabal still says version 0.1.0, and BuildInfo derives --version from Cabal. The
-stashed README draft explicitly explains that transitional metadata; it is not an
-in-place migration mechanism. Package version and corresponding output need
-release-time coordination. There is no local v0.2.0 tag observed and no verified
-v0.2.0 GitHub publication evidence in this review.
+Cabal remains 0.1.0, and BuildInfo derives --version from Cabal. The restored
+README explains that transitional metadata. The user expressly deferred this
+release-version follow-up while authorizing the documentation/memory repair.
+There is no observed local v0.2.0 tag or newly verified publication event.
 
 ## Stage C next actions and acceptance limits
 
