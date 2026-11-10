@@ -2,6 +2,24 @@
 
 ## Objective and production baseline
 
+The user's isolated stage C verification and archival assessment are complete.
+The 52-file snapshot contains main code plus the three staged documents. Its
+original flake check passed (existing package result plus fresh document format
+check on 50 eligible files). A separate isolated derivation, changing only
+preCheck/postCheck markers around the actual Cabal test wiring, freshly compiled
+and passed all 14 suites / 250 cases with -Wall -Werror and Nix exit 0.
+The first 120s attempt stopped after 169 passing cases; a separately authorized
+one-time 300s rerun completed. No observed case failure or product patch.
+
+[stage-c-verification.md](stage-c-verification.md) records actual execution,
+provenance, timeout history and limits. [stage-c-coverage.md](stage-c-coverage.md)
+maps C requirements to maintained tests; 91 function locators were checked.
+Required semantic groups have coverage, but not every negative case/backend
+cross-product, every README line, exact minimum Git or other platforms. Archival
+assessment declined a new raw snapshot: recoverable source and ordinary logs
+add no independent evidence need; durable conclusions and coverage are retained
+in memory. No project source/index/refs or original archives were changed.
+
 The atomic v0.2.0 context-protocol cutover is complete. Post-cutover
 reachability/inference regression review is also complete. Continue stage C
 acceptance, documentation and release preparation;
@@ -71,11 +89,12 @@ The cutover consolidates 18 Cabal suites into 14, with `-Wall -Werror` on all
 components. Protocol, Checkpoint, Inspection, Protection, Deletion, Deployment
 and real-CLI/installed-Hook EndToEnd tests were migrated. Their presence does
 not prove every stage C failure matrix was rerun. The supplied handoff reports
-the user's successful pre-commit `nix flake check`; this memory reconstruction
-performs source inspection only, not a new build or test run. Original test
-execution provenance is not inferred merely from a nearby commit. The exact
-project association grounds the inspected implementation, not a newly executed
-post-commit check.
+the user's successful pre-commit `nix flake check`; the preceding handoff
+reconstruction used source inspection only. The current isolated reproduction
+has its own completed independent execution record at the top of this file. Original test
+execution provenance is not inferred merely from a nearby commit. Earlier
+reconstruction associations grounded source inspection; the independent execution
+completed in this task is recorded separately above.
 
 Earlier 18-suite/306-case evidence belongs to isolated preparation. Earlier
 v0.1.0 counts and object-reader timings remain historical evidence, not tests or
@@ -121,8 +140,9 @@ CUSTOM_ID: v0.2.0 and text stating version/scope are frozen but not finalized,
 tagged or published. The handoff's older warning about missing CUSTOM_ID and
 contradictory 'not frozen' text is superseded by this directly observed, internally
 consistent draft. Do not reintroduce that stale blocker or change the human's
-version state. Staged diff --check passed; no formatter/build or acceptance run
-was executed in this memory task. Newly staged notes are tracked by the index,
+version state. During the preceding reconstruction, staged diff --check passed
+but no build/acceptance run occurred. The current reproduction record above
+supersedes that earlier verification boundary. Newly staged notes are tracked by the index,
 so the handoff's untracked-source warning is no longer their present status.
 
 The draft already corrects migration example redirection, a local clone example
@@ -137,10 +157,11 @@ v0.2.0 GitHub publication evidence in this review.
 
 ## Stage C next actions and acceptance limits
 
-The current request is memory recovery only. Future product work starts at C,
-not A/B, and requires its applicable user scope. First map existing tests to
-these obligations, then fill actual gaps; 14 declared suites and user-reported
-flake success do not establish that every failure matrix has been exercised.
+The memory recovery and requested independent verification/coverage assessment
+are complete. Continue at C, not A/B, under the next applicable user instruction.
+Use the mapped coverage and actual 250-case result above; do not restart the
+same audit or treat it as every possible failure matrix. Product/release writes
+were not included in this verification task. The adoption checklist remains:
 
 | Area | Evidence to map or complete |
 | --- | --- |
