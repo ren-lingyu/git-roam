@@ -2,28 +2,45 @@
 
 ## Objective and production baseline
 
-Completed user task: address the two authorized pre-release documentation
-follow-ups: record the recursive-tree validation fix in CHANGELOG.org and
-CHANGELOGS/v0.2.0.org, and correct GAW's restored-document state. Use the
-git-maintenance changelog workflow. The user explicitly deferred package-version
-and release-state changes; keep 0.1.0 package metadata and NEXT v0.2.0 unchanged.
+Version preparation is complete; human finalization remains pending. Main is
+3b6d0b2, docs: document the v0.2.0 context protocol and release changes, confirmed
+after the user's commit. The current uncommitted preparation changes six files:
+Cabal package version 0.1.0 -> 0.2.0, hardcoded expected version output in
+Unit.hs/GitAdapter.hs, and temporary release prose in README/root CHANGELOG/
+detailed v0.2.0 notes. No project staging/commit, tag or publication was performed.
+The user explicitly reserves NEXT -> DONE and UTC CLOSED for manual action.
 
-Main is 03c2073, fix(protocol): validate nested tree entries recursively.
-The user restored the release manuscripts from stash and staged all three.
-README.org remains staged and unchanged by this task. Root and detailed
-CHANGELOG files now additionally have authorized unstaged Fixed entries:
-history inspection/protected updates reject invalid or duplicate names in nested
-content directories; detailed notes also explain shared-subtree traversal reuse.
-Only these two project files were edited; no project staging, commit, stash,
-version/time change or release operation was performed.
+README and release notes describe version 0.2.0 without draft/pre-release or
+stale 0.1.0-package claims, and without asserting publication. NEXT v0.2.0,
+CUSTOM_ID, existing version states/CLOSED values and v0.1.0 notes are unchanged.
+Both version-test entry points now expect git-roam 0.2.0. Feature descriptions,
+manual migration boundaries and implementation logic are otherwise unchanged.
 
-The text was checked against the v0.1.0 and current implementation trees.
-Root header, NEXT, CUSTOM_ID and historical v0.1.0 content remain intact.
-Diff whitespace checks pass. No build/format/test was rerun for this prose-only
-change; the 260-case production evidence below applies to unchanged code.
-Next: user review/staging/commit of the release documents, then further version
-and finalization work only when authorized. Do not treat restored drafts or
-completed details as a released v0.2.0.
+The user requires planned nonblocking improvements to stay visible in README.
+Its Deferred candidates section remains byte-identical to the committed section:
+high-volume worktree deployment optimization and alternative directory naming
+remain future candidates, not v0.2.0 release blockers. Do not delete this roadmap
+when cleaning up release prose or treat these candidates as implemented promises.
+
+Fresh 0.2.0 compilation and all 14 suites / 260 tests passed with -Wall -Werror.
+The authorized 300s build used one Nix job/core; no timeout or failure occurred.
+Derivation: /nix/store/ymlx2b6s2r02a4pcqjy91kq69fcasl0n-git-roam-0.2.0.drv.
+Same-source flake check passed, reusing this completed product and freshly
+checking 50 eligible files with zero formatting changes. The actual default
+flake executable returned exactly git-roam 0.2.0 followed by LF (exit 0).
+Only x86_64-linux was exercised. All 52 isolated snapshot files were compared
+against the working tree after checks. This evidence belongs to the uncommitted
+version-preparation snapshot, not the 0.1.0 metadata still in main. Temporary
+source manifest/logs/results are in tmp/v020-release-preparation/, not a new
+archive or a required durable source. No committed version-preparation snapshot
+exists yet; do not invent a project-parent association for this tested patch.
+
+Next: the user manually changes NEXT to DONE and verifies UTC CLOSED, reviews
+and stages the preparation, and commits the final version. Verify resulting
+source identity and document state before grounding GAW in that commit. The
+v0.2.0 tag should point at that finalized commit; no extra empty commit is needed.
+Tagging and platform publication remain independent human actions. No local
+v0.2.0 tag was observed after validation; no new publication check was performed.
 
 The adopted implementation keeps entriesValid as the single entry-name rule.
 Starting at the UUID directory, validateHistory walks Directory children through
@@ -193,38 +210,30 @@ the exact follow-up source inspection is grounded in inherited project history.
 
 ## Current stage C release manuscripts
 
-The user restored and staged README.org, CHANGELOG.org and the new
-CHANGELOGS/v0.2.0.org after committing the recursive-tree fix. The restored
-bytes were identical to the previously audited draft. This task then added
-Fixed entries to the two CHANGELOG worktree files, leaving the project index
-untouched: README is staged-only; root/detailed changelogs have staged drafts
-plus the additional unstaged text. These are not committed release facts.
+The three-document release guide, including the nested-tree Fixed entries, is
+committed as 3b6d0b2. Current working-tree changes prepare final version prose:
+README names the implemented 0.2.0 context protocol; root CHANGELOG links to
+Detailed release notes; detailed notes describe 0.2.0 without a transient draft
+status. The README nonblocking roadmap remains intact. All are unstaged.
 
-- README.org describes the context protocol, explicit --context, main/linked
-  inference, ordinary rewrites, non-cascading deletion and safety boundaries.
-- CHANGELOG.org summarizes Removed/Changed/Fixed/Added under NEXT v0.2.0.
-- CHANGELOGS/v0.2.0.org is the pre-release detailed manuscript with the matching
-  nested-tree repair, incompatible protocol/CLI and manual migration boundary.
+Root header, NEXT v0.2.0, CUSTOM_ID and historical CLOSED values remain intact.
+Only the human changes existing version keywords and version-level UTC CLOSED.
+Removing temporary draft prose does not finalize/tag/publish the version; the
+human still needs to confirm the local DONE state. Prior migration redirection,
+local-clone flow and limits of walkthrough test coverage remain intact.
 
-The root header matches the adopted Org profile. NEXT, CUSTOM_ID: v0.2.0 and
-scope-frozen/not-finalized prose agree. Only the human changes existing state
-keywords and version-level UTC CLOSED. Earlier handoff claims about missing
-CUSTOM_ID, contradictory freeze text and untracked notes are superseded.
-The prior corrections to migration redirection, local-clone flow and limits on
-README walkthrough test coverage remain intact; do not undo them.
-
-Cabal remains 0.1.0, and BuildInfo derives --version from Cabal. The restored
-README explains that transitional metadata. The user expressly deferred this
-release-version follow-up while authorizing the documentation/memory repair.
-There is no observed local v0.2.0 tag or newly verified publication event.
+Cabal is now 0.2.0 in the working tree, and BuildInfo derives --version from it.
+Both version-test expectations and actual output are verified, as recorded above.
+There is no automatic migration or new protocol feature in this preparation.
 
 ## Stage C next actions and acceptance limits
 
 The memory recovery and requested independent verification/coverage assessment
 are complete. Continue at C, not A/B, under the next applicable user instruction.
-Use the mapped coverage and actual 250-case result above; do not restart the
-same audit or treat it as every possible failure matrix. Product/release writes
-were not included in this verification task. The adoption checklist remains:
+Use mapped coverage and the latest 260-case version-preparation result; do not
+restart the same audit or treat it as every possible failure matrix. The earlier
+isolated verification made no product/release writes; current version edits are
+explicitly authorized and remain uncommitted. The adoption checklist remains:
 
 | Area | Evidence to map or complete |
 | --- | --- |
