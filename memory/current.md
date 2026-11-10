@@ -2,11 +2,12 @@
 
 ## Objective and production baseline
 
-The atomic v0.2.0 context-protocol cutover is complete. Continue with
-post-cutover review and stage C acceptance, documentation and release preparation;
+The atomic v0.2.0 context-protocol cutover is complete. Post-cutover
+reachability/inference regression review is also complete. Continue stage C
+acceptance, documentation and release preparation;
 do not repeat stages A/B or add parallel V2 lifecycle modules.
 
-This snapshot reconstructs the completed production cutover from the supplied
+This snapshot reconstructs the completed post-cutover follow-up from the supplied
 2026-11-10 C handoff and read-only inspection of the exact historical project
 commit associated with this checkpoint. It is created now, not backdated. The
 six isolated preparation commits were already represented in inherited GAW
@@ -72,6 +73,28 @@ Earlier 18-suite/306-case evidence belongs to isolated preparation. Earlier
 v0.1.0 counts and object-reader timings remain historical evidence, not tests or
 performance guarantees for this new protocol. Pinned x86_64-linux evidence does
 not establish all declared systems or exact minimum-Git compatibility.
+
+## Completed post-cutover review
+
+`perf(protocol): avoid repeated ancestry walks across multiple starts` adds
+reachableHistoryFrom: all supplied starts share one visited set, so common
+ancestors are traversed once. The singleton reachableHistory delegates to it.
+Delete.collect uses this multi-start query for remaining managed tips during
+preview and execution-time plan reconstruction. Exclusive reachability and the
+confirmation-token inputs are unchanged; this is not a new protocol or deletion
+policy. Tests cover equivalence to single-start closure unions, shared ancestry,
+duplicate/empty starts and unknown starts. No measured speedup is claimed.
+
+The same follow-up corrects comments that incorrectly excluded the main worktree
+from Node inference and adds actual CLI regression coverage. Both main and linked
+worktrees infer a Node only when symbolic HEAD names a canonical local UUID
+branch. Ordinary branches, detached HEAD and bare repositories do not infer one.
+This clarifies existing inference behavior, rather than introducing a new mode.
+Canonical UUID parser positive/negative coverage omitted in the cutover is restored.
+
+The handoff reports successful user flake checks for this follow-up, not a new
+agent test run. The earlier atomic-cutover implementation is inherited context;
+the associated project snapshot is the exact follow-up source inspected here.
 
 ## Stage C and release boundary
 

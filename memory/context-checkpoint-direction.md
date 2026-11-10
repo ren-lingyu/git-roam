@@ -80,7 +80,8 @@ silently treated as empty; verification does not fetch or repair evidence.
 
 - firstParentHistory: the selected Node's own history.
 - contextParents: one Checkpoint's direct ordered external parents.
-- reachableHistory: ordinary reachability following every Git parent.
+- reachableHistory / reachableHistoryFrom: ordinary all-parent reachability;
+  multiple starts share one visited set, and the singleton query delegates to it.
 
 ManagedState is validated history plus local managed refs. It has no formal
 retention set or dependency closure. A referenced context need not have a local
@@ -108,6 +109,12 @@ all selected managed tips together. Status reports latest first-parent
 Checkpoint, its direct contexts, first-parent Checkpoint count, tip kind,
 Content tail and actual registered worktrees.
 
+Main and linked worktrees infer a Node when symbolic HEAD names a canonical
+local UUID branch. Ordinary branches, detached HEAD and bare repositories do not.
+Inspection falls back to repository scope; Checkpoint requires an explicit Node
+when it cannot infer one. The post-cutover comment/test correction documents this
+existing rule; it is not a new main-worktree lifecycle feature.
+
 The reference-transaction Hook validates at prepared, reading actual refs rather
 than trusting all-zero old input. Direct Content extension/amend has a narrow
 single-Node fast path; Checkpoints, arbitrary rewrites and multi-ref updates
@@ -122,7 +129,9 @@ removal. Its preview computes reachability from the target tip minus reachabilit
 from the remaining managed tips, not physical object deletion. A main/linked
 checkout blocks deletion. Confirmation binds refs, reachability, worktree records
 and exact local branch config; cleanup is separate from ref deletion and failures
-must report residual state.
+must report residual state. Remaining managed tips use one multi-start traversal;
+this preserves the exclusive set and confirmation inputs while avoiding repeated
+walks over shared ancestry.
 
 Create/Deploy/Undeploy/Worktree reuse their existing safety machinery. Create
 makes Root/branch/worktree and supports text/JSON/CBOR creation reports. Deploy
