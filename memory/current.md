@@ -2,6 +2,23 @@
 
 ## Objective and production baseline
 
+Current user task: run new isolated v0.2.0 performance experiments and assess
+archival value. Work is in tmp/v020-performance/, based on committed d8503af,
+with legal context DAGs for 1,000/10,000 Nodes. Compare one-shot/persistent raw
+reads, single-start-union/multi-start queries and complete deletion previews.
+The user explicitly said not to rerun historical patched-Git or batch-worktree
+experiments; reuse their existing evidence only. See
+[v0.2.0-performance.md](v0.2.0-performance.md) for controls, execution and limits.
+Both scales and workloads completed: 36 successful paired measurements with
+matching semantic/full digests and unchanged refs. At 10,000 Nodes inspection
+improves 89.570110s -> 1.706268s (60,011 -> 11 Git launches); shared loaded-graph
+query 0.936478s -> 0.060132s; actual full deletion preview 8.174572s -> 4.802624s.
+Keep query and full-preview ratios distinct. No OOM/measurement timeout.
+Selective archival assessment is complete; 13 small byte-verified recipe/report/
+result files are retained in the snapshot linked from v0.2.0-performance.md.
+Project main/index/source and old archives remain unchanged. No product patch
+is needed from these results. Resume stage C acceptance on user instruction.
+
 The user's isolated stage C verification and archival assessment are complete.
 The 52-file snapshot contains main code plus the three staged documents. Its
 original flake check passed (existing package result plus fresh document format

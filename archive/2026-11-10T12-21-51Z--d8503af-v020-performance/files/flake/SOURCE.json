@@ -1,0 +1,268 @@
+{
+  "project_commit": "d8503afd02ae02ab38c604888c0c84e1e2a3cbdb",
+  "source_state": "exact committed production tree",
+  "files": {
+    ".gitignore": {
+      "blob": "cbe39596e194bd61789ff51b8908c042006b37f2",
+      "bytes": 366,
+      "sha256": "300ad982c37ef721ba724977f39314f39a262889bbbc6a9106af44df111556f2"
+    },
+    "CHANGELOG.org": {
+      "blob": "f97fa88a7894229a636a558483cb58a240051845",
+      "bytes": 3235,
+      "sha256": "43644e5530a5d026939a8ab65a5ea2611ac69d1fbd3b510dc7149c6c113de28e"
+    },
+    "CHANGELOGS/v0.1.0.org": {
+      "blob": "012b63ea33e403ea1702c96f7d4245f8fb40b8ae",
+      "bytes": 6103,
+      "sha256": "d77e0e586d6375e9fe712814f35719079f3a1637a49d5c4ddec1950d74c46339"
+    },
+    "LICENSE": {
+      "blob": "65bab4fd8bc7357227ccfeb55e8a13084f5fbf6f",
+      "bytes": 1067,
+      "sha256": "7ac6f0f56b41e70a02489055cf779ffd3d056b689b7dfafcdb216ef7ae66a6f4"
+    },
+    "README.org": {
+      "blob": "dfe2f85211aa02a82b6003f44ee5b0dd9c92e751",
+      "bytes": 39952,
+      "sha256": "b253ec4fd3f95cfde6d2f3eec20e8152d1a87a13f3568a05819ea47df1bd5a0c"
+    },
+    "cabal/app/Main.hs": {
+      "blob": "2b59f6720395371d0227ebe9da25c3397b4eef09",
+      "bytes": 505,
+      "sha256": "e5cd82429f87fb1a9441ef262f5fd70a9250bcb0c04a3c4d077654e4ce926b4f"
+    },
+    "cabal/cabal.project": {
+      "blob": "e6fdbadb4398bc0e333947b5fb8021778310d943",
+      "bytes": 12,
+      "sha256": "124cd2f0cb590811d7668bef1e444eb106d6212ac24c1c2a2fe4ea35112ddf43"
+    },
+    "cabal/git-roam.cabal": {
+      "blob": "313ad8e4008245115856430e1cc6124728af8d11",
+      "bytes": 7333,
+      "sha256": "57406b5c09e36208df6811f98841e900afbf6227fb2f32c8a47b81fe7cc6ca12"
+    },
+    "cabal/src/GitRoam/Application/Checkpoint.hs": {
+      "blob": "56e1ccbaec4ce57ee0f77959d2d93228100d980d",
+      "bytes": 9633,
+      "sha256": "9e51a97e167919f246c8bf28aaf28e9595961eb69d783477332eaa19102ad7a9"
+    },
+    "cabal/src/GitRoam/Application/Create.hs": {
+      "blob": "d251c6918eb53cc78678be1a669e23bcb31a1a0e",
+      "bytes": 11975,
+      "sha256": "75c9546457341238305cd2b0b7043014b6ce88a435d69a954bf962b52553dc00"
+    },
+    "cabal/src/GitRoam/Application/Delete.hs": {
+      "blob": "1dd33a04ef3697d209e13afaa240e35fa4888a8b",
+      "bytes": 10948,
+      "sha256": "5ec6297ec23fbf7f42d0995d9535e0581cb089a545a818a83ff8e530a3988eb5"
+    },
+    "cabal/src/GitRoam/Application/Deploy.hs": {
+      "blob": "35416e725bdd2839894c4f44648b9b703b5fade4",
+      "bytes": 16385,
+      "sha256": "4dda724653343d1df7ed2de6a0f86c21e69c140f1de576e22d9cbf253aac3f47"
+    },
+    "cabal/src/GitRoam/Application/Inspect.hs": {
+      "blob": "6a4533359d0a373e303426e8e09e9c7905e229a7",
+      "bytes": 10798,
+      "sha256": "866a760c25e1869481646f1a2a6594987441e4128d449a2d10f6ae04b7b5d7ca"
+    },
+    "cabal/src/GitRoam/Application/Protection.hs": {
+      "blob": "247489acfca5a2a1b5bebe7fdbc56979ba34e5b8",
+      "bytes": 12919,
+      "sha256": "b86d23d5d060afdffc5d9a51586c39d1722a02f457d0adef5c0f5887a0d920bb"
+    },
+    "cabal/src/GitRoam/Application/Undeploy.hs": {
+      "blob": "a029fbef8a35b468ba3d6a202062b6ecfe53a1fd",
+      "bytes": 5246,
+      "sha256": "d8cfb35d72ad78ddbd0f4b7b350e38deed5dd57ca1691c295331aa20949c96fc"
+    },
+    "cabal/src/GitRoam/Application/Worktree.hs": {
+      "blob": "d6109fa66cac0c4093379ba993ea1363ce7d5d51",
+      "bytes": 21765,
+      "sha256": "2d2d5cd215a93d5c9f523a58527b64b70ddb7a294a77e97fe976ec0431380e86"
+    },
+    "cabal/src/GitRoam/BuildInfo.hs": {
+      "blob": "4d6b454cdd1684074774958dc709dd5dc17e76a9",
+      "bytes": 542,
+      "sha256": "8fa82d6cf917b3036246e7a1447317c52001b9393a6bcd24af028a9471ffb27e"
+    },
+    "cabal/src/GitRoam/Cli.hs": {
+      "blob": "b1b75e13f08b4d78f6075c84a86a061f7a7281f2",
+      "bytes": 29775,
+      "sha256": "86dd1e8e5969888efa825b837d4718a2aa1407271f963f9a14742c81a798c25e"
+    },
+    "cabal/src/GitRoam/Git.hs": {
+      "blob": "cdd8c5725c2fa42a8e8801add4b7c92dcb582cc2",
+      "bytes": 7783,
+      "sha256": "489b8b58f1860e2d8164e2f5d97bac8a49a3bc5c9740335af20b740c38ee194f"
+    },
+    "cabal/src/GitRoam/Git/Batch.hs": {
+      "blob": "98c52a6b78fa9a1487cf3d34a5c42485188fb7f2",
+      "bytes": 14126,
+      "sha256": "68851828a14afc38ea3faf7574d2a13893ed06784bbb4a29185aad70088e035b"
+    },
+    "cabal/src/GitRoam/Git/Objects.hs": {
+      "blob": "d11bcc8484a7b7a25d51bda48cbdcd100eb83e59",
+      "bytes": 13275,
+      "sha256": "7c37f8e05b64fac1b9fdc4f995fd9c9a6bcace9c116e462732b72dc1a1a784e2"
+    },
+    "cabal/src/GitRoam/Git/Worktrees.hs": {
+      "blob": "9be462da2611346e492b7033f1fc5ebf1d966768",
+      "bytes": 4029,
+      "sha256": "2a173d1c1e799dc43b24a8740bb3a61d6d2ad508626d6ae04beb8e0d3b0deb93"
+    },
+    "cabal/src/GitRoam/ObjectId.hs": {
+      "blob": "6ec40af1ee02b5fdfafd238e6bca958307df9895",
+      "bytes": 1224,
+      "sha256": "6c4ead4729ad9370f3d959818e6352d0cb8bb46b8eeea02bb8d3366d048225a2"
+    },
+    "cabal/src/GitRoam/Output.hs": {
+      "blob": "19908ac148c846d5d53dca77e41b89530b9a8eea",
+      "bytes": 3200,
+      "sha256": "4b1ddee45a835aa1960e091a73683473058f8d476421039490dc28696c7d5e18"
+    },
+    "cabal/src/GitRoam/Protocol/History.hs": {
+      "blob": "fb27289cbc096f0281376a3f55bf21e1c4db3d76",
+      "bytes": 10748,
+      "sha256": "a1bb13588e1daa4cdb608f582be8640402afeebc78888b0779eb92ae92a01fef"
+    },
+    "cabal/src/GitRoam/Protocol/Identity.hs": {
+      "blob": "fb2a650cae632ef2d51f2cf123494eb09807c265",
+      "bytes": 800,
+      "sha256": "cc36ce5497e3d0218d6ca066a9e15e7916136e3e78469e6e9c0ff7141d1108db"
+    },
+    "cabal/src/GitRoam/Protocol/Objects.hs": {
+      "blob": "340443eceb993626cd1854b8a40a81d8ecb59bea",
+      "bytes": 1208,
+      "sha256": "69ea832274c7e7d1918c725b8e8b948ec0e9caf4715fbd60fc767d1310552f5d"
+    },
+    "cabal/src/GitRoam/Protocol/Repository.hs": {
+      "blob": "d0e9114a5e689675b5007dfc831c322408b4506c",
+      "bytes": 2450,
+      "sha256": "4561cc1c57b1cfa7d5f12b50130f4bdffb49e2a709171eeec1513d5f14da9dd8"
+    },
+    "cabal/src/GitRoam/Repository.hs": {
+      "blob": "515641e73e6f550b4b89d43c24a8fae6fc4ba2a4",
+      "bytes": 2933,
+      "sha256": "45940527dda5bd6365eba1768a7bbf8a5bc9e16049e0eefc77b28e2ea1a37149"
+    },
+    "cabal/src/GitRoam/Worktree/Paths.hs": {
+      "blob": "8a715a6fb363c04a95b47b4ce6ec59709f3de4a0",
+      "bytes": 3393,
+      "sha256": "d360336dae91dcd7a603818a74ce43db2541a7d78dd2711bd3df19e0759a3dc5"
+    },
+    "cabal/test/Batch.hs": {
+      "blob": "c6126330ee25bf827f9ce6651f650294c8c3de8a",
+      "bytes": 15093,
+      "sha256": "c4dabb05fa525ebd36392c037d7fc6dd49be3598e1823ae6438c54ff71481018"
+    },
+    "cabal/test/Checkpoint.hs": {
+      "blob": "5510e4a3fe211475ee8028245f4689060c8bafae",
+      "bytes": 25592,
+      "sha256": "236033f22809cc9af08eee6413b6d3bc34140da5f0938f1c6d2686c57ac819f0"
+    },
+    "cabal/test/Creation.hs": {
+      "blob": "0bdb04e2d7e9a5984a8d1fc15433210dba22b0d9",
+      "bytes": 24152,
+      "sha256": "a2948d578d06106bed42ed444adb02a4f176c55560f9aa1184bac1285c8b6e9e"
+    },
+    "cabal/test/Deletion.hs": {
+      "blob": "ab3679526d6f7e56658d5752254db3523c6537dc",
+      "bytes": 19494,
+      "sha256": "f8a255943d9a3d4fc5d575253d9e654c67cf48c5f32b960e261766d299733a6c"
+    },
+    "cabal/test/Deployment.hs": {
+      "blob": "65ffca0fb38127d5d0209f4bf8ae01029745bcb8",
+      "bytes": 17231,
+      "sha256": "e6ba4e1defdd88e1faf5edf24218b8be854e8bd60e840926cd38866b59019de4"
+    },
+    "cabal/test/EndToEnd.hs": {
+      "blob": "8af482cd850d993b91e7d3b997c3e1733eeaadbb",
+      "bytes": 9093,
+      "sha256": "4f7e0b4ae6971ad16117810702cc2835f9e861a26c41040a13b9e0c3beedc664"
+    },
+    "cabal/test/GitAdapter.hs": {
+      "blob": "ab42a462eb5e40e8d16e519d7780f3415277158b",
+      "bytes": 9559,
+      "sha256": "6394c96c8af941d44599218a9caaec75d03ea99344a48052183616b287d9b4c2"
+    },
+    "cabal/test/Inspection.hs": {
+      "blob": "eeedf1066c02b71cc4a13d399024068dd194fb42",
+      "bytes": 35909,
+      "sha256": "8bb902033e65436fdbb4e2dcb4b11da451295a4e1c2236bb65c49bba398e920b"
+    },
+    "cabal/test/Output.hs": {
+      "blob": "1642cb436aea9ed4390b05abd8c370d5b715fea4",
+      "bytes": 4063,
+      "sha256": "49da4e94bb89a4675ba8fef82514b73d31e85a8bce7bd2ff8dc69f20dcc9aa90"
+    },
+    "cabal/test/Protection.hs": {
+      "blob": "ae962882f03a0b9a3ca99fc272004b0d0c7e677e",
+      "bytes": 7866,
+      "sha256": "913a6c26f5361289b27e715350c2724d44cb10063848016f274f9343276394b5"
+    },
+    "cabal/test/Protocol.hs": {
+      "blob": "198497127fd648de027b722e86900f7f911d7ef9",
+      "bytes": 20600,
+      "sha256": "16fbad567fa52a63aad7e371322400b274167a35aabef0b570658042bd1c5d36"
+    },
+    "cabal/test/TestSupport.hs": {
+      "blob": "64044f3ed99a5debc7c4fa6867b8dbf53c2c37ae",
+      "bytes": 1894,
+      "sha256": "9479ea635e6a09fb8ec9e125f92c84a675dc6c402661a62c6535b26b8ae78b28"
+    },
+    "cabal/test/Undeployment.hs": {
+      "blob": "ec21b11c98a29c3555581630585fccf723227c90",
+      "bytes": 12836,
+      "sha256": "e5d38731ee8e488c0533fc971f5a2408eaddce118bf2e62ffbe4880fd96d148e"
+    },
+    "cabal/test/Unit.hs": {
+      "blob": "3fde49686adbf6d554e08f1b5134c1dbd1f81865",
+      "bytes": 4796,
+      "sha256": "ac0e7ff17485e7394aeb95480c3628f106cc5e6bcf9deec3d7538cde2fa6c3a2"
+    },
+    "cabal/test/Worktree.hs": {
+      "blob": "f626d855e140fb750461789adb7062b2ea6915e2",
+      "bytes": 13871,
+      "sha256": "8cc255db1ee45082bbc2df77a5ed8e2dee7ac6c81987025d94909cd36cf57053"
+    },
+    "cabal/test/WorktreeFixture.hs": {
+      "blob": "e27e6024f54f02f443b5270740caa6e75f921995",
+      "bytes": 4498,
+      "sha256": "2ade6fa328a208d36d9ed0aea94cd6ab50f45382b2e801ee42f0e8744ac1a3cc"
+    },
+    "flake.lock": {
+      "blob": "45167feed68bcc08063021d0cb6f5deb60a0acb4",
+      "bytes": 3513,
+      "sha256": "f7186c6c0017307df43f9eac759612fbbe2a5bb7056f824aebed336ec3b89577"
+    },
+    "flake.nix": {
+      "blob": "0bfa3c78675baabcdea02b3c396446ee49945de5",
+      "bytes": 1797,
+      "sha256": "c8177af58e11dbcc2ca806ee21606ed3ae281e39421e65844e113fc776f7f380"
+    },
+    "pkgs/default.nix": {
+      "blob": "3bde075235098f5367d9d0dbed2ab1f02360f3c8",
+      "bytes": 239,
+      "sha256": "ef01650d8ea7d582c018a6dcea1d6529c39f527b5c399dba62f6d90777034576"
+    },
+    "pkgs/git-roam/overlay.nix": {
+      "blob": "0769c0c0609b9f3606ace3d17ee2056e9e53b2cb",
+      "bytes": 170,
+      "sha256": "71724517ff7903e72092b78161cf560c19cbf63923c0e14475aeee139fec372f"
+    },
+    "pkgs/git-roam/package.nix": {
+      "blob": "03aeabf697a59d6af2ddafbbc6e9d2a8a35d4112",
+      "bytes": 368,
+      "sha256": "32849f6ad03a9a0d256c0e48b0f253b4bfc11fa3d1bed4003d80352b94af7f25"
+    }
+  },
+  "legacy_control": {
+    "path": "cabal/src/GitRoam/Application/Delete.hs",
+    "old": "    fromOthers <-\n        either\n            (throwE . show)\n            pure\n            (reachableHistoryFrom history (Map.elems candidateRefs))",
+    "replacement": "    fromOthers <- fmap Set.unions $ mapM (either (throwE . show) pure . reachableHistory history) (Map.elems candidateRefs)",
+    "sha256": "300eb377139c527f233514be692fa7d7d38ef7bb3d1b12d6dba15c8c34ad6fcc",
+    "meaning": "Only Delete.collect remaining-tip walk reverted; not an old released binary"
+  }
+}
