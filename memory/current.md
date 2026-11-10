@@ -2,9 +2,58 @@
 
 ## Objective and production baseline
 
+Current post-v0.2.0 task: implement top-level --deploy-path as the first Added
+item in the user's existing TODO *unreleased* entry, and update README. Preserve
+that human-created heading and the v0.2.0 release history. The adopted public
+contract is prefix-only, absolute path, no repetition, and mutual exclusion
+with subcommand --path even for equal values. node create/deploy require one
+path source; their local --path keeps invocation-relative behavior. Other
+public commands/help/version accept the prefix without filesystem inspection.
+No deployment environment variable, remembered root or history protocol change.
+
+The user clarified that --deploy-path must not affect --reference-transaction.
+Internal Hook dispatch is therefore independent of public path validation:
+wrapper-supplied prefix pairs are ignored before entering the unchanged Hook,
+without validating their values. Hook configuration, stdin, phases and safety
+checks are unchanged; no bypass is authorized. This lets a PATH wrapper prepend
+the option for all invocations without making protection depend on a directory.
+
+Implementation and documentation are complete and verified, awaiting the user's
+project staging/commit. Six project files are modified: CHANGELOG.org, README.org,
+Cli.hs, Unit.hs, EndToEnd.hs and git-roam.cabal. The first Added entry describes
+the option; README supplies wrapper examples and the Hook boundary. The package
+remains 0.2.0; this unreleased feature is not in the v0.2.0 tag.
+
+Six new unit groups and four end-to-end wrapper groups cover SHA-1/SHA-256 with
+files/reftable. Real PATH wrappers exercise native valid Content commits and
+invalid updates through the installed Hook. Direct Hook tests use relative
+unused deployment values: those values do not replace transaction validation.
+Other public commands accept unused absolute paths without filesystem checks.
+
+The first build compiled production code but exposed a missing explicit filepath
+dependency in the unit-tests component; it was added and the clean source snapshot
+refreshed. The second fresh build passed all 14 suites / 270 test groups with
+-Wall -Werror. Product derivation:
+/nix/store/gajlshxxzhi00qiwn4xaqgfjd5jw72sl-git-roam-0.2.0.drv.
+The authorized build used a 300s timeout and command-local max-jobs=1/cores=1;
+there was no timeout. The final 120s flake check reused that product and freshly
+checked formatting (52 traversed, 50 eligible, zero changes). Only x86_64-linux
+was tested; aarch64-linux and aarch64-darwin were omitted, not verified.
+
+Temporary source identity and logs are in tmp/top-level-deploy-path/. All 52
+manifest files match the tested working-tree snapshot. The frozen v0.2.0 changelog,
+detailed notes and README Deferred candidates are unchanged. No separate archive
+is needed for these routine feature checks. Existing baseline ancestry already
+supplies project context; the feature is uncommitted and has no project-parent
+commit to associate yet. Next: user review/staging/commit, then compare that commit
+with the verified snapshot before updating its association. Do not rerun unchanged
+tests just to obtain that association. Do not modify the release tag or initiate
+platform verification, which the user excluded from release handoff.
+
 v0.2.0 is locally finalized and tagged. The user committed
 build(v0.2.0): finalize release metadata as 3e6e283, after the release-guide commit
-3b6d0b2. Project worktree and index are clean. The committed Cabal version and
+3b6d0b2. The project was clean at that release handoff; current feature edits
+are described above. The committed Cabal version and
 both version-test expectations are 0.2.0; README and detailed notes contain
 version prose without temporary draft/old-package claims. The user changed
 CHANGELOG.org to DONE v0.2.0 with CLOSED [2026-11-10 Tue 15:29] (UTC) and matching
@@ -41,7 +90,7 @@ Historical v0.1.0 notes and the explicit manual migration boundary remain intact
 
 The v0.2.0 tag's CHANGELOGS/v0.2.0.org is the authoritative Release Notes
 manuscript for any later publication tooling. The requested local release/tag
-and memory handoff is complete; await the next user objective. Do not initiate
+and memory handoff is complete; the post-release objective is recorded above. Do not initiate
 platform verification or publication as an automatic next step. Do not re-run
 A/B, restore draft wording,
 repeat completed tests/experiments or add deferred features without a new task.

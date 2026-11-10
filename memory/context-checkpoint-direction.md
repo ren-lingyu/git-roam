@@ -106,6 +106,17 @@ multi-parent histories remain refused.
 
 ## Production interfaces and execution
 
+Post-v0.2.0 unreleased addition (implemented and tested, not yet committed): a
+prefix-only `--deploy-path ABSOLUTE` supplies the root for node create/deploy.
+It is mutually exclusive with their local --path, even for identical values.
+Local --path keeps its invocation-relative semantics. Other public commands
+accept the prefix without using the directory; public syntax still requires an
+absolute path. Internal reference-transaction dispatch ignores leading prefix
+pairs without validating their values so wrappers cannot make Hook protection
+depend on deployment-path validation. Hook configuration, input and validation
+remain unchanged. No environment default or persistent deployment root is added.
+See current.md for verification and commit status.
+
 `checkpoint [--node UUID] (-m TEXT | -F FILE)` requires at least one repeatable
 `--context REVISION`. It accepts refs and unambiguous commit OIDs, including
 abbreviations, not arbitrary history/path revision expressions. It rejects
