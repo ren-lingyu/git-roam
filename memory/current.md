@@ -7,12 +7,20 @@ reachability/inference regression review is also complete. Continue stage C
 acceptance, documentation and release preparation;
 do not repeat stages A/B or add parallel V2 lifecycle modules.
 
-This snapshot reconstructs the completed post-cutover follow-up from the supplied
-2026-11-10 C handoff and read-only inspection of the exact historical project
-commit associated with this checkpoint. It is created now, not backdated. The
-six isolated preparation commits were already represented in inherited GAW
-memory; the handoff supports treating the production cutover as one recoverable
-state, not inventing intermediate AB-1/2/3 checkpoints or unbuildable renames.
+The supplied root file git-roam-v0.2.0-handoff-C-2026-11-10.md was reviewed
+against local project history and the current index on 2026-11-10. Main HEAD is
+the inspected post-cutover follow-up, `d8503af`, immediately after the atomic
+production cutover. The project associations in inherited GAW history ground
+those inspected source states; the uncommitted document draft has no project
+commit association. The original handoff is input evidence, not an instruction
+source that overrides current repository facts or the user's authorization.
+
+The reconstruction horizon is accounted for: the six isolated preparations and
+older release/design history were already represented; the merged AB-1/2/3
+cutover and the later AB-4 follow-up each support a distinct recoverable state;
+the current C draft is observed as uncommitted work. No supplied evidence
+establishes separately committed AB-1/2/3 intermediate states or newly executed
+checks, so none is invented. Recovery checkpoints are created now, not backdated.
 
 `feat(protocol): switch production to the v0.2.0 context model` replaced the
 formal Protocol.History/Repository and all production consumers together. CLI,
@@ -94,27 +102,77 @@ Canonical UUID parser positive/negative coverage omitted in the cutover is resto
 
 The handoff reports successful user flake checks for this follow-up, not a new
 agent test run. The earlier atomic-cutover implementation is inherited context;
-the associated project snapshot is the exact follow-up source inspected here.
+the exact follow-up source inspection is grounded in inherited project history.
 
-## Stage C and release boundary
+## Current stage C document state
 
-At this implementation boundary Cabal still declares 0.1.0 and committed README
-and CHANGELOG still describe pre-cutover production. Stage C must align them
-with actual context semantics, audit coverage through the real CLI and Hook,
-and complete release preparation. Implemented protocol is not published release.
+The project source and tests match main HEAD; only these three documents are
+staged, with no unstaged changes to them:
 
-1. Map existing tests to context kinds/order, anchoring after external rewrite or
-   deletion, Root conflicts, native rewrites, conditional/multi-ref protection,
-   deletion safety and worktree failure behavior. Fill verified gaps only.
-2. Align README, help, CHANGELOG and detailed v0.2.0 notes; preserve historical
-   v0.1.0 notes. Separate committed source from any later staged document draft.
-3. Coordinate the human-owned TODO/NEXT/DONE lifecycle and package version,
-   verify authorized final source/checks, and distinguish tag creation from
-   GitHub publication. Do not fabricate release times, migration or compatibility.
+- README.org: context-based user guide, explicit --context examples, main/linked
+  inference, ordinary rewrites, non-cascading deletion and safety boundaries.
+- CHANGELOG.org: user-visible Removed/Changed/Added summary under NEXT v0.2.0.
+- CHANGELOGS/v0.2.0.org: newly staged draft detailed release notes, not present
+  in main HEAD.
 
-Deployment acceleration, naming/layout or .roam deployment metadata, environment
-path defaults, cross-Node batch tools and Org-link automation are separate future
-work. They are not reasons to expand this protocol cutover or stage C.
+Committed README and CHANGELOG still describe pre-cutover behavior. The staged
+manuscripts are not committed release facts. The current index has NEXT,
+CUSTOM_ID: v0.2.0 and text stating version/scope are frozen but not finalized,
+tagged or published. The handoff's older warning about missing CUSTOM_ID and
+contradictory 'not frozen' text is superseded by this directly observed, internally
+consistent draft. Do not reintroduce that stale blocker or change the human's
+version state. Staged diff --check passed; no formatter/build or acceptance run
+was executed in this memory task. Newly staged notes are tracked by the index,
+so the handoff's untracked-source warning is no longer their present status.
+
+The draft already corrects migration example redirection, a local clone example
+that unnecessarily depended on push, and the claim that EndToEnd replays every
+walkthrough step. Keep those corrections; do not gratuitously rewrite the notes.
+
+Cabal still says version 0.1.0, and BuildInfo derives --version from Cabal. The
+staged README explicitly explains that transitional metadata; it is not an
+in-place migration mechanism. Package version and corresponding output need
+release-time coordination. There is no local v0.2.0 tag observed and no verified
+v0.2.0 GitHub publication evidence in this review.
+
+## Stage C next actions and acceptance limits
+
+The current request is memory recovery only. Future product work starts at C,
+not A/B, and requires its applicable user scope. First map existing tests to
+these obligations, then fill actual gaps; 14 declared suites and user-reported
+flake success do not establish that every failure matrix has been exercised.
+
+| Area | Evidence to map or complete |
+| --- | --- |
+| Context DAG | External Root/Content/Checkpoint, order, duplicate/self rejection, repeated-external-Node warning, same-tree direct Root Checkpoint. |
+| Historical anchoring | Context after external advance/rewrite/branch deletion, no propagation or requirement to create an external Checkpoint. |
+| Identity/objects | UUID and Root conflicts, marker/tree shape, missing/wrong-type objects, shallow history, raw replace/graft boundaries. |
+| Native updates | Content/amend/same-Root rewrite, invalid multi-parent updates, Root change and uncontrolled UUID ref creation/deletion. |
+| Transactions | Whole prepared candidate, expected-old races, other Hooks, operation locks/config, failure residuals. |
+| Delete | Non-cascading context retention, managed-ref exclusive reachability, main/linked checkout refusal, stale token and exact config cleanup. |
+| Worktrees | Dirty index/untracked/ignored data, nesting/move/locks, main preservation, remote ambiguity and conservative compensation. |
+| Matrix | SHA-1/SHA-256, files/reftable and relevant main/linked/bare cases; name actually exercised Git/platform versions. |
+
+Then align help, README, root CHANGELOG and detailed notes to actual code;
+confirm intended version, authorized checks and source inclusion. Only the human
+performs project staging/commits, existing release-state transitions and UTC
+CLOSED review, tags and publication. A tag must identify the intended finalized
+source/notes, and GitHub publication is a separate observable event. Preserve
+v0.1.0 notes and code rather than reinterpreting their formal dependencies.
+
+Local v0.1.0 annotated-tag dereference was confirmed as the historical finalized
+commit. The handoff reports an existing v0.1.0 GitHub Release published at
+2026-11-08T09:59:33Z and supplies its public release URL; the public API read in
+this consolidation was unavailable, so that timestamp remains attributed to
+the handoff, not new independent publication verification. No release operation
+was performed. Do not confuse absent fresh verification with proof of absence.
+
+Deployment acceleration, alternative naming/layout or .roam deployment metadata
+(v0.3.0 or later candidate), environment deployment-path defaults, cross-Node
+batch tooling, Org-link automation, automatic v0.1.0 migration and permanent
+context-retention policy are outside this release task. Existing create/deploy
+still explicitly require --path. No new benchmark or platform guarantee follows
+from the ancestry optimization or earlier v0.1.0 experiments.
 
 ## Navigation and retained history
 

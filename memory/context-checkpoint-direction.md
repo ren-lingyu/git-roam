@@ -5,9 +5,10 @@
 The context protocol is now the sole production protocol. The atomic cutover
 replaced formal Protocol.History/Repository, CLI and installed Hook together,
 adapted all lifecycle consumers and removed temporary V2 modules, tests and
-aliases. Stage C acceptance/documentation/release preparation remains; this is
-not evidence of a released v0.2.0. See [current.md](current.md) for the recoverable
-state and verification limits.
+aliases. Stage C acceptance/documentation/release preparation remains. The current
+three-document draft is staged, not part of main; consult current.md for its
+release-state observations. This is not evidence of a released v0.2.0.
+[current.md](current.md) gives the recoverable state and verification limits.
 
 v0.1.0's complete exact-version knowledge-dependency DAG was an internally
 coherent implementation worth preserving as a historical release. The successor
@@ -155,7 +156,8 @@ for the current next action, source provenance and evidence distinctions.
 Keep v0.1.0 tags and notes about formal dependencies historically accurate.
 Do not promise automatic migration, dual-protocol compatibility, cold-cache
 performance, untested platforms or full minimum-Git compatibility.
-Deployment acceleration, alternative naming/layout or .roam deployment paths,
-environment path defaults, cross-Node batch tools and automatic Org-link context
-selection remain later work, not v0.2.0 prerequisites. The eight-character UUID
+Deployment acceleration, alternative naming/layout, .roam deployment paths
+(a candidate for v0.3.0 or later), environment path defaults, cross-Node batch
+tools and automatic Org-link context selection remain later work, not v0.2.0
+prerequisites. The eight-character UUID
 SHA-256/Base32 deployment short name remains derived, not identity metadata.
