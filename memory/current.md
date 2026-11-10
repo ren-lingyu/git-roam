@@ -2,7 +2,7 @@
 
 ## Objective and production baseline
 
-Current post-v0.2.0 task: implement top-level --deploy-path as the first Added
+Completed post-v0.2.0 task: implement top-level --deploy-path as the first Added
 item in the user's existing TODO *unreleased* entry, and update README. Preserve
 that human-created heading and the v0.2.0 release history. The adopted public
 contract is prefix-only, absolute path, no repetition, and mutual exclusion
@@ -18,8 +18,9 @@ without validating their values. Hook configuration, stdin, phases and safety
 checks are unchanged; no bypass is authorized. This lets a PATH wrapper prepend
 the option for all invocations without making protection depend on a directory.
 
-Implementation and documentation are complete and verified, awaiting the user's
-project staging/commit. Six project files are modified: CHANGELOG.org, README.org,
+Implementation and documentation are complete, verified and committed by the
+user as feat(cli): add top-level deployment path option. The project worktree
+and index are clean. The commit contains six files: CHANGELOG.org, README.org,
 Cli.hs, Unit.hs, EndToEnd.hs and git-roam.cabal. The first Added entry describes
 the option; README supplies wrapper examples and the Hook boundary. The package
 remains 0.2.0; this unreleased feature is not in the v0.2.0 tag.
@@ -40,20 +41,25 @@ there was no timeout. The final 120s flake check reused that product and freshly
 checked formatting (52 traversed, 50 eligible, zero changes). Only x86_64-linux
 was tested; aarch64-linux and aarch64-darwin were omitted, not verified.
 
-Temporary source identity and logs are in tmp/top-level-deploy-path/. All 52
-manifest files match the tested working-tree snapshot. The frozen v0.2.0 changelog,
-detailed notes and README Deferred candidates are unchanged. No separate archive
-is needed for these routine feature checks. Existing baseline ancestry already
-supplies project context; the feature is uncommitted and has no project-parent
-commit to associate yet. Next: user review/staging/commit, then compare that commit
-with the verified snapshot before updating its association. Do not rerun unchanged
-tests just to obtain that association. Do not modify the release tag or initiate
-platform verification, which the user excluded from release handoff.
+Temporary source identity and logs are in tmp/top-level-deploy-path/. After the
+user's commit, all 52 committed files were compared by SHA-256 with the verified
+manifest and matched exactly. This associates the recorded 14-suite / 270-group
+build and flake-check evidence with the committed feature without rerunning
+unchanged tests. The feature commit adds only the six previously reviewed files
+on top of the finalized release; its ancestor history is already retained as
+baseline context. The new project-parent association grounds the completed
+feature handoff in that exact source, rather than merely following main HEAD.
+The frozen v0.2.0 changelog, detailed notes and README Deferred candidates are
+unchanged. No separate archive is needed for routine feature checks.
+
+This feature task is complete; await the next user objective. No version bump,
+release-state transition or new tag is implied. Do not repeat completed tests,
+modify the v0.2.0 release tag or initiate platform-publication verification.
 
 v0.2.0 is locally finalized and tagged. The user committed
 build(v0.2.0): finalize release metadata as 3e6e283, after the release-guide commit
-3b6d0b2. The project was clean at that release handoff; current feature edits
-are described above. The committed Cabal version and
+3b6d0b2. The project was clean at that release handoff; the subsequently committed feature
+is described above. The committed Cabal version and
 both version-test expectations are 0.2.0; README and detailed notes contain
 version prose without temporary draft/old-package claims. The user changed
 CHANGELOG.org to DONE v0.2.0 with CLOSED [2026-11-10 Tue 15:29] (UTC) and matching

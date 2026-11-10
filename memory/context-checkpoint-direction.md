@@ -106,7 +106,7 @@ multi-parent histories remain refused.
 
 ## Production interfaces and execution
 
-Post-v0.2.0 unreleased addition (implemented and tested, not yet committed): a
+Post-v0.2.0 unreleased addition (implemented, tested and committed): a
 prefix-only `--deploy-path ABSOLUTE` supplies the root for node create/deploy.
 It is mutually exclusive with their local --path, even for identical values.
 Local --path keeps its invocation-relative semantics. Other public commands
