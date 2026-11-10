@@ -4,15 +4,14 @@
 #+startup: logdone
 #+property: TIMEZONE UTC
 
-* NEXT v0.2.0
+* DONE v0.2.0
+CLOSED: [2026-11-10 Tue 15:29]
 :PROPERTIES:
 :CUSTOM_ID: v0.2.0
 :END:
-Development entry for the incompatible Checkpoint context protocol. The
-production CLI and Hook have switched to this model. The version and scope
-have been frozen for release preparation, but v0.2.0 has not yet been
-finalized, tagged or published. See
-[[file:CHANGELOGS/v0.2.0.org][Draft detailed release notes]].
+This version introduces the incompatible Checkpoint context protocol in the
+CLI and repository Hook. See
+[[file:CHANGELOGS/v0.2.0.org][Detailed release notes]].
 
 ** Removed
 - *Breaking:* Retire =git roam discard= and its formal successor/dependency-closure workflow. Use ordinary Git to revise valid same-Root history; delete Node branches explicitly with =node delete= when appropriate.

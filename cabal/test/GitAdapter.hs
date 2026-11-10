@@ -83,7 +83,7 @@ cliTest = do
                 makeAbsolute
     (code, output, errors) <- readProcessWithExitCode candidate ["--version"] ""
     assertEqual ExitSuccess code
-    assertEqual "git-roam 0.1.0\n" output
+    assertEqual "git-roam 0.2.0\n" output
     assertEqual "" errors
     (helpCode, helpOutput, helpErrors) <- readProcessWithExitCode candidate ["help", "version"] ""
     assertEqual ExitSuccess helpCode

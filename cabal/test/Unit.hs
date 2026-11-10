@@ -29,7 +29,7 @@ main =
         ,
             ( "version entry points agree"
             , mapM_
-                (\args -> runCli args >>= assertEqual (CliResponse ExitSuccess "git-roam 0.1.0\n" ""))
+                (\args -> runCli args >>= assertEqual (CliResponse ExitSuccess "git-roam 0.2.0\n" ""))
                 [["version"], ["--version"]]
             )
         ,

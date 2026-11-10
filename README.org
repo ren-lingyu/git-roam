@@ -2,12 +2,12 @@
 #+author: Lingyu Ren
 
 * Version status
-The tagged v0.1.0 release implements formal Checkpoint dependencies. The current =main= development tree implements the incompatible v0.2.0 context protocol, including its public commands and reference-transaction Hook. v0.2.0 has not been finalized or tagged; the Cabal package version remains 0.1.0 until release preparation is completed. See [[file:CHANGELOG.org][Changelog]] and the [[file:CHANGELOGS/v0.2.0.org][draft v0.2.0 release notes]] for the changes.
+Git-roam v0.2.0 implements the Checkpoint context protocol, including its public commands and reference-transaction Hook. This protocol is incompatible with v0.1.0 formal Checkpoint dependencies. See [[file:CHANGELOG.org][Changelog]] and the [[file:CHANGELOGS/v0.2.0.org][v0.2.0 release notes]] for the changes.
 
 Git-roam represents independently versioned, UUID-identified Nodes in standard Git repositories. A Node's first-parent history contains its Root, ordinary Content commits and optional Checkpoints. A Checkpoint fixes an explicitly selected historical context from other Nodes. It is not a complete knowledge dependency declaration and does not cause other Node branches to advance. Native Git transports and retains reachable history; Git-roam does not infer knowledge relationships from Org links.
 
 * History context and compatibility
-The v0.1.0 protocol represented complete exact-version dependencies with a special two-commit Checkpoint encoding and required the retention of formal history. The current development implementation replaces that model with ordinary Git ancestry and an explicit, caller-selected context.
+The v0.1.0 protocol represented complete exact-version dependencies with a special two-commit Checkpoint encoding and required the retention of formal history. v0.2.0 replaces that model with ordinary Git ancestry and an explicit, caller-selected context.
 
 Each Node has a unique Root identity and its own first-parent history. Content has one same-Node parent. A Checkpoint has the immediately preceding same-Node commit as first parent and one or more context commits from other Nodes as additional parents; its tree equals the first parent's tree. Contexts can be Root, Content or Checkpoint commits, need not be current Node tips, and need not remain in their source Node's current branch history. The ordered context list is recorded in the commit's parents. No context is inherited by the next Checkpoint, no synthetic Content is made, and no empty-context Checkpoint is needed: ordinary Content commits require no additional context.
 
@@ -305,7 +305,7 @@ The confirmation plan binds managed refs, the exclusive commit set, registered w
 Objects, tags and remote-tracking refs are not erased. A fetched remote candidate may later recreate a locally deleted Node. No object-erasure, force-cleaning, cascade or unconditional recovery guarantee is provided.
 
 * v0.1.0 protocol migration boundary
-The v0.1.0 =discard= workflow, formal dependency closure, and retention of all preceding Checkpoints do not exist in the current protocol. The =CHANGELOGS/v0.1.0.org= document describes the tagged historical behavior; it is not documentation for the current development CLI. There is no automatic conversion of v0.1.0 commit graphs to the new context encoding. Do not use the current protected operations as a migration procedure for old histories. Preserve the historical release or manually rebuild compatible Node histories after deciding what history to retain.
+The v0.1.0 =discard= workflow, formal dependency closure, and retention of all preceding Checkpoints do not exist in the current protocol. The =CHANGELOGS/v0.1.0.org= document describes the tagged historical behavior; it is not documentation for the v0.2.0 CLI. There is no automatic conversion of v0.1.0 commit graphs to the new context encoding. Do not use the current protected operations as a migration procedure for old histories. Preserve the historical release or manually rebuild compatible Node histories after deciding what history to retain.
 
 * Full undeployment
 #+begin_src sh

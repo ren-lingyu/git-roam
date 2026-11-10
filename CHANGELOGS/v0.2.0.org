@@ -1,7 +1,7 @@
 #+title: v0.2.0 Release Notes
 
 * Overview
-This document describes the v0.2.0 implementation in the current development tree. It is a pre-release manuscript: the version has not yet been finalized, tagged or published. The v0.2.0 history protocol is incompatible with the v0.1.0 formal Checkpoint dependency model.
+Git-roam v0.2.0 introduces the Checkpoint context protocol. Its history encoding and public CLI are incompatible with the v0.1.0 formal Checkpoint dependency model.
 
 The main change is the meaning of a Checkpoint. A Checkpoint now records explicit historical context selected by its caller as ordered extra Git parents. That context is not claimed to be a complete knowledge dependency set and does not require other Nodes to create or retain Checkpoints.
 
