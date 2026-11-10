@@ -2,57 +2,27 @@
 #+author: Lingyu Ren
 
 * Version status
-Version v0.1.0 has been finalized and tagged. Its [[file:CHANGELOG.org][Changelog]]
-summary and [[file:CHANGELOGS/v0.1.0.org][release notes]] describe the
-implemented protocol. The commands and technical behavior documented below
-refer to the v0.1.0 protocol, except that the obsolete =discard= command has
-been retired on the development branch ahead of the v0.2.0 cutover.
+The tagged v0.1.0 release implements formal Checkpoint dependencies. The current =main= development tree implements the incompatible v0.2.0 context protocol, including its public commands and reference-transaction Hook. v0.2.0 has not been finalized or tagged; the Cabal package version remains 0.1.0 until release preparation is completed. See [[file:CHANGELOG.org][Changelog]] and the [[file:CHANGELOGS/v0.2.0.org][draft v0.2.0 release notes]] for the changes.
 
-Git-roam represents independently versioned, UUID-identified Nodes in standard
-Git repositories. In v0.1.0, Content commits preserve ordinary editing history,
-while formal Checkpoints declare complete, exact-version knowledge dependencies.
-Node branches persist independently of their optional linked worktrees. Native
-Git transports history; Git-roam does not infer knowledge relationships.
+Git-roam represents independently versioned, UUID-identified Nodes in standard Git repositories. A Node's first-parent history contains its Root, ordinary Content commits and optional Checkpoints. A Checkpoint fixes an explicitly selected historical context from other Nodes. It is not a complete knowledge dependency declaration and does not cause other Node branches to advance. Native Git transports and retains reachable history; Git-roam does not infer knowledge relationships from Org links.
 
-* Planned v0.2.0 protocol direction
-The v0.1.0 model encodes formal knowledge dependencies in Git commit ancestry.
-Although it provides exact version relationships, its requirement to retain
-formal Checkpoints and maintain dependency closure imposes coordination between
-Nodes. The planned revision narrows the meaning of a Checkpoint: it fixes a
-historical context selected by the caller, without claiming that context is a
-complete or continuously maintained set of knowledge dependencies.
+* History context and compatibility
+The v0.1.0 protocol represented complete exact-version dependencies with a special two-commit Checkpoint encoding and required the retention of formal history. The current development implementation replaces that model with ordinary Git ancestry and an explicit, caller-selected context.
 
-The proposed encoding gives each Node an independent first-parent history.
-Ordinary Content commits have one same-Node parent. A Checkpoint continues that
-history with its immediate same-Node predecessor as first parent and selected
-external Node commits as additional parents; its tree is unchanged from the
-first parent's tree. External references may identify ordinary Content commits,
-not just formal Checkpoints. This eliminates the v0.1.0 special two-commit
-Checkpoint construction.
+Each Node has a unique Root identity and its own first-parent history. Content has one same-Node parent. A Checkpoint has the immediately preceding same-Node commit as first parent and one or more context commits from other Nodes as additional parents; its tree equals the first parent's tree. Contexts can be Root, Content or Checkpoint commits, need not be current Node tips, and need not remain in their source Node's current branch history. The ordered context list is recorded in the commit's parents. No context is inherited by the next Checkpoint, no synthetic Content is made, and no empty-context Checkpoint is needed: ordinary Content commits require no additional context.
 
-Creating a Checkpoint would modify only its own Node branch. Other Nodes need
-not create Checkpoints, update their branches, or react to later changes in the
-selected context. Existing Checkpoints would receive no special protection
-against ordinary Git history rewriting; object retention follows Git's normal
-reference-reachability rules. The caller may choose a sparse context or
-explicitly select many current Node tips, including a dense policy derived from
-Org links. Git-roam itself would not interpret or maintain those links.
+This is a breaking on-disk protocol and CLI change, not an in-place extension of v0.1.0. The old =--depend=, =--drop-dependency= and =--clear-dependencies= options and the specialized =discard= command are gone. No automatic v0.1.0 history migration or mixed-protocol compatibility is provided. Preserve or inspect old repositories with an appropriate historical version rather than invoking the new commands on them.
 
-This is a design direction, not the currently implemented interface. It requires
-new protocol validation, operation semantics, tests, and documentation. It may
-be incompatible with v0.1.0 histories; automatic migration and compatibility
-support are not promised. The development checklist is in
-[[file:CHANGELOG.org][CHANGELOG.org]] under =TODO v0.2.0=.
+Context parents are Git ancestry edges, so normal Git reachability makes the selected objects reachable while the recording Checkpoint remains reachable. They are not kept alive by an additional dependency-retention policy. Caller workflows may select sparse or dense contexts, including versions chosen from Org links, but Git-roam itself neither interprets those links nor maintains an evolving knowledge dependency graph.
 
 * Deferred candidates
-The following improvements are not part of v0.1.0 and have not been assigned
-to v0.2.0. They remain candidates rather than committed features.
+The following are separate improvements, not features committed for v0.2.0.
 
 ** Accelerate full deployment of many Nodes
-The existing =git roam deploy= command already processes the complete Node set in one invocation and creates missing local branches together. Deployment still creates linked worktrees through Git's native worktree operations. Improving full-deployment performance for large Node sets remains a separate candidate. No accelerated implementation or performance guarantee is included in v0.1.0.
+=git roam deploy= already handles the complete Node set in one invocation, but linked worktrees are still created using Git's native worktree operations. Further deployment acceleration has not been implemented or guaranteed.
 
 ** Selectable deployment directory naming
-The current deployment path uses a fixed eight-character name derived from the Node UUID. Allowing alternative directory naming strategies is a separate candidate; v0.1.0 provides no such selection option.
+The current deployment path uses an eight-character name derived from the Node UUID. Other directory naming or layout strategies have not been implemented.
 
 * Build and check
 The Nix flake provides the executable and runs the Cabal test suites and formatting checks.
@@ -86,69 +56,50 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam node create --path /path/to/worktrees --format json
   git roam node create --path /path/to/worktrees --format cbor > creation.cbor
   git roam node delete --node <uuid> --dry-run
-  git roam checkpoint -m 'Confirm this knowledge version'
+  git roam checkpoint -m 'Record B0 context' --context <B0>
   git roam deploy --path /path/to/worktrees
   git roam undeploy
 #+end_src
 
 Help and version queries do not require a Git repository. Successful queries write to standard output and exit with status 0. Invalid commands, help topics, or arguments write a diagnostic to standard error and exit with status 2.
 
-The optional =--id= on =node create= accepts a canonical lowercase UUIDv4,
-Nil UUID (=00000000-0000-0000-0000-000000000000=), or Max UUID
-(=ffffffff-ffff-ffff-ffff-ffffffffffff=). Without it Git-roam generates
-a fresh UUIDv4, never either extreme. Successful creation prints the
-=node= identity, =root= OID, =worktree= path, and =bundle= path (the UUID
-subdirectory inside that worktree). By default (=--format text=), paths use the existing Haskell-escaped quoted
-output format. =node create= also supports =--format json= and =--format cbor=.
-The option is specific to Node creation for now; other commands retain their
-existing outputs. Formatting does not change creation semantics or exit codes.
+The optional =--id= on =node create= accepts a canonical lowercase UUIDv4, Nil UUID (=00000000-0000-0000-0000-000000000000=), or Max UUID (=ffffffff-ffff-ffff-ffff-ffffffffffff=). Without it Git-roam generates a fresh UUIDv4, never either extreme. Successful creation prints the =node= identity, =root= OID, =worktree= path, and =bundle= path (the UUID subdirectory inside that worktree). By default (=--format text=), paths use the existing Haskell-escaped quoted output format. =node create= also supports =--format json= and =--format cbor=. The option is specific to Node creation for now; other commands retain their existing outputs. Formatting does not change creation semantics or exit codes.
 
-The structured outputs use a four-field top-level map: =node= (canonical UUID),
-=root= (lowercase hexadecimal Git object ID), =worktree= (linked worktree root),
-and =bundle= (its UUID subdirectory). The JSON value is a UTF-8 object, followed
-by one LF. Its path fields are objects of the form:
+The structured outputs use a four-field top-level map: =node= (canonical UUID), =root= (lowercase hexadecimal Git object ID), =worktree= (linked worktree root), and =bundle= (its UUID subdirectory). The JSON value is a UTF-8 object, followed by one LF. Its path fields are objects of the form:
 
 #+begin_src json
   {"utf8": "/path/to/worktree", "base64": "L3BhdGgvdG8vd29ya3RyZWU="}
 #+end_src
 
-=base64= is the standard padded Base64 encoding of the exact filesystem bytes;
-it is authoritative. =utf8= is the decoded path for valid UTF-8, otherwise
-=null=. Do not infer path bytes by re-encoding the human-readable field. CBOR
-(RFC 8949) emits one complete map without a trailing newline: =node= and =root=
-are CBOR text strings, while =worktree= and =bundle= are CBOR byte strings
-containing the same original filesystem bytes. No custom CBOR tags are used.
+=base64= is the standard padded Base64 encoding of the exact filesystem bytes; it is authoritative. =utf8= is the decoded path for valid UTF-8, otherwise =null=. Do not infer path bytes by re-encoding the human-readable field. CBOR (RFC 8949) emits one complete map without a trailing newline: =node= and =root= are CBOR text strings, while =worktree= and =bundle= are CBOR byte strings containing the same original filesystem bytes. No custom CBOR tags are used.
 
-On success stdout contains only the requested representation. Errors and
-warnings remain text on stderr with the existing exit statuses; a successful
-creation followed by an unexpected encoding failure reports that the Node was
-created and must be inspected before retrying.
+On success stdout contains only the requested representation. Errors and warnings remain text on stderr with the existing exit statuses; a successful creation followed by an unexpected encoding failure reports that the Node was created and must be inspected before retrying.
 
 * Read-only repository inspection
-=check= validates stored Node histories and the managed local branch dependency closure. =status= shows tip type, latest Checkpoint, unconfirmed Content, retained Checkpoint count, exact dependencies, and Git-recorded worktree paths. Dependencies displayed for a Content tip belong to its latest Checkpoint; Content itself has no formal dependency declaration. Main worktrees are distinguished from linked deployments, and detached worktrees are not Node deployments.
+=check= validates the complete Git ancestry of the selected managed local Node tips, including each context commit's own history and stored objects. It does not require an external context to remain in that external Node's current branch. =status= shows the current tip kind, latest first-parent Checkpoint, Content tail, Checkpoint count, the latest Checkpoint's direct context OIDs, and Git-recorded Node worktree locations. Direct contexts are not transitive knowledge dependencies; the latest Checkpoint's list is shown even when its Node has since acquired ordinary Content.
 
-Both commands accept =--node <uuid>=. Otherwise they infer a Node from the current Node worktree, or use repository scope. Node scope also checks the persistent branches required by that Node's retained history. Ordinary branches, tags, and remote-tracking refs do not count as managed Node branches. These commands work before protection has been enabled.
+Both commands accept =--node <uuid>=. Without it, the current worktree's symbolic =HEAD= selects a Node when it names a canonical local UUID branch, including in the main worktree. An ordinary branch, detached =HEAD=, or bare repository does not imply a Node, so inspection uses repository scope. Node scope validates the selected Node and its ancestors, not every unrelated local Node branch. These commands work before protection is enabled.
 
 #+begin_src sh
   git roam check --node 11111111-1111-4111-8111-111111111111
   git roam status --node 11111111-1111-4111-8111-111111111111
 #+end_src
 
-Inspection does not fetch or modify refs, index, worktrees or history. It reads stored parents without replace-object or graft interpretation and reports missing reachable objects or shallow history as incomplete evidence. It compares managed refs before and after inspection; a changed observation is reported separately from a confirmed protocol or closure violation. This comparison does not provide isolation from arbitrary concurrent Git writers.
+Inspection never fetches or modifies refs, index, worktrees or history. It validates stored parents without replacement or graft interpretation and reports missing objects, invalid histories and shallow history separately. Managed refs are observed before and after inspection, so races may be reported as changed observations without promising isolation from arbitrary Git writers.
 
-Exit status is 0 for a successful check or status, 1 for a protocol or managed-state violation, 2 for invalid arguments, and 3 for unavailable evidence, Git read failure or a changing observation. Diagnostics distinguish a missing dependency branch from a branch that does not retain the required Checkpoint. No repair or protection installation is performed.
+Exit status is 0 for success, 1 for invalid history or managed state, 2 for invalid command arguments, and 3 for unavailable evidence or Git read and observation failures. Inspection does not repair history or install protection.
 
 * Native Git and tests
 The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal builds use =git= from =PATH= unless =GIT_ROAM_GIT= selects another executable at compile time. The adapter retains ordinary Git configuration and passes arguments directly to the native process API.
 
 The test suites cover CLI behavior, SHA-1 and SHA-256 object IDs, native Git failures, binary input/output, argument boundaries, and repository discovery for ordinary, bare, and linked worktrees. Git integration tests use dedicated temporary repositories and isolated configuration.
 
-The end-to-end suite runs the public CLI through the tutorial lifecycle below on SHA-1/SHA-256 and files/reftable repositories. It checks exact historical dependencies, explicit push to a local bare remote, clone/fetch, missing tracking branches, safe and refused native fast-forwards, complete multi-ref updates, full deployment/removal, non-cascading deletion after removing the referencing Node. This is a local-repository test matrix, not a claim of all-platform or minimum-version compatibility.
+The end-to-end suite exercises representative public CLI workflows on SHA-1/SHA-256 and files/reftable repositories. It checks explicit context history, push to a local bare remote, clone/fetch, missing tracking branches, safe and refused native updates, full deployment/removal, and non-cascading deletion. These tests do not reproduce every step of the walkthrough below and do not establish all-platform or minimum-version compatibility.
 
 Cabal declares the CLI test dependency through =build-tool-depends=. The tests locate the resulting executable on =PATH=. The Nix package selects the GHC 9.12 package set, including its Cabal build driver. No test executable path is injected by Nix.
 
 * Multi-Node walkthrough
-Use an existing Git repository with an ordinary main branch and configured Git author/committer identity. Choose a deployment directory inside or outside the repository; it may already contain unrelated tracked or untracked files. Only each new Node worktree's derived child path must be free of filesystem and outer-index conflicts. Ignoring Node worktree paths is recommended to prevent accidental staging, but is not required. The following commands run inside that repository; replace =<A>= and =<B>= with the complete UUIDs printed by each creation command and use the reported worktree paths. Short directory names are deployment conveniences, never Node identifiers.
+Start from an existing Git repository with an ordinary main branch and a configured Git author/committer identity. Choose a deployment directory inside or outside the repository. The root may contain unrelated files, but new Node worktree targets must be free of filesystem and outer-index conflicts. Ignoring worktree paths is recommended, not required. Replace =<A>= and =<B>= below with the canonical UUIDs reported at creation and use the reported worktree paths.
 
 #+begin_src sh
   git roam enable
@@ -156,29 +107,31 @@ Use an existing Git repository with an ordinary main branch and configured Git a
   git roam node create --path /path/to/nodes
 #+end_src
 
-First edit B. The UUID directory and its =.roam= marker must remain present. Record Content with ordinary Git, then create B's first formal Checkpoint:
+First create ordinary Content in B. A context can reference this Content commit directly: B does not need to create a Checkpoint for the purpose.
 
 #+begin_src sh
   cd <B-worktree>/<B>
   printf '* B version zero\n' > note.org
   git add note.org
-  git commit -m 'Write a note'
-  git roam checkpoint -m 'Confirm B0'
+  git commit -m 'Write B0'
+  git rev-parse HEAD
 #+end_src
 
-Copy the printed =checkpoint= OID as =<B0>=. Write A and explicitly declare its dependency on that exact B version:
+Save the printed commit OID as =<B0>=. Next, record A's committed contents and select B0 as A's historical context:
 
 #+begin_src sh
   cd <A-worktree>/<A>
   printf '* A uses B0\n' > note.org
   git add note.org
-  git commit -m 'Write a note'
-  git roam checkpoint -m 'Confirm A0' --depend <B0>
+  git commit -m 'Write A0'
+  git roam checkpoint -m 'Record context for A0' --context <B0>
   git roam status
   git roam check
 #+end_src
 
-New B Content and Checkpoints do not move A's dependency: A still refers to B0 until an explicit new A Checkpoint replaces that declaration. Run the following from the ordinary main worktree to share existing history with a local second clone:
+A's new Checkpoint has its previous A commit as first parent and B0 as a context parent. Later B commits, whether Content or Checkpoint, do not alter this fixed parent OID. A future A Checkpoint requires its own explicit context selection; no inherited mapping is maintained.
+
+To inspect the same history in a second local clone, use the original repository as =/path/to/source=. No preceding push is required because Git can read its existing local UUID branches directly. Publishing these branches to a remote is a separate operation described in the synchronization section.
 
 #+begin_src sh
   git clone /path/to/source /path/to/second-clone
@@ -188,32 +141,24 @@ New B Content and Checkpoints do not move A's dependency: A still refers to B0 u
   git roam check
 #+end_src
 
-Clone obtains the existing objects and remote-tracking refs. Deploy validates the final Node set, creates missing local tracking branches together and checks out all Nodes. It does not create new knowledge versions. The synchronization section below describes subsequent updates.
+The clone obtains the available Git objects and remote-tracking refs. Deployment validates the candidate histories, creates missing local tracking branches together, and checks out the Nodes. It does not create Checkpoints.
 
-Under the v0.1.0 dependency-closure protocol still used by the current
-Checkpoint creator, deleting B is blocked while the retained A history refers
-to B. The development branch has retired the old specialized =discard= workflow.
-Instead, after undeployment, delete A first, then B, using separate reviewed
-confirmation plans; deleting A does not cascade into B.
-
-After reviewing the result, whole-set undeployment allows explicit Node deletion. From the main worktree:
+Unlike v0.1.0, a context from A pointing at B0 does not block deletion of B's local UUID branch. After safely undeploying linked worktrees, B can be deleted without deleting A. The B0 object remains Git-reachable through A as long as A's recording Checkpoint remains reachable. From the main worktree:
 
 #+begin_src sh
   git roam undeploy
-  git roam node delete --node <A> --dry-run
-  git roam node delete --node <A> --confirm <A-deletion-plan-id>
   git roam node delete --node <B> --dry-run
   git roam node delete --node <B> --confirm <B-deletion-plan-id>
   git roam check
   git roam disable
 #+end_src
 
-Each plan ID must come from its own immediately preceding preview; deleting A changes the repository state and invalidates older B plans. These destructive steps are optional. Keeping the branches and only undeploying is the normal way to stop editing. Remote-tracking refs remain after local deletion, so a later deploy can recreate fetched Nodes.
+Use the exact confirmation ID from the latest preview. These destructive steps are optional; retaining Node branches and only undeploying is the normal way to stop editing. Remote-tracking refs remain, so a later deploy may reestablish a locally deleted Node branch from fetched history.
 
 * Synchronize existing history with Git
-Git-roam does not provide =pull=, =push= or =adopt= commands. Use Git to transfer the canonical UUID branches explicitly. Pushing an ordinary main branch alone does not transfer all Node branches. For known Nodes A and B, use explicit refspecs such as =git push origin refs/heads/<A>:refs/heads/<A> refs/heads/<B>:refs/heads/<B>=, replacing each placeholder with its canonical UUID. Include all needed Node branches, review the destination and avoid force. Publishing is a separate user action.
+Git-roam does not provide =pull=, =push= or =adopt= commands. Transfer the canonical UUID branches with Git; pushing only =main= does not transfer them. For known Nodes A and B, explicitly review and push their refs, for example =git push origin refs/heads/<A>:refs/heads/<A> refs/heads/<B>:refs/heads/<B>=. Publishing is a separate user action.
 
-Fetch never automatically advances existing local Node branches, and deploy leaves those tips unchanged. When the candidate's dependencies are already retained locally, a clean deployed Node worktree can use:
+Fetch does not advance existing local Node branches, and =deploy= leaves their tips unchanged. A clean linked Node worktree may advance its branch with ordinary Git, for example:
 
 #+begin_src sh
   git fetch origin
@@ -222,32 +167,16 @@ Fetch never automatically advances existing local Node branches, and deploy leav
   git roam check
 #+end_src
 
-=git pull --ff-only= is another native option when tracking is configured. Avoid an unconstrained pull that could merge or rebase formal history. Git handles index and working-directory updates; the Git-roam Hook independently validates formal history and closure. Unsafe updates refuse without discarding local changes. Divergence requires a separate local history decision; no automatic merge/rebase is provided.
+=git pull --ff-only= is another native option when tracking is configured. Unlike v0.1.0, protocol validity does not require preserving earlier Checkpoints or coordinating other Node refs merely because they once supplied context. Ordinary Content edits, amendments, history rewrites and valid Git merges still need to preserve the Node's Root and obey the new commit/tree rules; an invalid ancestry or a changed Root is rejected by the Hook. A multi-parent commit is valid only as a Checkpoint with an unchanged first-parent tree and external-Node context parents; ordinary merges that violate these rules are refused.
 
-When several existing Node branches must advance together to satisfy closure, undeploy first and propose their complete updates in one native transaction. Resolve and review all old/local and new/fetched OIDs before running this template; every named branch must already exist:
-
-#+begin_src sh
-  git roam undeploy
-  git fetch origin
-  git update-ref --stdin <<EOF
-  start
-  update refs/heads/<A> <new-A-oid> <old-A-oid>
-  update refs/heads/<B> <new-B-oid> <old-B-oid>
-  prepare
-  commit
-  EOF
-  git roam check
-  git roam deploy --path /path/to/nodes
-#+end_src
-
-The Hook validates the whole candidate set and preserves all old formal Checkpoints; expected-old values reject stale updates. Do not bypass protection or use unconditional updates to resolve a refusal. Native transactions do not synchronize all worktree filesystems or freeze arbitrary concurrent readers/writers. A failed post-operation check requires inspection of actual refs, not an assumed rollback.
+Native multi-ref transactions remain available when an application needs several conditional ref updates together. They are not required merely to satisfy an inherited dependency closure, and they do not synchronize worktree filesystems. Divergent history requires an explicit decision: Git-roam does not perform an automatic merge, rebase, reset or recovery.
 
 * Verification and recovery limits
-The pinned build uses ordinary Git 2.56.0 with GHC 9.12.3 and Cabal 3.14.2.0. x86_64-linux is the verified execution platform. aarch64-linux and aarch64-darwin remain declared outputs, not tested compatibility claims. The enforced Git 2.54 floor is not a complete test result for that version; there is no fallback protection implementation for older Git.
+The pinned build uses ordinary Git 2.56.0 with GHC 9.12.3 and Cabal 3.14.2.0. x86_64-linux is the exercised execution platform. aarch64-linux and aarch64-darwin remain declared outputs, not tested compatibility claims. The enforced Git 2.54 floor is not a complete test result for that version; there is no fallback protection implementation for older Git.
 
-Use =git roam check= to distinguish invalid history, incomplete local dependency branches, branches missing a required formal version, identity conflicts and unavailable evidence. Fetching objects does not itself repair local branch retention. =enable= can install protection in an incomplete repository, and a valid complete deploy candidate can establish missing branches. Missing source tips, shallow/missing objects, ambiguous remotes or divergent histories require explicit review. Neither =check= nor =enable= repairs them.
+Use =git roam check= to diagnose invalid Node histories, conflicting Roots, identity mismatches, missing objects and shallow histories. Fetching Git objects can restore missing evidence, but the selected refs and histories must still validate. =enable= can install protection in a repository whose history cannot yet be validated; a valid deploy candidate can establish missing local branches. Ambiguous fetched sources and divergent histories require review. Neither =check= nor =enable= performs repairs.
 
-Conditional updates, application locks, safety preflight and post-checks reduce or diagnose races; they do not guarantee arbitrary-process serializability. After failure, inspect the reported actual refs and =git worktree list --porcelain=, preserve residual files, and rerun the read-only check when a stable observation is possible. Do not assume every error means no changes occurred. Git-roam does not promise recovery of discarded history or a lost original branch tip, and it does not automatically force-clean, stash, reset or rewrite history to recover.
+Conditional updates, application locks, safety preflight and post-checks reduce or diagnose races without guaranteeing arbitrary-process serializability. After a failure, inspect actual refs and =git worktree list --porcelain=, preserve residual files, and rerun a read-only check when a stable observation is possible. Do not assume every error means no changes occurred. Git-roam does not promise recovery of discarded objects or a lost original branch tip, or automatically force-clean, stash, reset or rewrite history for recovery.
 
 * Raw object reading
 Raw object validation uses a scoped =git --no-replace-objects cat-file --batch= process per validation operation, shared by commit/tree reads and their existing per-call cache. =check=, =status=, candidate validation and the Hook's local-history path share this mechanism. Blob existence/type checks continue to use a separate batch metadata query. There is no cross-command object cache, daemon or repository registration state.
@@ -270,9 +199,9 @@ The Haskell adapter's =withHistorySource= manages this scope. =withGitEnvironmen
 
 Git resolves =git-roam= through the Git process's =PATH= on every invocation. The Hook is not pinned to the Nix store path of the =enable= caller; changing the runtime =PATH= changes which executable runs. =nix run ... -- enable= by itself does not put =git-roam= on the =PATH= of subsequent ordinary Git commands. Supply a suitable Nix shell or other executable environment to those Git commands. If the command cannot be started, Git refuses a reference transaction rather than silently disabling its Hook; a successfully launched incompatible old executable may nevertheless implement different protection rules. Protection is a local guard against mistakes, not an authorization boundary.
 
-=enable= can run before knowledge history or dependency closure is valid, creates no Node or worktree, and is idempotent for the canonical configuration. It migrates the exact previously generated shell-quoted absolute-path Git-roam command to the fixed command without temporarily disabling the Hook. Arbitrary commands, duplicate keys, inherited overrides, disabled or incomplete configuration are refused rather than overwritten. Other Hooks remain active and unchanged.
+=enable= can run before Node history is valid, creates no Node or worktree, and is idempotent for the canonical configuration. It migrates the exact previously generated shell-quoted absolute-path Git-roam command to the fixed command without temporarily disabling the Hook. Arbitrary commands, duplicate keys, inherited overrides, disabled or incomplete configuration are refused rather than overwritten. Other Hooks remain active and unchanged.
 
-Ordinary Git updates may edit or replace unconfirmed Content and add valid Checkpoints. They must retain the Root and every already retained formal Checkpoint. Ordinary Node branch creation, deletion and Checkpoint discard are refused. The Hook validates the complete candidate set of a multi-ref transaction in =prepared=; Content updates that keep the same formal history use a local history check rather than a full repository scan.
+Ordinary Git updates may add Content, advance to a valid history or rewrite an existing Node's history, including old Checkpoints. They must preserve the Node's Root identity and a structurally valid history. Ordinary creation or deletion of canonical Node branches is refused: use the controlled Git-roam lifecycle operations. The Hook validates complete candidate state for Checkpoints and general rewrites at =prepared=, including cross-Node Root consistency; a direct Content extension or amendment can use a scoped single-Node fast path.
 
 =disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Use =undeploy= to remove Node linked worktrees before disabling protection.
 
@@ -281,13 +210,13 @@ Protection operations share a common-directory operation lock. A busy or unavail
 The current build uses Git 2.56.0. Protection requires configured named Hook support and enforces a Git 2.54 version floor; the full behavior on that minimum version and on other platforms remains unverified. Canonical Hook configuration is independent of the caller's executable path; its actual implementation is selected by the invocation environment. Configuration writes use Git's own locking; a failed installation is not claimed to be an atomic configuration transaction.
 
 * History protocol library
-The Haskell library validates decoded commit and tree objects through an injectable object source. It checks canonical UUID directories and regular-file =.roam= markers, unique Roots, single-parent Content chains, and Checkpoint parent roles and tree equality. Required missing objects and incomplete history are reported as unavailable evidence.
+The Haskell library validates decoded commit and tree objects through an injectable object source. Each commit's tree contains exactly one canonical UUID directory with a regular =.roam= marker; a Root has no parents and its UUID directory contains only the marker. All validated history for one UUID must have the same Root. Missing or wrong-type objects, inconsistent identity and malformed ancestry are reported rather than silently repaired.
 
-A Checkpoint has parents =[q, w, ...]=. Its first parent =q= is the same Node's Root or a Checkpoint. Its second parent =w= ends a Content chain based on =q=, and supplies the exact Checkpoint tree. Additional same-UUID Checkpoints retain other formal history branches; different-UUID Checkpoints declare the complete direct external dependencies, with one version per external UUID.
+A Root has no parents. An ordinary Content commit has exactly one same-Node parent, including when its tree is unchanged. A Checkpoint has ordered parents =[p, q1, ..., qn]= with =n >= 1=, where =p= is the immediate same-Node predecessor (Root, Content or Checkpoint). Its tree equals =p='s tree. Every =qi= is a valid commit from a *different Node than the Checkpoint's Node*. Contexts may name Root, Content or Checkpoint, and need not remain reachable from any branch of their source Node. Duplicate context OIDs and conflicting Roots for the same UUID are invalid. Distinct context OIDs from the same external Node are valid at the protocol level; the public Checkpoint command issues a compatibility warning for that case.
 
-The library projects Checkpoints to their content tree, formal predecessors =H= and complete dependencies =D=. Root and Content do not project to formal knowledge versions. Empty dependencies differ from Content having no formal dependency declaration. Formal-history traversal follows all same-Node formal predecessors; combined knowledge ancestry also follows external dependencies. Ordinary Git ancestry cannot substitute for the former.
+The first-parent chain records one Node's own evolution. Git ancestry across all parents records object reachability, not a complete knowledge-dependency relation. Direct context queries return the additional parents of an individual Checkpoint; Root and Content have no direct contexts. Ordinary Node branch transitions must retain the same Root but need not retain old Checkpoints. Node creation and deletion remain separate controlled operations.
 
-Protocol tests include malformed graphs, same-Node history convergence, empty-diff Content, dependency replacement and removal, and generated SHA-1/SHA-256 graphs comparing projected knowledge ancestry with raw Git ancestry. The native object reader and shared managed-state validator power =check= and =status=. A pure transition validator checks Root consistency and preservation of all existing formal Checkpoints and is shared with realtime reference protection.
+Protocol tests cover valid and malformed histories, context parent order, Root consistency, tree equality, repeated contexts, historical contexts no longer retained by a source Node branch, and SHA-1/SHA-256 object formats. The native reader and managed-state validator power =check=, =status= and reference protection; multi-start ancestry queries share a visited set.
 
 * Internal worktree foundation
 The library provides whole-set worktree planning and protected native add/remove primitives used by Node creation, deployment and undeployment. Planning preserves existing manual or moved Node linked worktrees, distinguishes main and detached worktrees, and refuses locked, missing or prunable targets. Main worktrees are never removal targets.
@@ -310,13 +239,13 @@ Enable protection, fetch the desired history with ordinary Git, then deploy:
 
 =deploy= targets every local UUID Node branch and every selected canonical fetched Node candidate missing a local branch. It does not select Node subsets, fetch objects, advance existing local branches, merge histories or move existing worktrees. Existing local tips always take precedence over remote candidates. A Node checked out in the main worktree is reported as a conflict; deployment does not switch that worktree.
 
-Candidate discovery uses =refs/remotes/<remote>/<uuid>=. One source is usable; sources with the same OID coalesce deterministically. Different OIDs are refused even when =checkout.defaultRemote= would choose one. Use =--remote origin= to restrict missing-Node discovery to that remote; all existing local Nodes remain included. Candidates must have matching UUID identities and complete legal histories. Dependencies must be retained by branches in the complete final set; deployment never guesses a missing source's latest tip from an old dependency Checkpoint.
+Candidate discovery uses =refs/remotes/<remote>/<uuid>=. One source is usable; sources with the same OID coalesce deterministically. Different OIDs are refused even when =checkout.defaultRemote= would choose one. Use =--remote origin= to restrict missing-Node discovery to that remote; all existing local Nodes remain included. Candidates must have matching UUID identities and complete legal histories. External context ancestry is validated from the selected objects; no separate source-branch retention is required.
 
-The complete candidate set and paths are checked before structural writes. Missing local branches are established together using a conditional Git ref transaction, then Git's native =branch --set-upstream-to= configures tracking and =worktree add= performs checkout. Existing local branch configuration for a missing Node causes refusal. This supports fetched histories whose dependencies cannot be established one branch at a time. New worktrees use =<path>/<short(uuid)>=; already deployed Nodes keep their actual paths. Relative =--path= is resolved from the invocation directory. The root may be shared with unrelated tracked or untracked content; only each new Node target must be free of outer-index conflicts. Git-roam does not edit ignore rules.
+The complete candidate set and paths are checked before structural writes. Missing local branches are established together using a conditional Git ref transaction, then Git's native =branch --set-upstream-to= configures tracking and =worktree add= performs checkout. Existing local branch configuration for a missing Node causes refusal. The candidate set is validated together before new refs are installed. New worktrees use =<path>/<short(uuid)>=; already deployed Nodes keep their actual paths. Relative =--path= is resolved from the invocation directory. The root may be shared with unrelated tracked or untracked content; only each new Node target must be free of outer-index conflicts. Git-roam does not edit ignore rules.
 
-On failure, the command reports failure and actual residual state. Compensation only attempts worktrees newly created by this operation, with unchanged planned tips and safe contents. New branches can be removed only if unchanged, unchecked-out, and unnecessary to the dependency closure of retained histories. Changed or required branches stay together. Preexisting branches and worktrees are retained. A failed compensation stops conservatively, and the deployment root may remain empty. Neither multi-worktree filesystem atomicity nor isolation from arbitrary external writers is promised. Concurrent changes or incomplete observations require inspection, not automatic repair.
+On failure, the command reports failure and actual residual state. Compensation only attempts worktrees newly created by this operation, with unchanged planned tips and safe contents. New branches can be removed only when unchanged, unchecked-out, and safe under the validated remaining state. Changed or required branches stay together. Preexisting branches and worktrees are retained. A failed compensation stops conservatively, and the deployment root may remain empty. Neither multi-worktree filesystem atomicity nor isolation from arbitrary external writers is promised. Concurrent changes or incomplete observations require inspection, not automatic repair.
 
-Tests exercise actual local clone/fetch, tracking setup, both object formats and reference backends, equivalent and divergent sources, incomplete-to-complete dependency closure, stale conditional updates, and checkout-Hook failures with and without new user data.
+Tests exercise actual local clone/fetch, tracking setup, both object formats and reference backends, equivalent and divergent sources, valid historical contexts, stale conditional updates, and checkout-Hook failures with and without new user data.
 
 * Create and edit a Node
 #+begin_src sh
@@ -336,60 +265,47 @@ The Root has no parents and contains only =<uuid>/.roam=, an empty regular file.
   git roam status
 #+end_src
 
-These single-parent commits are unconfirmed Content; they are not Checkpoints and do not declare formal dependencies. Ordinary Git can revise this Content under the enabled history protection rules. Use =checkpoint= to confirm the committed state as a formal knowledge version.
+These single-parent commits are Content: they do not record external contexts and do not require a later Checkpoint. Ordinary Git can revise Content under the enabled history protection rules. Use =checkpoint= only when an explicit external history context needs to be recorded.
 
 Creation requires matching enabled protection and valid managed history. It uses Git's configured author/committer identities and constructs objects without using or changing the current index. Before object writes, it checks UUID/ref/configuration conflicts, paths and native author/committer availability. The new Root and complete target branch state are validated before conditional reference creation. Existing local UUIDs, canonical fetched identities, an ambiguous UUID tag, an existing unborn checkout of that UUID, occupied paths and stale branch configuration cause refusal.
 
 A failed checkout attempts compensation only for its proven new unchanged branch and safely removable worktree. User files, changed Content history, changed branch configuration and competing creation results are retained and reported. Creation does not fetch, establish tracking for a new identity, reset user changes or manually delete Git objects; failed attempts can leave unreachable objects and an empty deployment parent directory.
 
-* Create a Checkpoint with complete dependencies
-Run inside a Node worktree or select its canonical UUID explicitly:
+* Create a Checkpoint with explicit historical context
+Run inside a Node worktree (main or linked) with a canonical UUID branch as its symbolic =HEAD=, or select a Node explicitly with =--node=. At least one =--context= is required:
 
 #+begin_src sh
-  git roam checkpoint -m 'Confirm this knowledge version'
-  git roam checkpoint --node <uuid> -F message.txt --depend <external-checkpoint>
-  git roam checkpoint --depend <new-external-checkpoint> -m 'Replace a dependency version'
-  git roam checkpoint --drop-dependency <external-uuid> -m 'Remove a direct dependency'
-  git roam checkpoint --clear-dependencies -m 'Declare no direct dependencies'
+  git roam checkpoint -m 'Record B0 context' --context <B0>
+  git roam checkpoint --node <uuid> -F message.txt --context <external-commit>
+  git roam checkpoint -m 'Record two contexts' --context <B0> --context <C0>
 #+end_src
 
-The first Checkpoint requires an existing Content commit. Commit edits with ordinary Git first, or use =git commit --allow-empty= for an intentional empty Content commit. A Content tip supplies its committed tree and entire editing chain. When the tip is already a Checkpoint, the command creates a new same-tree Content object based on it, then creates the next Checkpoint. Only the final branch ref is advanced, once. No Content is automatically squashed, and the previous Checkpoint's second parent is never reused.
+A Checkpoint may directly follow the Root, Content or another Checkpoint; there is no requirement to create Content first and no synthetic Content commit. It copies its immediate predecessor's committed tree and records that predecessor as the first parent. Each =--context= adds one caller-selected external commit as an additional parent in argument order. No context mapping is inherited from any earlier Checkpoint, and a context never automatically updates when an external branch advances. Without an external context, continue recording ordinary Content with Git instead.
 
-Each Checkpoint directly records its complete final dependency set. Construction starts from the main predecessor's complete direct mapping, or empty before the first Checkpoint. Repeat =--depend <revision>= to add different external Nodes; an already declared external UUID is replaced by its newly selected version. Repeated =--drop-dependency <uuid>= removes inherited entries. =--clear-dependencies= may combine with additions to replace the whole set. Clearing together with removals, removing an absent entry, duplicate versions for one UUID, and removing/replacing the same UUID together are refused.
+Context inputs accept Git refs and unambiguous commit OIDs, including unique hexadecimal abbreviations. Revisions are resolved to exact OIDs once; full Git revision expressions such as =~=, =^= and =@{...}=, ranges and paths are not supported. Root, Content and Checkpoint commits are all valid context kinds, including previously reachable historical commits not retained by a current source Node branch. Contexts belonging to the target Node and exact repeated context OIDs are refused. Distinct commits of one external Node may appear in the same context list; the CLI accepts them with a warning that its compatibility guarantee is limited to contexts from distinct external Nodes. All required objects and their history must be valid and available.
 
-Dependency inputs accept Git refs and unambiguous commit OIDs, including unique hexadecimal abbreviations. Git resolves names; full Git revision expressions such as =~=, =^=, =@{...}=, ranges and paths are not supported. Lightweight and annotated tags may name retained Checkpoints. Inputs resolve once to exact commit OIDs and must be Checkpoints retained in the corresponding local Node branches' formal histories. Root, Content, self dependencies, ambiguous names and unretained fetched objects are refused. A dependency branch with a Content tip is not silently interpreted as its latest Checkpoint; select a ref or OID naming the actual Checkpoint. The command does not construct formal-history merges, but preserves already merged formal histories through its main predecessor.
+Messages require exactly one =-m= or =-F=. =-F -= reads stdin. Nonempty UTF-8 text without NUL is required; no Conventional Commit title or editor is required. Commit construction uses UTF-8 without changing repository encoding configuration. Output reports the Node, new Checkpoint OID, immediate predecessor and the selected context OIDs.
 
-Knowledge history and object completeness are checked using stored commit/tree objects and blob metadata. Grafts and replacement refs do not redefine these relationships. Shallow repositories and missing required objects remain unsupported. No temporary repository view or deprecated graft override is used.
+The Checkpoint tree is the previous branch tip's *committed* tree. Staged, unstaged, untracked and ignored data are neither included nor changed, including in a main worktree. The command does not run =write-tree= or commit from the working index. The candidate is validated before a conditional reference transaction with expected-old and other-managed-ref verification; other reference Hooks remain active. Missing author/committer configuration or competing ref changes prevent installation.
 
-Messages use exactly one =-m= or =-F=. =-F -= reads standard input. Nonempty UTF-8 text without NUL bytes is required; no Conventional Commit title or editor is required. Commit construction uses UTF-8 without changing repository encoding configuration. Output identifies the Node, new Checkpoint, selected Content and complete dependency mapping.
+Failed attempts may leave unreachable objects. If a ref update succeeds but a post-check fails, the command reports the residual state instead of rolling back installed history. Concurrent external writers are not isolated; inspect actual refs and run =check= after an uncertain outcome.
 
-The tree always equals the previous branch tip's committed tree. Staged, unstaged, untracked and ignored data are excluded and retained, including in a main worktree. The command never runs =write-tree= or creates a commit from the working index. Shared protocol, normal-state and formal-retention checks validate the final candidate before a ref transaction with expected-old and dependency-ref verification. Other reference Hooks remain active. Missing author/committer configuration or conflicting edits prevent installation.
-
-Failed attempts may leave unreachable objects. Once a ref update succeeds, follow-up failure is reported without rolling back formal history. Failure diagnostics include any constructed candidate OID and distinguish confirmed installation from an uncertain update result. The command does not claim isolation from arbitrary external writers; inspect actual refs and run =check= after an uncertain outcome.
-
-* Delete an unreferenced Node
+* Delete a Node without cascading
 #+begin_src sh
   git roam node delete --node <uuid> --dry-run
   git roam node delete --node <uuid> --confirm <plan-id>
 #+end_src
 
-Deletion requires an explicit canonical UUID. The read-only preview lists the Root, old branch tip, withdrawn Checkpoints, Content losing its managed entry, incoming historical dependencies, checked-out worktrees, and local branch configuration keys to remove. It produces an executable plan ID only when all preconditions pass. Execution requires matching enabled protection. With neither flag, a terminal preview requires typing the complete plan ID; noninteractive execution requires =--confirm=.
+Deletion requires an explicit canonical UUID. The read-only preview shows the Root, old branch tip, commits that become unreachable from the *remaining managed Node refs*, checked-out worktrees, and local branch configuration keys selected for cleanup. This is a managed-ref reachability comparison, not a prediction that Git will physically erase those objects. The preview produces an executable plan ID only if its preconditions pass. Execution requires enabled matching protection. Without either flag, a terminal review requires typing the complete plan ID; noninteractive execution requires =--confirm=.
 
-Any incoming dependency from another Node's retained Checkpoint blocks deletion, including older versions and non-first-parent formal history. The target's own history and outgoing dependencies do not block it. Deletion never cascades: remove other referencing Node branches explicitly before deleting this Node. Any main or linked worktree checking out the target branch also blocks deletion. No worktree is implicitly undeployed or modified.
+An incoming Checkpoint context in another Node does *not* block deletion, even if it names a historical commit of the target Node. Deletion never cascades into other Node branches. A main or linked worktree checking out the target branch still blocks deletion: undeploy or change that checkout explicitly. No worktree is implicitly removed, switched or cleaned.
 
-The plan binds the complete managed refs, exact impact, worktree registrations and reviewed local branch configuration. One conditional ref transaction deletes the target and verifies the other managed refs. Other Nodes retain their exact tips and formal history. The shared validator checks the actual result. Reviewed local =branch.<uuid>.*= values are then removed by exact value; included, global and unrelated configuration remain untouched. Valueless local branch entries require prior manual handling. Configuration cleanup is separate from the ref transaction: failure reports the committed deletion and residual state without recreating the branch.
+The confirmation plan binds managed refs, the exclusive commit set, registered worktrees and reviewed local branch configuration. One conditional ref transaction deletes the target and verifies other managed refs. The candidate remaining state is validated; local =branch.<uuid>.*= entries are then removed only by their exact reviewed values. Included, global and unrelated config remains untouched. Valueless local branch entries need manual handling. Configuration cleanup is separate from the ref transaction; a failure can leave the ref deleted with residual configuration, which is reported.
 
-Git objects, tags and remote-tracking refs are retained; deletion does not erase a UUID globally or guarantee recovery. A later full deploy can recreate the local Node branch from fetched remote candidates. Arbitrary external concurrent writers remain outside the transaction guarantee.
+Objects, tags and remote-tracking refs are not erased. A fetched remote candidate may later recreate a locally deleted Node. No object-erasure, force-cleaning, cascade or unconditional recovery guarantee is provided.
 
-* Retired formal discard workflow
-The old =git roam discard= command was specific to the v0.1.0 formal
-Checkpoint-successor and dependency-closure model. It is removed from the
-current development interface in preparation for the v0.2.0 protocol switch.
-The tagged v0.1.0 release retains its historical implementation and detailed
-release notes. Other commands on this intermediate development branch still
-use the v0.1.0 protocol and its Hook protection: this change does not authorize
-rewriting retained Checkpoints through ordinary Git. The v0.2.0 cutover will
-replace those validation and transition rules as one coherent change.
+* v0.1.0 protocol migration boundary
+The v0.1.0 =discard= workflow, formal dependency closure, and retention of all preceding Checkpoints do not exist in the current protocol. The =CHANGELOGS/v0.1.0.org= document describes the tagged historical behavior; it is not documentation for the current development CLI. There is no automatic conversion of v0.1.0 commit graphs to the new context encoding. Do not use the current protected operations as a migration procedure for old histories. Preserve the historical release or manually rebuild compatible Node histories after deciding what history to retain.
 
 * Full undeployment
 #+begin_src sh
@@ -398,7 +314,7 @@ replace those validation and transition rules as one coherent change.
   git roam disable
 #+end_src
 
-=undeploy= discovers every registered linked worktree attached to a canonical Node branch, including manual and moved worktrees. It needs no path and accepts no subset or force option. Enabled matching protection and valid complete managed history are required. Every removal target is preflighted before the first removal; any known unsafe target prevents the whole operation from starting. An invalid or incomplete knowledge history is reported for review rather than repaired by undeployment.
+=undeploy= discovers every registered linked worktree attached to a canonical Node branch, including manual and moved worktrees. It needs no path and accepts no subset or force option. Enabled matching protection and valid managed Node histories are required. Every removal target is preflighted before the first removal; any known unsafe target prevents the whole operation from starting. An invalid or incomplete Node history is reported for review rather than repaired by undeployment.
 
 Clean nested Node linked worktrees are removed deepest first. Uncommitted, untracked, ignored and otherwise unprotected data, locked or prunable registrations, unfinished Git operations, and non-target nested worktrees prevent removal. Main worktrees are retained and reported separately, even when attached to a Node branch. Detached and ordinary non-Node worktrees are left in place. Main or other non-target user files are not cleaned.
 

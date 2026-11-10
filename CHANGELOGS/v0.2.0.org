@@ -1,0 +1,68 @@
+#+title: v0.2.0 Release Notes
+
+* Overview
+This document describes the v0.2.0 implementation in the current development tree. It is a pre-release manuscript: the version has not yet been finalized, tagged or published. The v0.2.0 history protocol is incompatible with the v0.1.0 formal Checkpoint dependency model.
+
+The main change is the meaning of a Checkpoint. A Checkpoint now records explicit historical context selected by its caller as ordered extra Git parents. That context is not claimed to be a complete knowledge dependency set and does not require other Nodes to create or retain Checkpoints.
+
+* Breaking changes and migration
+** Checkpoint history format
+- v0.1.0 encoded formal dependencies through a special two-commit Checkpoint structure and required retention of earlier formal Checkpoints. v0.2.0 instead records a same-Node immediate first parent plus at least one additional external context parent in a single Checkpoint commit.
+- A Checkpoint uses exactly the first parent's tree, including when it directly follows Root. Ordinary Content needs no external context.
+- Existing v0.1.0 history graphs are not automatically migrated or accepted as equivalent v0.2.0 Checkpoint histories. Preserve old repositories with the historical version; converting them requires an explicit, reviewed history reconstruction rather than an automatic upgrade.
+
+** Public command changes
+- Replace =git roam checkpoint --depend=, =--drop-dependency=, and =--clear-dependencies= with explicit =--context <revision>= arguments. At least one context is required, and repeating the option records an ordered list of exact commits.
+- The specialized =git roam discard= command is removed. Ordinary Git may rewrite valid same-Root Node history without a special successor-closure operation; Git-roam still protects Root identity and structural validity.
+- =git roam status= now shows the latest first-parent Checkpoint and its direct context OIDs instead of complete formal dependencies.
+
+** Migration example
+Create Content in B and record its commit OID as =<B0>=:
+
+#+begin_src sh
+  cd <B-worktree>/<B>
+  printf '* B0\n' > note.org
+  git add note.org
+  git commit -m 'Write B0'
+  git rev-parse HEAD
+#+end_src
+
+Record A's selected historical context (with A's committed contents already available):
+
+#+begin_src sh
+  cd <A-worktree>/<A>
+  git roam checkpoint -m 'Record B0 context' --context <B0>
+#+end_src
+
+B0 may be an ordinary Content commit. This operation advances only A's local Node branch, retains A's committed tree, and does not update B. A future A Checkpoint needs its own explicit context selection. Git-roam does not infer these selections from Org links.
+
+* Changed
+** History validation and reference protection
+- All relevant Git parents are validated, including the ancestry, Root identities, Node tree structure and object completeness of external contexts. An external context need not remain in the corresponding Node's current local branch history.
+- A Node's first-parent chain defines its own evolution. Ordinary branch transitions may amend or rewrite Content and old Checkpoints while retaining the same Root; creation and deletion of managed UUID branches still require controlled lifecycle operations.
+- The =reference-transaction= Hook validates the complete candidate state for general rewrites and new Checkpoints. Its direct Content fast path avoids unnecessary whole-repository scans for simple extensions and amendments.
+
+** Inspection
+- =check= and =status= report context-history validity rather than managed dependency closure. An explicitly selected Node is validated through its full ancestor graph, not the entire set of unrelated branches.
+- =status= reports current tip kind, Content tail, latest first-parent Checkpoint, Checkpoint count and the direct parent context of that Checkpoint. Main and linked worktrees can infer the Node when symbolic =HEAD= names a canonical local UUID branch; ordinary branches and detached =HEAD= do not infer a Node.
+
+** Node deletion
+- =node delete= no longer refuses a Node solely because another Node's Checkpoint records a historical context from it. Deletion is non-cascading: it removes the selected local UUID branch, not other Nodes or historical context commits.
+- The preview lists commits newly unreachable from the remaining *managed Node refs*. These commits are not necessarily deleted from Git's object store and may remain reachable through other refs, reflogs or retained context history. The confirmed operation still checks live refs, worktrees and reviewed local branch configuration before cleanup.
+
+* Fixed
+** Nested content tree validation
+- Extend entry-name validation to every nested Node content directory. =check=, =status= and protected reference updates reject nested invalid or duplicate names that previously escaped validation.
+- Validate shared subtrees once per history-validation operation, avoiding repeated traversal when multiple paths, commits or Nodes reference the same tree.
+
+* Added
+** External context selection
+- =--context= accepts commit refs and unambiguous hexadecimal OIDs, including external Root, Content and Checkpoint commits, without requiring a source branch to retain the selected version.
+- Repeated identical commit OIDs and commits from the target Node are rejected. Multiple distinct commits from one external Node are accepted with a compatibility warning; support is assured when each context parent belongs to a different external Node.
+- The stored context OID list follows CLI order; no previous Checkpoint context is inherited, no empty context declaration is created, and the selected context does not follow later external branch updates.
+
+* Preserved behavior and limitations
+- UUID Node roots and branches, ordinary Content editing, Node creation, clone/fetch-based deployment, safe undeployment, repository protection, text/JSON/CBOR Node creation output and Git's native object transport remain available. =node create= and =deploy= still require =--path=; no deployment-path environment default is part of this release.
+- History validation requires complete stored objects and does not accept shallow/incomplete history. Git-roam does not fetch objects, change other Node refs when creating a Checkpoint, interpret Org links, or perform automatic repairs.
+- Native Git transactions and worktree operations do not provide cross-worktree filesystem atomicity or isolation from arbitrary external writers. Safety checks and compensation preserve user data where possible, but failures may leave state that must be inspected manually.
+- The exercised build targets x86_64-linux; declared additional Nix system outputs and the minimum supported Git version are not universal tested compatibility claims.

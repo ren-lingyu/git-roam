@@ -4,30 +4,32 @@
 #+startup: logdone
 #+property: TIMEZONE UTC
 
-* TODO v0.2.0
-Planned incompatible revision of the Checkpoint history protocol. The items below
-are development goals, not functionality available in v0.1.0; exact command
-interfaces and compatibility handling have not yet been finalized.
+* NEXT v0.2.0
+:PROPERTIES:
+:CUSTOM_ID: v0.2.0
+:END:
+Development entry for the incompatible Checkpoint context protocol. The
+production CLI and Hook have switched to this model. The version and scope
+have been frozen for release preparation, but v0.2.0 has not yet been
+finalized, tagged or published. See
+[[file:CHANGELOGS/v0.2.0.org][Draft detailed release notes]].
 
-The pure protocol, native inspection, Checkpoint construction, transaction
-validator, and non-cascading Node deletion implementation currently exist only
-in temporary V2 modules. Production commands and the installed
-reference-transaction Hook still enforce v0.1.0 rules.
+** Removed
+- *Breaking:* Retire =git roam discard= and its formal successor/dependency-closure workflow. Use ordinary Git to revise valid same-Root history; delete Node branches explicitly with =node delete= when appropriate.
 
 ** Changed
-*** Checkpoint semantics and encoding
-- [ ] Interpret a Checkpoint's external parents as caller-selected historical context, not a complete declaration of knowledge dependencies.
-- [ ] Use the Node's immediate predecessor as the first parent and external context commits as additional parents, preserving the first-parent Node history and the first parent's tree; remove the special =q, w= structure and synthetic Content commit.
-- [ ] Record context explicitly per Checkpoint, without inherited dependency mappings, empty dependency declarations, or automatic updates when external Nodes advance.
+- *Breaking:* Replace the v0.1.0 formal Checkpoint dependency mapping and special Content/Checkpoint encoding with an immediate same-Node first parent plus caller-selected external context parents. No automatic migration from v0.1.0 histories is provided.
+- *Breaking:* Replace =checkpoint --depend=, =--drop-dependency=, and =--clear-dependencies= with one or more explicit =--context <revision>= arguments. At least one context is required; no context is inherited and no synthetic Content commit is created.
+- Validate context commits by their recorded ancestry and objects without requiring retention by the referenced Node's current branch. Ordinary Git history rewrites may drop old Checkpoints if Root identity and structural validity are preserved.
+- Update =check=, =status= and the repository Hook for context ancestry rather than managed dependency closure. =status= reports the latest first-parent Checkpoint's direct contexts.
+- Make =node delete= non-cascading when other Node histories reference the deleted Node's commits; preview reports loss of reachability from remaining managed refs, not physical object deletion.
 
-*** Validation and lifecycle
-- [ ] Validate referenced commits by their own Node histories without requiring them to remain in the current branch history of the referenced Node.
-- [ ] Rework history validation, =check=, =status=, repository protection, deployment, and Node deletion without managed dependency-closure or mandatory Checkpoint-retention rules.
-- [X] Remove the specialized =discard= workflow and its cross-Node successor-closure semantics, leaving history rewriting subject to ordinary Git reachability and the revised protocol.
+** Fixed
+- Reject invalid or duplicate entry names in nested Node content directories when checking history or validating reference updates.
 
 ** Added
-- [ ] Allow Checkpoints to reference ordinary Content commits of external Nodes, without requiring those Nodes to create Checkpoints.
-- [ ] Allow callers to select sparse or dense external contexts, including policies based on current Node tips, without making Git-roam interpret Org links or maintain those relationships.
+- Allow =--context= to select another Node's Root, ordinary Content, or Checkpoint, including older commits no longer retained by its current local branch.
+- Allow multiple distinct context commits from one external Node with a compatibility warning; reject repeated context OIDs and same-Node contexts.
 
 * DONE v0.1.0
 CLOSED: [2026-11-07 Sat 18:59]
