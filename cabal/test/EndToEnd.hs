@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import Control.Exception (bracket_)
 import Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -14,16 +15,19 @@ import GitRoam.ObjectId
 import GitRoam.Protocol.History (contextParents, reachableHistory)
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
-import GitRoam.Worktree.Paths (decodePath)
-import System.Directory (doesDirectoryExist)
-import System.Environment (getEnvironment)
+import GitRoam.Worktree.Paths (decodePath, shortName)
+import System.Directory (createDirectory, doesDirectoryExist, doesPathExist, findExecutable, getPermissions, makeAbsolute, setOwnerExecutable, setPermissions)
+import System.Environment (getEnvironment, lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..))
-import System.FilePath ((</>))
+import System.FilePath (searchPathSeparator, (</>))
 import TestSupport
 import WorktreeFixture
 
 main :: IO ()
-main = runTests [("public CLI lifecycle and native synchronization " ++ backend ++ " " ++ show format, fixture backend format (lifecycle backend format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+main =
+    runTests $
+        [("public CLI lifecycle and native synchronization " ++ backend ++ " " ++ show format, fixture backend format (lifecycle backend format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [("global deployment wrapper and independent Hook " ++ backend ++ " " ++ show format, fixture backend format (globalDeploymentPath format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
 
 lifecycle :: String -> ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 lifecycle backend format git executable repo parent = do
@@ -173,3 +177,75 @@ lifecycle backend format git executable repo parent = do
     _ <- roam repo ["disable"]
     finalSource <- snapshot git repo
     assertEqual (managedRefs original) (managedRefs finalSource)
+
+-- A real PATH wrapper prefixes *every* invocation, including Git's configured
+-- Hook command. Its deployment root must not become a Hook precondition.
+globalDeploymentPath :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+globalDeploymentPath format git executable repo parent = do
+    shell <- findExecutable "sh" >>= maybe (fail "A shell is needed for the wrapper fixture") makeAbsolute
+    previousPath <- lookupEnv "PATH"
+    inherited <- getEnvironment
+    let environment =
+            [(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name]
+                ++ [("GIT_CONFIG_NOSYSTEM", Just "1"), ("GIT_CONFIG_GLOBAL", Just "/dev/null"), ("GIT_AUTHOR_NAME", Just "Wrapper"), ("GIT_AUTHOR_EMAIL", Just "wrapper@example.invalid"), ("GIT_COMMITTER_NAME", Just "Wrapper"), ("GIT_COMMITTER_EMAIL", Just "wrapper@example.invalid")]
+        rootPath = parent </> "nodes with spaces"
+        bin = parent </> "wrapper-bin"
+        wrapper = bin </> "git-roam"
+        quote value = "'" ++ concatMap (\c -> if c == '\'' then "'\\''" else [c]) value ++ "'"
+        call program location args input = runGit (nativeGit program) (GitInvocation location args input environment) >>= expectRight
+        wrapped args = do
+            result <- call wrapper repo args ""
+            assertEqual ExitSuccess (gitExitCode result)
+            pure (gitStdout result)
+        canonical node = BSC.unpack (nodeIdBytes node)
+        unusedFile = parent </> "unused-deployment-file"
+    createDirectory bin
+    writeFile wrapper ("#!" ++ shell ++ "\nexec " ++ quote executable ++ " --deploy-path " ++ quote rootPath ++ " \"$@\"\n")
+    permissions <- getPermissions wrapper
+    setPermissions wrapper (setOwnerExecutable True permissions)
+    bracket_ (setEnv "PATH" (bin ++ [searchPathSeparator] ++ maybe "" id previousPath)) (maybe (unsetEnv "PATH") (setEnv "PATH") previousPath) $ do
+        _ <- wrapped ["enable"]
+        _ <- wrapped ["node", "create", "--id", canonical nodeA]
+        _ <- wrapped ["node", "create", "--id", canonical nodeB, "--format", "json"]
+        let aPath = rootPath </> shortName nodeA
+        doesDirectoryExist aPath >>= assertEqual True
+        ok git repo ["config", "--get", "hook.git-roam-reference-transaction.command"] "" >>= assertEqual "git-roam --reference-transaction\n"
+        writeFile (aPath </> canonical nodeA </> "note.org") "Wrapper content\n"
+        _ <- ok git aPath ["add", "--", canonical nodeA ++ "/note.org"] ""
+        _ <- ok git aPath ["commit", "-m", "Native Content through wrapped Hook"] ""
+        before <- snapshot git repo
+        let refs = managedRefs before
+            a = refs Map.! nodeA
+            b = refs Map.! nodeB
+            row new = objectIdBytes a <> " " <> objectIdBytes new <> " refs/heads/" <> nodeIdBytes nodeA <> "\n"
+        -- Even invalid public deployment-path values are irrelevant to the
+        -- internal Hook; its original transaction validation must still run.
+        accepted <- call executable repo ["--deploy-path", "relative", "--reference-transaction", "prepared"] (row a)
+        assertEqual ExitSuccess (gitExitCode accepted)
+        refused <- call executable repo ["--deploy-path", "relative", "--reference-transaction", "prepared"] (row b)
+        assertEqual (ExitFailure 1) (gitExitCode refused)
+        assertTrue "Deployment parsing replaced Hook validation" ("reference update refused:" `BS.isInfixOf` gitStderr refused)
+        nativeRefusal <- runGit git (GitInvocation repo ["update-ref", "refs/heads/" ++ canonical nodeA, BSC.unpack (objectIdBytes b)] "" []) >>= expectRight
+        assertTrue "Wrapped installed Hook allowed an invalid ref update" (gitExitCode nativeRefusal /= ExitSuccess)
+        snapshot git repo >>= assertEqual before
+        forM_ [["deploy", "--path", rootPath], ["node", "create", "--path", rootPath], ["--deploy-path", rootPath, "deploy"]] $ \args -> do
+            rejected <- call wrapper repo args ""
+            assertEqual (ExitFailure 2) (gitExitCode rejected)
+        snapshot git repo >>= assertEqual before
+        writeFile unusedFile "not a directory\n"
+        forM_ [["check"], ["status"], ["enable"], ["--help"], ["--version"]] $ \args -> do
+            ignored <- call executable repo (["--deploy-path", unusedFile] ++ args) ""
+            assertEqual ExitSuccess (gitExitCode ignored)
+        invalid <- call executable repo ["--deploy-path", "relative", "deploy"] ""
+        assertEqual (ExitFailure 2) (gitExitCode invalid)
+        doesPathExist (repo </> "relative") >>= assertEqual False
+        _ <- wrapped ["undeploy"]
+        _ <- wrapped ["deploy"]
+        doesDirectoryExist aPath >>= assertEqual True
+        records <- listWorktrees git repo format >>= expectRight
+        assertEqual 2 (length [record | record <- records, worktreeNode record /= Nothing])
+        _ <- wrapped ["undeploy"]
+        ignoredDisable <- call executable repo ["--deploy-path", unusedFile, "disable"] ""
+        assertEqual ExitSuccess (gitExitCode ignoredDisable)
+        readFile unusedFile >>= assertEqual "not a directory\n"
+        snapshot git repo >>= assertEqual before

@@ -35,6 +35,7 @@ import GitRoam.Protocol.Repository
 import System.Directory (getCurrentDirectory)
 import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
+import System.FilePath (isAbsolute)
 import System.IO (hFlush, hIsTerminalDevice, stderr, stdin)
 
 data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp | EnableHelp | DisableHelp | DeployHelp | UndeployHelp | NodeHelp | NodeCreateHelp | NodeDeleteHelp | CheckpointHelp
@@ -53,7 +54,24 @@ data CliResponse = CliResponse
     deriving (Eq, Show)
 
 parseCommand :: [String] -> Either Text Command
-parseCommand arguments = case arguments of
+parseCommand arguments = do
+    (deployment, remaining) <- parseTopLevel arguments
+    parseSubcommand deployment remaining
+
+-- Only the prefix before the command contains global options. Values belonging
+-- to subcommands (including messages named like options) are not scanned here.
+parseTopLevel :: [String] -> Either Text (Maybe FilePath, [String])
+parseTopLevel = go Nothing
+  where
+    go selected ("--deploy-path" : value : rest)
+        | Just _ <- selected = Left "Top-level --deploy-path cannot be repeated"
+        | isAbsolute value && '\0' `notElem` value = go (Just value) rest
+        | otherwise = Left "Top-level --deploy-path requires an absolute path"
+    go _ ["--deploy-path"] = Left "Top-level --deploy-path requires an absolute path"
+    go selected remaining = Right (selected, remaining)
+
+parseSubcommand :: Maybe FilePath -> [String] -> Either Text Command
+parseSubcommand deployment arguments = case arguments of
     [] -> help GeneralHelp
     ["-h"] -> help GeneralHelp
     ["--help"] -> help GeneralHelp
@@ -95,10 +113,7 @@ parseCommand arguments = case arguments of
     "undeploy" : _ -> Left "Usage: git roam undeploy"
     ["deploy", "--help"] -> help DeployHelp
     ["deploy", "-h"] -> help DeployHelp
-    ["deploy", "--path", path] | validValue path -> Right (DeployNodes path Nothing)
-    ["deploy", "--path", path, "--remote", remote] | validValue path && validValue remote -> Right (DeployNodes path (Just remote))
-    ["deploy", "--remote", remote, "--path", path] | validValue path && validValue remote -> Right (DeployNodes path (Just remote))
-    "deploy" : _ -> Left "Usage: git roam deploy --path <path> [--remote <remote>]"
+    "deploy" : args -> deployArgs Nothing Nothing args
     ["enable", "--help"] -> help EnableHelp
     ["disable", "--help"] -> help DisableHelp
     ["enable", "-h"] -> help EnableHelp
@@ -124,7 +139,7 @@ parseCommand arguments = case arguments of
     command : _ -> Left ("Unknown command: " <> quoted command)
   where
     createArgs path node format args = case args of
-        [] | Just target <- path -> Right (CreateNode target node (maybe Output.TextFormat id format))
+        [] -> CreateNode <$> deploymentPath path <*> pure node <*> pure (maybe Output.TextFormat id format)
         "--path" : value : rest | path == Nothing && validValue value -> createArgs (Just value) node format rest
         "--id" : value : rest | node == Nothing -> uuid value >>= \selected -> createArgs path (Just selected) format rest
         "--format" : value : rest | format == Nothing -> do
@@ -135,6 +150,16 @@ parseCommand arguments = case arguments of
                 _ -> Left "Unknown output format (expected text, json, or cbor)"
             createArgs path node (Just selected) rest
         _ -> Left "Usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]"
+    deployArgs path remote args = case args of
+        [] -> DeployNodes <$> deploymentPath path <*> pure remote
+        "--path" : value : rest | path == Nothing && validValue value -> deployArgs (Just value) remote rest
+        "--remote" : value : rest | remote == Nothing && validValue value -> deployArgs path (Just value) rest
+        _ -> Left "Usage: git roam [--deploy-path <absolute-path>] deploy [--path <path>] [--remote <remote>]"
+    deploymentPath path = case (deployment, path) of
+        (Just _, Just _) -> Left "Top-level --deploy-path and subcommand --path are mutually exclusive"
+        (Just target, Nothing) -> Right target
+        (Nothing, Just target) -> Right target
+        (Nothing, Nothing) -> Left "Provide a subcommand --path or top-level --deploy-path"
     deleteArgs node dry confirmation args = case args of
         "--node" : value : rest | node == Nothing -> case uuid value of
             Right parsed -> deleteArgs (Just parsed) dry confirmation rest
@@ -162,7 +187,7 @@ renderHelp :: HelpTopic -> Text
 renderHelp topic = case topic of
     GeneralHelp ->
         Text.unlines
-            [ "usage: git roam <command> [options]"
+            [ "usage: git roam [--deploy-path <absolute-path>] <command> [options]"
             , ""
             , "Commands:"
             , "  help [command]  Show general or command-specific help"
@@ -180,6 +205,9 @@ renderHelp topic = case topic of
             , "Options:"
             , "  -h, --help      Show general help"
             , "  --version       Print the package version"
+            , "  --deploy-path <absolute-path>"
+            , "                  Deployment root for node create/deploy; mutually exclusive with --path"
+            , "                  Place before the command; other commands do not use the directory"
             ]
     HelpHelp -> Text.unlines ["usage: git roam help [command]", "", "Show general help or help for an available command."]
     VersionHelp -> Text.unlines ["usage: git roam version", "       git roam --version", "", "Print the package version."]
@@ -187,11 +215,11 @@ renderHelp topic = case topic of
     StatusHelp -> inspectionHelp "status" "Show Node history, the latest Checkpoint's direct contexts, worktrees and diagnostics."
     EnableHelp -> Text.unlines ["usage: git roam enable", "", "Install or validate the repository-local reference-transaction Hook.", "The Hook runs git-roam --reference-transaction from Git's PATH, not a pinned executable path.", "An existing canonical Hook is unchanged; recognized old absolute-path Git-roam Hooks are migrated.", "Incomplete, inherited or divergent configuration is refused; Node history is not changed."]
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
-    DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
+    DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "       git roam --deploy-path <absolute-path> deploy [--remote <remote>]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
-    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create --path <path> [--id <uuid>] [--format text|json|cbor]  Create a Node with an editable linked worktree", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
+    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create [--path <path>] [--id <uuid>] [--format text|json|cbor]  Create a Node with an editable linked worktree", "    Requires subcommand --path or top-level --deploy-path, not both.", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
     NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Deletion does not cascade into other Nodes whose history records contexts from this Node.", "The preview lists commits that become unreachable from the remaining managed refs; Git objects are not erased.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
-    NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]", "", "Create an identity, empty-marker Root, persistent local branch and linked worktree.", "--id accepts UUIDv4, Nil UUID or Max UUID; without it, a fresh UUIDv4 is generated.", "--format text (default) preserves the existing output; json and cbor provide structured machine output.", "JSON paths contain UTF-8 text when valid plus a lossless Base64 byte representation; CBOR paths are byte strings.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
+    NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]", "       git roam --deploy-path <absolute-path> node create [--id <uuid>] [--format text|json|cbor]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Create an identity, empty-marker Root, persistent local branch and linked worktree.", "--id accepts UUIDv4, Nil UUID or Max UUID; without it, a fresh UUIDv4 is generated.", "--format text (default) preserves the existing output; json and cbor provide structured machine output.", "JSON paths contain UTF-8 text when valid plus a lossless Base64 byte representation; CBOR paths are byte strings.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
     CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       --context <revision> [--context <revision> ...]", "", "Select an explicit Node or infer it from the current Node worktree. A Checkpoint may directly follow Root.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Each --context selects one external commit parent; argument order determines parent order.", "Contexts accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "A context may be a Root, Content or Checkpoint and need not be retained by its Node's current branch.", "Duplicate context OIDs and contexts belonging to the target Node are refused.", "Multiple distinct contexts from one external Node are accepted with a compatibility warning.", "Uses the current committed tree, preserving uncommitted index/worktree data."]
   where
     inspectionHelp command description =
@@ -244,15 +272,27 @@ interactiveDelete directory node = do
                                 pure (if answer == identifier then Right identifier else Left "Node deletion declined; no changes were made")
     pure $ either (Left . show) id (result :: Either IOException (Either String BS.ByteString))
 
+-- Internal Hook dispatch is independent of public deployment-path validation.
+-- A PATH wrapper can prepend the option, but the Hook never reads its value.
+referenceTransactionPhase :: [String] -> Maybe String
+referenceTransactionPhase ["--reference-transaction", phase]
+    | phase `elem` ["preparing", "prepared", "committed", "aborted"] = Just phase
+referenceTransactionPhase ("--deploy-path" : _ : remaining) = referenceTransactionPhase remaining
+referenceTransactionPhase _ = Nothing
+
 runCli :: [String] -> IO CliResponse
-runCli ["--reference-transaction", phase] | phase `elem` ["preparing", "prepared", "committed", "aborted"] = do
-    directory <- getCurrentDirectory
-    input <- BSC.getContents
-    result <- Protection.evaluateTransaction directory phase input
-    pure $ case result of
-        Right () -> CliResponse ExitSuccess "" ""
-        Left problem -> CliResponse (ExitFailure 1) "" ("git-roam: reference update refused: " <> Text.pack problem <> "\n")
-runCli arguments = case parseCommand arguments of
+runCli arguments = case referenceTransactionPhase arguments of
+    Just phase -> do
+        directory <- getCurrentDirectory
+        input <- BSC.getContents
+        result <- Protection.evaluateTransaction directory phase input
+        pure $ case result of
+            Right () -> CliResponse ExitSuccess "" ""
+            Left problem -> CliResponse (ExitFailure 1) "" ("git-roam: reference update refused: " <> Text.pack problem <> "\n")
+    Nothing -> runParsedCommand (parseCommand arguments)
+
+runParsedCommand :: Either Text Command -> IO CliResponse
+runParsedCommand parsed = case parsed of
     Left message -> pure (failure 2 (message <> "\nTry 'git roam --help' for usage."))
     Right (ShowVersion) -> pure (success ("git-roam " <> Text.pack packageVersion <> "\n"))
     Right (ShowHelp topic) -> pure (success (renderHelp topic))

@@ -77,6 +77,7 @@ test-suite unit-tests
     , base        >=4.16 && <5
     , bytestring
     , directory
+    , filepath
     , git-roam
     , text
 

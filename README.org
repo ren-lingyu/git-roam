@@ -75,6 +75,25 @@ The structured outputs use a four-field top-level map: =node= (canonical UUID), 
 
 On success stdout contains only the requested representation. Errors and warnings remain text on stderr with the existing exit statuses; a successful creation followed by an unexpected encoding failure reports that the Node was created and must be inspected before retrying.
 
+* Deployment path selection
+The development tree after v0.2.0 adds top-level =--deploy-path <absolute-path>=. Place it before the command to supply the worktree deployment root for =node create= or =deploy=:
+
+#+begin_src sh
+  git roam --deploy-path /absolute/path/to/nodes node create
+  git roam --deploy-path /absolute/path/to/nodes deploy --remote origin
+#+end_src
+
+This top-level option requires an absolute path and cannot be repeated. It is mutually exclusive with a subcommand =--path=, even when both values name the same directory. Without it, =node create --path <path>= and =deploy --path <path>= retain their existing absolute or invocation-relative path behavior. Either form is required for these two commands. Argument conflicts, missing values and relative top-level values fail with exit status 2 before repository changes.
+
+A wrapper can prepend the same option for every invocation:
+
+#+begin_src sh
+  #!/bin/sh
+  exec /absolute/path/to/git-roam --deploy-path /absolute/path/to/nodes "$@"
+#+end_src
+
+Calls through this wrapper must omit the subcommand =--path=. Other public commands and help/version queries accept the top-level option without inspecting or creating that directory; its absolute-path syntax is still checked. The internal reference-transaction Hook remains independent: wrapper-supplied deployment-path prefixes are ignored before Hook dispatch, without validating or using their values. Hook configuration, transaction input and protection rules are unchanged. No environment variable or persistent directory setting is introduced. Existing deployed worktrees keep their actual paths, and newly created worktrees retain the normal path and user-data safety checks.
+
 * Read-only repository inspection
 =check= validates the complete Git ancestry of the selected managed local Node tips, including each context commit's own history and stored objects. It does not require an external context to remain in that external Node's current branch. =status= shows the current tip kind, latest first-parent Checkpoint, Content tail, Checkpoint count, the latest Checkpoint's direct context OIDs, and Git-recorded Node worktree locations. Direct contexts are not transitive knowledge dependencies; the latest Checkpoint's list is shown even when its Node has since acquired ordinary Content.
 
