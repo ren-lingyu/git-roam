@@ -5,10 +5,11 @@
 The context protocol is now the sole production protocol. The atomic cutover
 replaced formal Protocol.History/Repository, CLI and installed Hook together,
 adapted all lifecycle consumers and removed temporary V2 modules, tests and
-aliases. Stage C release preparation remains. The three-document release guide
-has been committed; package version and release prose are prepared and verified
-for 0.2.0 in the working tree, with NEXT -> DONE reserved for the human. See current.md
-for exact working-tree and verification status. This is not publication evidence.
+aliases. Stage C local finalization is complete: package version 0.2.0, final
+release documents and the human DONE/CLOSED record are committed. The observed
+annotated v0.2.0 tag identifies that exact finalized source. See current.md for
+test provenance and compatibility limits. Hosted publication remains separately
+unverified; local finalization and tagging do not establish it.
 [current.md](current.md) gives the recoverable state and verification limits.
 
 v0.1.0's complete exact-version knowledge-dependency DAG was an internally

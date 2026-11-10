@@ -2,45 +2,49 @@
 
 ## Objective and production baseline
 
-Version preparation is complete; human finalization remains pending. Main is
-3b6d0b2, docs: document the v0.2.0 context protocol and release changes, confirmed
-after the user's commit. The current uncommitted preparation changes six files:
-Cabal package version 0.1.0 -> 0.2.0, hardcoded expected version output in
-Unit.hs/GitAdapter.hs, and temporary release prose in README/root CHANGELOG/
-detailed v0.2.0 notes. No project staging/commit, tag or publication was performed.
-The user explicitly reserves NEXT -> DONE and UTC CLOSED for manual action.
+v0.2.0 is locally finalized and tagged. The user committed
+build(v0.2.0): finalize release metadata as 3e6e283, after the release-guide commit
+3b6d0b2. Project worktree and index are clean. The committed Cabal version and
+both version-test expectations are 0.2.0; README and detailed notes contain
+version prose without temporary draft/old-package claims. The user changed
+CHANGELOG.org to DONE v0.2.0 with CLOSED [2026-11-10 Tue 15:29] (UTC) and matching
+CUSTOM_ID. That manual state/time change was observed, not performed by the agent.
 
-README and release notes describe version 0.2.0 without draft/pre-release or
-stale 0.1.0-package claims, and without asserting publication. NEXT v0.2.0,
-CUSTOM_ID, existing version states/CLOSED values and v0.1.0 notes are unchanged.
-Both version-test entry points now expect git-roam 0.2.0. Feature descriptions,
-manual migration boundaries and implementation logic are otherwise unchanged.
+The local v0.2.0 tag is annotated (tag object
+e77db7cbf0d4d1a46e84d22f2f565ab66b91c393) and dereferences to exactly this
+finalized commit, 3e6e283c632e371747307c4cc2b05dbccfe8f368. Its recorded tagger
+time is 2026-11-10T23:33:21+08:00 (15:33:21 UTC). Tag existence/target does not
+prove platform publication, signature verification or a publication timestamp.
+No new hosted Release check was performed; do not infer publication or absence.
+The agent did not create the project commit/tag or publish anything.
 
-The user requires planned nonblocking improvements to stay visible in README.
-Its Deferred candidates section remains byte-identical to the committed section:
-high-volume worktree deployment optimization and alternative directory naming
-remain future candidates, not v0.2.0 release blockers. Do not delete this roadmap
-when cleaning up release prose or treat these candidates as implemented promises.
+All 52 committed files were checked against the version-preparation manifest:
+all are byte-identical to that tested snapshot except the exact human
+NEXT -> DONE and CLOSED insertion in the root CHANGELOG. Fresh 0.2.0 compilation
+and all 14 suites / 260 tests passed before commit with -Wall -Werror, one Nix
+job/core and a 300s bound, without failure or timeout. Product derivation:
+/nix/store/ymlx2b6s2r02a4pcqjy91kq69fcasl0n-git-roam-0.2.0.drv.
+Same-source flake check reused the completed product and freshly checked 50
+eligible files with zero formatting changes. The actual flake executable
+returned git-roam 0.2.0 plus LF, exit 0. The final manual Org insertion received
+static diff/source-identity review, not a newly executed full flake check.
+Only x86_64-linux was exercised; other platform/minimum-Git/concurrency limits
+remain. No unchanged tests were rerun solely to obtain a commit association.
 
-Fresh 0.2.0 compilation and all 14 suites / 260 tests passed with -Wall -Werror.
-The authorized 300s build used one Nix job/core; no timeout or failure occurred.
-Derivation: /nix/store/ymlx2b6s2r02a4pcqjy91kq69fcasl0n-git-roam-0.2.0.drv.
-Same-source flake check passed, reusing this completed product and freshly
-checking 50 eligible files with zero formatting changes. The actual default
-flake executable returned exactly git-roam 0.2.0 followed by LF (exit 0).
-Only x86_64-linux was exercised. All 52 isolated snapshot files were compared
-against the working tree after checks. This evidence belongs to the uncommitted
-version-preparation snapshot, not the 0.1.0 metadata still in main. Temporary
-source manifest/logs/results are in tmp/v020-release-preparation/, not a new
-archive or a required durable source. No committed version-preparation snapshot
-exists yet; do not invent a project-parent association for this tested patch.
+README's Deferred candidates remain present: high-volume worktree deployment
+optimization and alternative directory naming are future nonblocking work.
+The user explicitly requires such plans to stay visible when preparing release
+prose. Do not delete that roadmap or promote candidates into v0.2.0 guarantees.
+Historical v0.1.0 notes and the explicit manual migration boundary remain intact.
 
-Next: the user manually changes NEXT to DONE and verifies UTC CLOSED, reviews
-and stages the preparation, and commits the final version. Verify resulting
-source identity and document state before grounding GAW in that commit. The
-v0.2.0 tag should point at that finalized commit; no extra empty commit is needed.
-Tagging and platform publication remain independent human actions. No local
-v0.2.0 tag was observed after validation; no new publication check was performed.
+The v0.2.0 tag's CHANGELOGS/v0.2.0.org is the authoritative Release Notes
+manuscript for any later publication tooling. Next: if requested, independently
+verify/publish through the authorized release workflow, distinguishing local
+DONE/tag from hosted publication. Do not re-run A/B, restore draft wording,
+repeat completed tests/experiments or add deferred features without a new task.
+The ordinary temporary verification files are not required durable artifacts;
+current source, tests and the associated finalized project snapshot retain the
+implementation. Existing performance archives remain historical and immutable.
 
 The adopted implementation keeps entriesValid as the single entry-name rule.
 Starting at the UUID directory, validateHistory walks Directory children through
@@ -208,64 +212,32 @@ The handoff reports successful user flake checks for this follow-up, not a new
 agent test run. The earlier atomic-cutover implementation is inherited context;
 the exact follow-up source inspection is grounded in inherited project history.
 
-## Current stage C release manuscripts
+## Finalized stage C documents and remaining evidence limits
 
-The three-document release guide, including the nested-tree Fixed entries, is
-committed as 3b6d0b2. Current working-tree changes prepare final version prose:
-README names the implemented 0.2.0 context protocol; root CHANGELOG links to
-Detailed release notes; detailed notes describe 0.2.0 without a transient draft
-status. The README nonblocking roadmap remains intact. All are unstaged.
+The release guide was introduced in 3b6d0b2 and finalized with package metadata
+in 3e6e283. README, root CHANGELOG and detailed notes agree with the context
+protocol, recursive-tree fix, non-cascading deletion, preserved worktree safety
+and documented migration boundary. Root header/CUSTOM_ID are valid; the human
+DONE/CLOSED record is present. The final tag points to the source containing the
+complete detailed notes. The finalized documents are committed, with no
+working-tree/index changes.
 
-Root header, NEXT v0.2.0, CUSTOM_ID and historical CLOSED values remain intact.
-Only the human changes existing version keywords and version-level UTC CLOSED.
-Removing temporary draft prose does not finalize/tag/publish the version; the
-human still needs to confirm the local DONE state. Prior migration redirection,
-local-clone flow and limits of walkthrough test coverage remain intact.
+Stage C source/document review, the earlier isolated 250-case reproduction,
+the 260-case repair/version runs and the scoped performance measurements are
+complete within their stated boundaries. Use stage-c-coverage.md for the
+requirement-to-test map; it describes the earlier baseline, supplemented by the
+recursive-tree regression evidence above. Do not reopen an identical audit or
+represent every negative case as tested in every backend/format combination.
 
-Cabal is now 0.2.0 in the working tree, and BuildInfo derives --version from it.
-Both version-test expectations and actual output are verified, as recorded above.
-There is no automatic migration or new protocol feature in this preparation.
+The tested platform/toolchain is pinned x86_64-linux, Git 2.56.0/GHC 9.12.3.
+Other declared systems, exact minimum Git, arbitrary concurrent writers and
+literal execution of every README step remain unproven. No automatic migration,
+repair, general cross-Node batch tooling or deployment acceleration is promised.
 
-## Stage C next actions and acceptance limits
-
-The memory recovery and requested independent verification/coverage assessment
-are complete. Continue at C, not A/B, under the next applicable user instruction.
-Use mapped coverage and the latest 260-case version-preparation result; do not
-restart the same audit or treat it as every possible failure matrix. The earlier
-isolated verification made no product/release writes; current version edits are
-explicitly authorized and remain uncommitted. The adoption checklist remains:
-
-| Area | Evidence to map or complete |
-| --- | --- |
-| Context DAG | External Root/Content/Checkpoint, order, duplicate/self rejection, repeated-external-Node warning, same-tree direct Root Checkpoint. |
-| Historical anchoring | Context after external advance/rewrite/branch deletion, no propagation or requirement to create an external Checkpoint. |
-| Identity/objects | UUID and Root conflicts, marker/tree shape, missing/wrong-type objects, shallow history, raw replace/graft boundaries. |
-| Native updates | Content/amend/same-Root rewrite, invalid multi-parent updates, Root change and uncontrolled UUID ref creation/deletion. |
-| Transactions | Whole prepared candidate, expected-old races, other Hooks, operation locks/config, failure residuals. |
-| Delete | Non-cascading context retention, managed-ref exclusive reachability, main/linked checkout refusal, stale token and exact config cleanup. |
-| Worktrees | Dirty index/untracked/ignored data, nesting/move/locks, main preservation, remote ambiguity and conservative compensation. |
-| Matrix | SHA-1/SHA-256, files/reftable and relevant main/linked/bare cases; name actually exercised Git/platform versions. |
-
-Then align help, README, root CHANGELOG and detailed notes to actual code;
-confirm intended version, authorized checks and source inclusion. Only the human
-performs project staging/commits, existing release-state transitions and UTC
-CLOSED review, tags and publication. A tag must identify the intended finalized
-source/notes, and GitHub publication is a separate observable event. Preserve
-v0.1.0 notes and code rather than reinterpreting their formal dependencies.
-
-Local v0.1.0 annotated-tag dereference was confirmed as the historical finalized
-commit. The handoff reports an existing v0.1.0 GitHub Release published at
-2026-11-08T09:59:33Z and supplies its public release URL; the public API read in
-this consolidation was unavailable, so that timestamp remains attributed to
-the handoff, not new independent publication verification. No release operation
-was performed. Do not confuse absent fresh verification with proof of absence.
-
-Deployment acceleration, alternative naming/layout or .roam deployment metadata
-(v0.3.0 or later candidate), environment deployment-path defaults, cross-Node
-batch tooling, Org-link automation, automatic v0.1.0 migration and permanent
-context-retention policy are outside this release task. Existing create/deploy
-still explicitly require --path. No new benchmark or platform guarantee follows
-from the ancestry optimization or earlier v0.1.0 experiments.
+The handoff's v0.1.0 publication evidence remains historical and attributed;
+this task did not independently recheck that hosted Release. Local v0.2.0
+finalization/tag are independently observed now, while hosted publication is
+still unverified. A tag or CLOSED time must not substitute for platform evidence.
 
 ## Navigation and retained history
 
