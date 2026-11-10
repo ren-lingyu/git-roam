@@ -8,8 +8,9 @@ adapted all lifecycle consumers and removed temporary V2 modules, tests and
 aliases. Stage C local finalization is complete: package version 0.2.0, final
 release documents and the human DONE/CLOSED record are committed. The observed
 annotated v0.2.0 tag identifies that exact finalized source. See current.md for
-test provenance and compatibility limits. Hosted publication remains separately
-unverified; local finalization and tagging do not establish it.
+test provenance and compatibility limits. The user confirmed tagging and
+explicitly excluded platform-publication verification from this completed
+handoff; do not treat that verification as pending release acceptance.
 [current.md](current.md) gives the recoverable state and verification limits.
 
 v0.1.0's complete exact-version knowledge-dependency DAG was an internally
