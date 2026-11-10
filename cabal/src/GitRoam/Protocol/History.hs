@@ -76,6 +76,7 @@ data ValidationState = ValidationState
     { commits :: Map ObjectId ValidatedCommit
     , trees :: Map ObjectId (NodeId, Bool)
     , treeObjects :: Map ObjectId [TreeEntry]
+    , walkedTrees :: Set ObjectId
     , roots :: Map NodeId ObjectId
     , visiting :: Set ObjectId
     }
@@ -107,7 +108,7 @@ validateHistory ::
     [ObjectId] ->
     m (Either HistoryError ValidatedHistory)
 validateHistory format source tips =
-    evalStateT (runExceptT action) (ValidationState Map.empty Map.empty Map.empty Map.empty Set.empty)
+    evalStateT (runExceptT action) (ValidationState Map.empty Map.empty Map.empty Set.empty Map.empty Set.empty)
   where
     action = do
         mapM_ visit tips
@@ -132,6 +133,15 @@ validateHistory format source tips =
                 lift (modify' (\state -> state{treeObjects = Map.insert oid entries (treeObjects state)}))
                 pure entries
 
+    -- Every directory shares the same entry validation and immutable-object
+    -- cache. A separate visited set also avoids re-walking shared subtrees.
+    walkTree oid = do
+        walked <- lift (gets (Set.member oid . walkedTrees))
+        unless walked $ do
+            entries <- readTree oid
+            lift (modify' (\state -> state{walkedTrees = Set.insert oid (walkedTrees state)}))
+            mapM_ (walkTree . entryObject) (filter ((== Directory) . entryMode) entries)
+
     nodeTree tree = do
         checkOid tree
         cached <- lift (gets (Map.lookup tree . trees))
@@ -148,6 +158,7 @@ validateHistory format source tips =
                 case filter ((== ".roam") . entryName) contents of
                     [marker] | entryMode marker `elem` [RegularFile, ExecutableFile] -> pure ()
                     _ -> throwE (InvalidNodeTree tree MissingOrNonregularMarker)
+                walkTree directory
                 let value = (node, length contents == 1)
                 lift (modify' (\state -> state{trees = Map.insert tree value (trees state)}))
                 pure value

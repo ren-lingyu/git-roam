@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import Control.Monad (forM_)
+import Control.Monad (foldM, forM_)
 import Control.Monad.Trans.State.Strict (State, get, modify', put, runState)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -115,6 +115,9 @@ main =
         , ("immutable objects are memoized", cacheTest)
         ]
             ++ [("independent SHA formats " ++ show format, formatTest format) | format <- [Sha1, Sha256]]
+            ++ [("nested tree entry validation " ++ show format, nestedTreeTest format) | format <- [Sha1, Sha256]]
+            ++ [("nested tree evidence failures " ++ show format, nestedEvidenceTest format) | format <- [Sha1, Sha256]]
+            ++ [("shared nested subtrees are memoized " ++ show format, sharedTreeTest format) | format <- [Sha1, Sha256]]
 
 uuidTest :: IO ()
 uuidTest =
@@ -195,6 +198,75 @@ malformedTreeTest = do
                 ]
     forM_ tips $ \tip ->
         invalid (\e -> case e of History.InvalidNodeTree _ _ -> True; _ -> False) fixture [tip]
+
+-- Nest the malformed entries below another directory, so neither the top
+-- UUID check nor the marker directory check can accidentally cover them.
+nestedTreeTest :: ObjectFormat -> IO ()
+nestedTreeTest format = do
+    forM_ [BS.empty, ".", "..", "a/b", "a\0b"] $ \name -> do
+        let ((tip, malformed), fixture) = build format $ do
+                (r, _) <- root uuidA
+                blob <- fresh
+                bad <- tree [TreeEntry name RegularFile blob]
+                middle <- tree [TreeEntry "nested" Directory bad]
+                contents <- tree [TreeEntry ".roam" RegularFile blob, TreeEntry "assets" Directory middle]
+                top <- tree [TreeEntry uuidA Directory contents]
+                c <- commit top [r]
+                pure (c, bad)
+        assertEqual (Left (History.InvalidNodeTree malformed (History.InvalidEntryName name))) (validate fixture [tip])
+    let ((tip, malformed), fixture) = build format $ do
+            (r, _) <- root uuidA
+            blob <- fresh
+            bad <- tree [TreeEntry "same" RegularFile blob, TreeEntry "same" Directory blob]
+            contents <- tree [TreeEntry ".roam" RegularFile blob, TreeEntry "assets" Directory bad]
+            top <- tree [TreeEntry uuidA Directory contents]
+            c <- commit top [r]
+            pure (c, bad)
+    assertEqual (Left (History.InvalidNodeTree malformed (History.DuplicateEntryName "same"))) (validate fixture [tip])
+
+nestedEvidenceTest :: ObjectFormat -> IO ()
+nestedEvidenceTest format = do
+    let ((tip, missing), fixture) = build format $ do
+            (r, _) <- root uuidA
+            absent <- fresh
+            blob <- fresh
+            contents <- tree [TreeEntry ".roam" RegularFile blob, TreeEntry "assets" Directory absent]
+            top <- tree [TreeEntry uuidA Directory contents]
+            c <- commit top [r]
+            pure (c, absent)
+    assertEqual (Left (History.ObjectUnavailable missing MissingObject)) (validate fixture [tip])
+    let provider = (source fixture){loadTree = \oid -> if oid == missing then pure (Left (WrongObjectType "blob")) else loadTree (source fixture) oid}
+    assertEqual (Left (History.ObjectUnavailable missing (WrongObjectType "blob"))) $
+        runIdentity (History.validateHistory format provider [tip])
+
+sharedTreeTest :: ObjectFormat -> IO ()
+sharedTreeTest format = do
+    let ((tips, shared), fixture) = build format $ do
+            (ar, _) <- root uuidA
+            (br, _) <- root uuidB
+            blob <- fresh
+            leaf <- tree [TreeEntry "note.org" RegularFile blob]
+            -- Thirty shared levels would require billions of recursive visits
+            -- without traversal deduplication, even with a read cache.
+            branchTree <- foldM (\child _ -> tree [TreeEntry "left" Directory child, TreeEntry "right" Directory child]) leaf [1 :: Int .. 30]
+            let content uuid r = do
+                    directory <- tree [TreeEntry ".roam" RegularFile blob, TreeEntry "assets" Directory branchTree]
+                    top <- tree [TreeEntry uuid Directory directory]
+                    commit top [r]
+            a <- content uuidA ar
+            b <- content uuidB br
+            pure ([a, b, a], branchTree)
+        provider =
+            HistorySource
+                (\oid -> pure (runIdentity (loadCommit (source fixture) oid)))
+                ( \oid -> do
+                    modify' (Map.insertWith (+) oid (1 :: Int))
+                    pure (runIdentity (loadTree (source fixture) oid))
+                )
+        (outcome, counts) = runState (History.validateHistory format provider tips) Map.empty
+    _ <- expectRight outcome
+    assertEqual (Just 1) (Map.lookup shared counts)
+    assertTrue "A shared tree object was loaded more than once" (all (== 1) (Map.elems counts))
 
 identityChangeTest :: IO ()
 identityChangeTest = do

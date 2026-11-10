@@ -163,6 +163,10 @@ main = do
                | backend <- ["files", "reftable"]
                , format <- [Sha1, Sha256]
                ]
+            ++ [ ("nested malformed tree rejection " ++ backend ++ " " ++ show format, nestedMalformedTest environment backend format)
+               | backend <- ["files", "reftable"]
+               , format <- [Sha1, Sha256]
+               ]
             ++ [ ("native protection " ++ backend ++ " " ++ show format, protectionTest environment backend format)
                | backend <- ["files", "reftable"]
                , format <- [Sha1, Sha256]
@@ -467,6 +471,41 @@ nestedObjectsTest environment = initialized environment "files" Sha1 $ \director
     _ <- ok environment directory ["hash-object", "-w", "--stdin"] "assets/note\n"
     removeLoose directory assets
     expectLeft =<< inspectState native directory environment Nothing
+
+-- Write raw tree bytes deliberately: mktree would reject or normalize some
+-- malformed names before they could reach the production reader/validator.
+nestedMalformedTest :: [(String, Maybe String)] -> String -> ObjectFormat -> IO ()
+nestedMalformedTest environment backend format = initialized environment backend format $ \directory -> do
+    (a, _, marker) <- makeRoot environment directory uuidA "A"
+    enabled <- invokeCli environment directory ["enable"]
+    assertEqual ExitSuccess (gitExitCode enabled)
+    let rawOid = BS.pack [digit (BS.index marker i) * 16 + digit (BS.index marker (i + 1)) | i <- [0, 2 .. BS.length marker - 2]]
+        digit byte = if byte <= 57 then byte - 48 else byte - 87
+        entry name = "100644 " <> name <> "\0" <> rawOid
+        cases =
+            [(entry name, InvalidEntryName name) | name <- [BS.empty, ".", "..", "a/b"]]
+                ++ [(entry "same" <> entry "same", DuplicateEntryName "same")]
+    forM_ cases $ \(raw, problem) -> do
+        malformed <- line <$> ok environment directory ["hash-object", "--literally", "-t", "tree", "-w", "--stdin"] raw
+        middle <- line <$> ok environment directory ["mktree"] ("040000 tree " <> malformed <> "\tnested\n")
+        contents <- line <$> ok environment directory ["mktree"] ("100644 blob " <> marker <> "\t.roam\n040000 tree " <> middle <> "\tassets\n")
+        top <- line <$> ok environment directory ["mktree"] ("040000 tree " <> contents <> "\t" <> uuidA <> "\n")
+        candidate <- makeCommit environment directory top [a] "Malformed nested content"
+        let expected = InvalidNodeTree (objectId format malformed) problem
+        validateCandidate native directory (Map.singleton (nodeId uuidA) (objectId format candidate))
+            >>= assertEqual (Left (HistoryFailure expected))
+        rejected <- invoke environment directory ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack candidate] BS.empty
+        assertTrue "Installed Hook accepted malformed nested tree entries" (gitExitCode rejected /= ExitSuccess)
+        observed <- line <$> ok environment directory ["rev-parse", BSC.unpack ("refs/heads/" <> uuidA)] BS.empty
+        assertEqual a observed
+        -- Install only in this fixture to exercise read-only inspection/CLI.
+        _ <- ok environment directory (ownHookBypass ++ ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack candidate]) BS.empty
+        inspectState native directory environment Nothing >>= assertEqual (Left (HistoryFailure expected))
+        checked <- invokeCli environment directory ["check"]
+        assertEqual (ExitFailure 1) (gitExitCode checked)
+        assertTrue "Nested tree diagnostic was lost" ("history-invalid:" `BS.isInfixOf` gitStderr checked)
+        _ <- ok environment directory (ownHookBypass ++ ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack a]) BS.empty
+        pure ()
 
 shallowTest :: [(String, Maybe String)] -> IO ()
 shallowTest environment = initialized environment "files" Sha1 $ \directory -> withTempDirectory $ \destination -> do
