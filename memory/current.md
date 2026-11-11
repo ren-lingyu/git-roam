@@ -1,5 +1,57 @@
 # Git Roam current state
 
+## Completed implementation: unified top-level output format
+
+The unified CLI output implementation is complete in the uncommitted project
+worktree. Only top-level --format text|json|cbor is accepted; node create's local
+option is removed and treated as ordinary invalid arguments. Default text, exit
+codes, history protocol, safety and interaction are preserved. Help stays text;
+version supports all formats. Hook dispatch ignores complete global option pairs
+independently of public validation. No node list or persistent setting was added.
+
+Output centralizes the byte-aware Value model, shared JSON/CBOR codecs, report
+mappings and legacy text renderers. JSON stdout is one LF-terminated value;
+CBOR has no trailing newline. Existing creation fields and authoritative JSON
+Base64/native CBOR path bytes are preserved; raw ref/config bytes share that
+encoding. Report diagnostics/warnings are in stdout, preserving nonzero status
+for invalid history/blocked previews. Without a report, stdout is empty and
+noninteractive machine stderr uses JSON Lines for both formats. Human terminal
+delete previews/prompts remain text outside that protocol; automation uses
+--dry-run/--confirm. Parameter failures retain exit 2.
+
+Shared Diagnostic values are attached directly to application failures, using
+operation-level codes plus typed inspection categories without parsing English.
+Evidence captures known removals, remaining worktrees/refs/config, candidate
+OIDs, attempted actions and ref-update confirmation. Unknown observations use
+null; confirmation does not assert post-compensation state. Bundled failure
+pattern synonyms retain the two-argument source interface and legacy reason/
+details text. README, help and unreleased CHANGELOG document the interface and
+breaking local-format removal. Version metadata/released history are unchanged.
+The 17 tracked modified files plus new untracked Diagnostic.hs are one feature;
+include the new module in later staging. No project staging/commit was performed.
+
+The user authorized targeted Haskell formatting and on-demand checks, one Nix
+job/core, 300s checks and 120s formatting. The isolated 53-file source at
+tmp/unified-format-check includes the new module without index changes. First
+check stopped at Cabal ordering; second compiled and passed 13/14 suites, with
+two Unit assertions still using removed syntax. Those were migrated. The third
+check freshly compiled and passed all 14 suites / 286 test groups. Treefmt
+checked 51 eligible files with zero changes. No timeout was observed.
+Successful derivation:
+/nix/store/kxvbirzykc8ax1cd1qnm4xchbj6r5l45-git-roam-0.2.0.drv.
+Only x86_64-linux was verified; aarch64-linux/aarch64-darwin were omitted.
+
+All 53 current source files matched the verified snapshot by SHA-256. The
+manifest at tmp/unified-format-verification.json supports later committed-source
+comparison. Final diff --check passed; the project index is empty. Coverage
+includes JSON/CBOR framing/model parity, arbitrary path bytes, format conflicts,
+both ref backends/object formats, empty/multiple Nodes, warnings, invalid-history
+reports, deletion execution, actual Hook wrappers and enhanced existing partial-
+failure injection tests. No raw archive is needed. This completion checkpoint
+has no additional project parent because the tested feature is uncommitted;
+do not attach the old main tip as if it contained this source. Await user review
+or commit; do not rerun unchanged checks or initiate release work.
+
 ## Completed issue 2: pack-refs loose pruning
 
 The user committed the issue 1 fix as fix(undeploy): allow residual REBASE_HEAD
