@@ -54,12 +54,12 @@ main =
 
 arguments :: IO ()
 arguments = do
-    assertEqual (Right (CreateNode "work" Nothing TextFormat)) (parseCommand ["node", "create", "--path", "work"])
-    assertEqual (Right (CreateNode "work" (Just nodeA) TextFormat)) (parseCommand ["node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA)])
-    assertEqual (Right (CreateNode "work" (Just nodeA) TextFormat)) (parseCommand ["node", "create", "--id", BSC.unpack (nodeIdBytes nodeA), "--path", "work"])
-    assertEqual (Right (Formatted JsonFormat (CreateNode "work" Nothing TextFormat))) (parseCommand ["--format", "json", "node", "create", "--path", "work"])
-    assertEqual (Right (Formatted CborFormat (CreateNode "work" (Just nodeA) TextFormat))) (parseCommand ["--format", "cbor", "node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA)])
-    assertEqual (Right (Formatted TextFormat (CreateNode "work" Nothing TextFormat))) (parseCommand ["--format", "text", "node", "create", "--path", "work"])
+    assertEqual (Right (CreateNode "work" Nothing)) (parseCommand ["node", "create", "--path", "work"])
+    assertEqual (Right (CreateNode "work" (Just nodeA))) (parseCommand ["node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA)])
+    assertEqual (Right (CreateNode "work" (Just nodeA))) (parseCommand ["node", "create", "--id", BSC.unpack (nodeIdBytes nodeA), "--path", "work"])
+    assertEqual (Right (Formatted JsonFormat (CreateNode "work" Nothing))) (parseCommand ["--format", "json", "node", "create", "--path", "work"])
+    assertEqual (Right (Formatted CborFormat (CreateNode "work" (Just nodeA)))) (parseCommand ["--format", "cbor", "node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA)])
+    assertEqual (Right (Formatted TextFormat (CreateNode "work" Nothing))) (parseCommand ["--format", "text", "node", "create", "--path", "work"])
     assertEqual (Right (ShowHelp NodeCreateHelp)) (parseCommand ["help", "node", "create"])
     forM_
         [ ["node", "create"]

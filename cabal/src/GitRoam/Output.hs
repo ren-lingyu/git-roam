@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-{- | Render creation results without imposing a text encoding on filesystem paths.
-The format is a presentation decision; Node creation itself is format-agnostic.
+{- | Render CLI results and diagnostics through shared text, JSON and CBOR output.
+Preserve filesystem path bytes independently of the selected presentation format.
 -}
 module GitRoam.Output (OutputFormat (..), Value (..), encodeValue, diagnostic, renderDiagnostic, evidenceValue, renderCreation, renderDelete, decimal, nodeText, oidText, stateDiagnostic, inspectionDiagnostic, renderStatus, nodeValue, oidValue, worktreePairs, deleteValue, deleteFields, inspectionValue, inspectionCode, inspectionHasReport) where
 

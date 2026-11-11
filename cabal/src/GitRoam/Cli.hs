@@ -42,7 +42,7 @@ data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp |
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = Formatted Output.OutputFormat Command | ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) Output.OutputFormat | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
+data Command = Formatted Output.OutputFormat Command | ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -123,7 +123,7 @@ parseSubcommand deployment arguments = case arguments of
     ["node", "-h"] -> help NodeHelp
     ["node", "create", "--help"] -> help NodeCreateHelp
     ["node", "create", "-h"] -> help NodeCreateHelp
-    "node" : "create" : args -> createArgs Nothing Nothing Nothing args
+    "node" : "create" : args -> createArgs Nothing Nothing args
     "node" : _ -> Left "Usage: git roam node create --path <path> [--id <uuid>]"
     ["undeploy", "--help"] -> help UndeployHelp
     ["undeploy", "-h"] -> help UndeployHelp
@@ -156,10 +156,10 @@ parseSubcommand deployment arguments = case arguments of
     option : _ | take 1 option == "-" -> Left ("Unknown option: " <> quoted option)
     command : _ -> Left ("Unknown command: " <> quoted command)
   where
-    createArgs path node format args = case args of
-        [] -> CreateNode <$> deploymentPath path <*> pure node <*> pure (maybe Output.TextFormat id format)
-        "--path" : value : rest | path == Nothing && validValue value -> createArgs (Just value) node format rest
-        "--id" : value : rest | node == Nothing -> uuid value >>= \selected -> createArgs path (Just selected) format rest
+    createArgs path node args = case args of
+        [] -> CreateNode <$> deploymentPath path <*> pure node
+        "--path" : value : rest | path == Nothing && validValue value -> createArgs (Just value) node rest
+        "--id" : value : rest | node == Nothing -> uuid value >>= \selected -> createArgs path (Just selected) rest
         _ -> Left "Usage: git roam node create --path <path> [--id <uuid>]"
     deployArgs path remote args = case args of
         [] -> DeployNodes <$> deploymentPath path <*> pure remote
@@ -355,7 +355,7 @@ runFormatted format parsed = case parsed of
                                             )
                             )
                             (if format == Output.TextFormat then Text.unlines (map ("warning: " <>) (map Text.pack (Checkpoints.checkpointWarnings value))) else "")
-    Right (CreateNode path specifiedNode localFormat) -> do
+    Right (CreateNode path specifiedNode) -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath
         let git = nativeGit defaultGitExecutable
@@ -366,7 +366,7 @@ runFormatted format parsed = case parsed of
             Left failed@(Creation.CreationFailure reason details) ->
                 pure (applicationFailure (Creation.creationFailureDiagnostic failed) (Creation.creationFailureEvidence failed) reason details)
             Right report -> do
-                encoded <- try (Output.renderCreation (if format == Output.TextFormat then localFormat else format) report) :: IO (Either IOException BS.ByteString)
+                encoded <- try (Output.renderCreation format report) :: IO (Either IOException BS.ByteString)
                 pure $ case encoded of
                     Right bytes -> CliResponse ExitSuccess bytes ""
                     Left problem ->
