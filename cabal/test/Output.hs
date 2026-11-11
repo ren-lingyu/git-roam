@@ -4,16 +4,20 @@ module Main (main) where
 
 import qualified Codec.CBOR.Decoding as CBOR
 import qualified Codec.CBOR.Read as CBOR
+import qualified Codec.CBOR.Term as Term
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import GitRoam.Application.Create (CreationResult (..), createdBundlePath)
+import GitRoam.Cli
 import GitRoam.ObjectId (ObjectFormat (Sha1), parseObjectId)
 import GitRoam.Output
 import GitRoam.Protocol.Identity (parseNodeId)
 import GitRoam.Worktree.Paths (decodePath, encodePath)
+import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import TestSupport
 
@@ -23,6 +27,8 @@ main =
         [ ("text output remains unchanged", textResult)
         , ("JSON output preserves arbitrary filesystem bytes", jsonResult)
         , ("CBOR output preserves arbitrary filesystem bytes", cborResult)
+        , ("shared JSON/CBOR model and framing", sharedModel)
+        , ("global format parsing and machine argument diagnostics", globalFormat)
         ]
 
 sample :: FilePath -> IO CreationResult
@@ -106,3 +112,43 @@ cborResult = do
         if count == 4 && [a, b, c, d] == ["node", "root", "worktree", "bundle"]
             then pure (node, root, worktree, bundle)
             else fail "Invalid creation CBOR keys"
+
+sharedModel :: IO ()
+sharedModel = do
+    let value = Object [("empty", Array []), ("items", Array [Number 2, Boolean True, Null, String "中文\n", Bytes (BS.pack [0, 10, 255])])]
+        bytes = encodeValue CborFormat value
+    (remaining, term) <- expectRight (CBOR.deserialiseFromBytes Term.decodeTerm (BL.fromStrict bytes))
+    assertEqual BL.empty remaining
+    assertEqual value (fromTerm term)
+    json <- expectRight (Aeson.eitherDecodeStrict' (encodeValue JsonFormat value) :: Either String Aeson.Value)
+    assertEqual (Just json) (Aeson.decodeStrict' (encodeValue JsonFormat (fromTerm term)))
+  where
+    fromTerm term = case term of
+        Term.TMap fields -> Object [(key, fromTerm item) | (Term.TString key, item) <- fields]
+        Term.TList items -> Array (map fromTerm items)
+        Term.TInt n -> Number n
+        Term.TBool b -> Boolean b
+        Term.TNull -> Null
+        Term.TString text -> String text
+        Term.TBytes bytes -> Bytes bytes
+        _ -> error "Unexpected CBOR term"
+
+globalFormat :: IO ()
+globalFormat = do
+    assertEqual (Right (Formatted JsonFormat (StatusNode Nothing))) (parseCommand ["--format", "json", "status"])
+    mapM_
+        (expectLeft . parseCommand)
+        [["--format"], ["--format", "yaml", "status"], ["--format", "json", "--format", "json", "status"], ["node", "create", "--path", "work", "--format", "json"], ["status", "--format", "json"]]
+    mapM_
+        (\args -> assertEqual (Right (Formatted CborFormat (DeployNodes "/nodes" Nothing))) (parseCommand args))
+        [["--format", "cbor", "--deploy-path", "/nodes", "deploy"], ["--deploy-path", "/nodes", "--format", "cbor", "deploy"]]
+    response <- runCli ["--format", "cbor", "unknown"]
+    assertEqual (ExitFailure 2) (responseExitCode response)
+    assertEqual BS.empty (responseStdout response)
+    _ <- expectRight (Aeson.eitherDecodeStrict' (Text.encodeUtf8 (responseStderr response)) :: Either String Aeson.Value)
+    help <- runCli ["--format", "json", "help"]
+    assertTrue "Help was encoded as JSON" ("usage:" `BS.isPrefixOf` responseStdout help)
+    version <- runCli ["--format", "json", "version"]
+    assertEqual ExitSuccess (responseExitCode version)
+    _ <- expectRight (Aeson.eitherDecodeStrict' (responseStdout version) :: Either String Aeson.Value)
+    pure ()

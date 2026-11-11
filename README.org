@@ -53,8 +53,8 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam disable
   git roam node create --path /path/to/worktrees
   git roam node create --path /path/to/worktrees --id <uuid>
-  git roam node create --path /path/to/worktrees --format json
-  git roam node create --path /path/to/worktrees --format cbor > creation.cbor
+  git roam --format json node create --path /path/to/worktrees
+  git roam --format cbor node create --path /path/to/worktrees > creation.cbor
   git roam node delete --node <uuid> --dry-run
   git roam checkpoint -m 'Record B0 context' --context <B0>
   git roam deploy --path /path/to/worktrees
@@ -63,7 +63,7 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
 
 Help and version queries do not require a Git repository. Successful queries write to standard output and exit with status 0. Invalid commands, help topics, or arguments write a diagnostic to standard error and exit with status 2.
 
-The optional =--id= on =node create= accepts a canonical lowercase UUIDv4, Nil UUID (=00000000-0000-0000-0000-000000000000=), or Max UUID (=ffffffff-ffff-ffff-ffff-ffffffffffff=). Without it Git-roam generates a fresh UUIDv4, never either extreme. Successful creation prints the =node= identity, =root= OID, =worktree= path, and =bundle= path (the UUID subdirectory inside that worktree). By default (=--format text=), paths use the existing Haskell-escaped quoted output format. =node create= also supports =--format json= and =--format cbor=. The option is specific to Node creation for now; other commands retain their existing outputs. Formatting does not change creation semantics or exit codes.
+The optional =--id= on =node create= accepts a canonical lowercase UUIDv4, Nil UUID (=00000000-0000-0000-0000-000000000000=), or Max UUID (=ffffffff-ffff-ffff-ffff-ffffffffffff=). Without it Git-roam generates a fresh UUIDv4, never either extreme. Successful creation prints the =node= identity, =root= OID, =worktree= path, and =bundle= path (the UUID subdirectory inside that worktree). By default (=--format text=), paths use the existing Haskell-escaped quoted output format. The top-level =--format text|json|cbor= option applies to =check=, =status=, =checkpoint=, =deploy=, =undeploy=, =node create/delete=, =enable/disable= and =version=. Place it before the command; =node create --format= is no longer accepted. Formatting does not change operation semantics or exit codes.
 
 The structured outputs use a four-field top-level map: =node= (canonical UUID), =root= (lowercase hexadecimal Git object ID), =worktree= (linked worktree root), and =bundle= (its UUID subdirectory). The JSON value is a UTF-8 object, followed by one LF. Its path fields are objects of the form:
 
@@ -344,3 +344,48 @@ Rebase state directories (=rebase-merge= and =rebase-apply=) prevent removal eve
 Node branches, commit objects, tracking configuration and Git-roam protection remain in place. Repeating =undeploy= with no linked targets succeeds. The command can run inside a target worktree; later Git operations use the common Git directory after the invocation directory is removed. A deployment parent directory may remain empty.
 
 Removal is not a filesystem transaction. If Git fails or state changes after execution starts, the operation stops, reports failure with confirmed removals and available actual remaining state, and leaves newly edited or unsafe worktrees in place. It does not automatically recreate removed worktrees, reset files or move refs. Successful removal is followed by shared history validation, ref preservation, remaining-worktree and protection checks. These checks detect anomalies without claiming isolation from arbitrary external processes.
+
+* Structured command output
+Place =--format text|json|cbor= before the command. The default is =text=;
+help remains text even when a format is selected. The format option cannot be
+repeated. It can appear before or after the top-level =--deploy-path= pair.
+
+#+begin_src sh
+  git roam --format json status | jq '.nodes[] | .node'
+  git roam --format json check
+  git roam --format cbor undeploy > undeployment.cbor
+  git roam --format json node delete --node <uuid> --dry-run
+#+end_src
+
+JSON stdout contains one complete value followed by LF. CBOR stdout contains
+one complete value without a trailing newline. Paths use the lossless JSON
+={"utf8": ..., "base64": ...}= representation (Base64 is authoritative), or
+native CBOR byte strings. Invalid UTF-8 has =utf8: null=. Raw reference names
+and configuration keys use the same byte convention. UUIDs and OIDs are strings.
+
+Creation keeps =node=, =root=, =worktree= and =bundle=. Inspection results contain
+=valid=, =nodes= and =diagnostics=. Checkpoint results contain =node=,
+=checkpoint=, =predecessor=, =contexts= and =diagnostics=. Deployment reports
+=deployed_worktrees= and =tracking_sources=; undeployment reports
+=removed_worktrees= and =retained_main_nodes=. Worktree entries have =node= and
+=path=. Protection results have =enabled= and version results have =version=.
+Deletion previews include =node=, =old_tip=, =root=, =exclusive_commits=,
+=worktrees=, =config_keys=, =plan_id= and =diagnostics=. Successful execution
+also reports =deleted: true=. Absent values use =null= and empty sets use arrays.
+
+Reports can accompany a nonzero exit status: invalid history and blocked deletion
+previews still produce complete reports. A partially completed operation can
+produce =success: false=, =diagnostics=, =evidence= and human-readable =details=.
+Evidence fields use =null= for unknown observations. =ref_update_confirmed=
+records the operation's confirmation, not the current state after compensation.
+Callers must retain the exit status and inspect actual repository state before
+retrying an interrupted mutation.
+
+When no report can be formed, stdout is empty. Noninteractive machine-mode
+stderr uses JSON Lines for both output formats. Diagnostics have stable =code=,
+=severity= and human-readable =message= fields. Successful Checkpoint warnings
+are included in its result diagnostics. Human-readable terminal deletion previews
+and confirmation prompts remain on stderr outside the machine diagnostic protocol;
+automation should use =--dry-run= followed by =--confirm <plan-id>=.
+Internal reference-transaction Hook dispatch ignores complete prefixed format
+and deployment-path pairs and retains its original protection behavior.

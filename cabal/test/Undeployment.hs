@@ -10,11 +10,12 @@ import qualified Data.Map.Strict as Map
 import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Application.Undeploy
 import GitRoam.Cli (Command (..), HelpTopic (..), parseCommand)
+import GitRoam.Diagnostic (Evidence (..))
 import GitRoam.Git
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
-import GitRoam.Worktree.Paths (decodePath)
+import GitRoam.Worktree.Paths (decodePath, encodePath)
 import System.Directory (createDirectory, doesDirectoryExist, doesFileExist, removeDirectory, removeFile)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
@@ -211,7 +212,10 @@ partialFailure git executable repo parent = do
                 else runGit git invocation
     result <- undeploy executable failing repo
     case result of
-        Left (UndeploymentFailure reason details) -> do
+        Left failed@(UndeploymentFailure reason details) -> do
+            firstBytes <- encodePath first
+            assertEqual (Just [(nodeA, firstBytes)]) (evidenceRemoved <$> undeploymentFailureEvidence failed)
+            assertTrue "Missing typed remaining worktrees" (case undeploymentFailureEvidence failed >>= evidenceRemainingWorktrees of Just remaining -> not (null remaining); Nothing -> False)
             assertTrue "Lost native failure" ("fixture native failure" `isInfixOf` reason)
             assertTrue "Lost residual report" (any (isInfixOf "Remaining Node worktrees") details)
         Right value -> fail (show value)

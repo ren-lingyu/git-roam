@@ -12,7 +12,6 @@ module GitRoam.Cli (
 import Control.Exception (IOException, try)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
@@ -24,14 +23,14 @@ import GitRoam.Application.Inspect
 import qualified GitRoam.Application.Protection as Protection
 import qualified GitRoam.Application.Undeploy as Undeployment
 import GitRoam.BuildInfo (packageVersion)
+import qualified GitRoam.Diagnostic as Diagnostic
 import GitRoam.Git
-import qualified GitRoam.Git.Worktrees as Worktrees
-import GitRoam.ObjectId
+import GitRoam.Output (decimal, deleteFields, deleteValue, inspectionCode, inspectionDiagnostic, inspectionHasReport, inspectionValue, nodeText, nodeValue, oidText, oidValue, renderDelete, renderStatus, stateDiagnostic, worktreePairs)
 import qualified GitRoam.Output as Output
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Objects (ObjectProblem (..))
-import GitRoam.Protocol.Repository
+import GitRoam.Worktree.Paths (encodePath)
 import System.Directory (getCurrentDirectory)
 import System.Environment (getExecutablePath)
 import System.Exit (ExitCode (..))
@@ -43,7 +42,7 @@ data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp |
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) Output.OutputFormat | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
+data Command = Formatted Output.OutputFormat Command | ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) Output.OutputFormat | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -55,8 +54,27 @@ data CliResponse = CliResponse
 
 parseCommand :: [String] -> Either Text Command
 parseCommand arguments = do
-    (deployment, remaining) <- parseTopLevel arguments
-    parseSubcommand deployment remaining
+    (format, rest) <- parseFormat arguments
+    (deployment, remaining) <- parseTopLevel rest
+    command <- parseSubcommand deployment remaining
+    pure (maybe command (`Formatted` command) format)
+
+-- Only consume global prefix pairs; command arguments are opaque here.
+parseFormat :: [String] -> Either Text (Maybe Output.OutputFormat, [String])
+parseFormat = go Nothing []
+  where
+    go selected prefix ("--format" : value : rest)
+        | Just _ <- selected = Left "Top-level --format cannot be repeated"
+        | otherwise = do
+            format <- case value of
+                "text" -> Right Output.TextFormat
+                "json" -> Right Output.JsonFormat
+                "cbor" -> Right Output.CborFormat
+                _ -> Left "Unknown output format (expected text, json, or cbor)"
+            go (Just format) prefix rest
+    go _ _ ["--format"] = Left "Top-level --format requires a value"
+    go selected prefix ("--deploy-path" : value : rest) = go selected (prefix ++ ["--deploy-path", value]) rest
+    go selected prefix rest = Right (selected, prefix ++ rest)
 
 -- Only the prefix before the command contains global options. Values belonging
 -- to subcommands (including messages named like options) are not scanned here.
@@ -106,7 +124,7 @@ parseSubcommand deployment arguments = case arguments of
     ["node", "create", "--help"] -> help NodeCreateHelp
     ["node", "create", "-h"] -> help NodeCreateHelp
     "node" : "create" : args -> createArgs Nothing Nothing Nothing args
-    "node" : _ -> Left "Usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]"
+    "node" : _ -> Left "Usage: git roam node create --path <path> [--id <uuid>]"
     ["undeploy", "--help"] -> help UndeployHelp
     ["undeploy", "-h"] -> help UndeployHelp
     ["undeploy"] -> Right UndeployNodes
@@ -142,14 +160,7 @@ parseSubcommand deployment arguments = case arguments of
         [] -> CreateNode <$> deploymentPath path <*> pure node <*> pure (maybe Output.TextFormat id format)
         "--path" : value : rest | path == Nothing && validValue value -> createArgs (Just value) node format rest
         "--id" : value : rest | node == Nothing -> uuid value >>= \selected -> createArgs path (Just selected) format rest
-        "--format" : value : rest | format == Nothing -> do
-            selected <- case value of
-                "text" -> Right Output.TextFormat
-                "json" -> Right Output.JsonFormat
-                "cbor" -> Right Output.CborFormat
-                _ -> Left "Unknown output format (expected text, json, or cbor)"
-            createArgs path node (Just selected) rest
-        _ -> Left "Usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]"
+        _ -> Left "Usage: git roam node create --path <path> [--id <uuid>]"
     deployArgs path remote args = case args of
         [] -> DeployNodes <$> deploymentPath path <*> pure remote
         "--path" : value : rest | path == Nothing && validValue value -> deployArgs (Just value) remote rest
@@ -187,7 +198,7 @@ renderHelp :: HelpTopic -> Text
 renderHelp topic = case topic of
     GeneralHelp ->
         Text.unlines
-            [ "usage: git roam [--deploy-path <absolute-path>] <command> [options]"
+            [ "usage: git roam [--format text|json|cbor] [--deploy-path <absolute-path>] <command> [options]"
             , ""
             , "Commands:"
             , "  help [command]  Show general or command-specific help"
@@ -205,6 +216,8 @@ renderHelp topic = case topic of
             , "Options:"
             , "  -h, --help      Show general help"
             , "  --version       Print the package version"
+            , "  --format text|json|cbor"
+            , "                  Result encoding; place before the command (default: text)"
             , "  --deploy-path <absolute-path>"
             , "                  Deployment root for node create/deploy; mutually exclusive with --path"
             , "                  Place before the command; other commands do not use the directory"
@@ -217,9 +230,9 @@ renderHelp topic = case topic of
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "       git roam --deploy-path <absolute-path> deploy [--remote <remote>]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
     UndeployHelp -> Text.unlines ["usage: git roam undeploy", "", "Remove all Node linked worktrees, including manually created or moved ones.", "Requires enabled protection and valid managed history. Every target is preflighted before removal.", "Retains branches, history, protection and main/detached/unmanaged worktrees.", "No subset, path, force or automatic rollback; partial failures report actual remaining state."]
-    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create [--path <path>] [--id <uuid>] [--format text|json|cbor]  Create a Node with an editable linked worktree", "    Requires subcommand --path or top-level --deploy-path, not both.", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
+    NodeHelp -> Text.unlines ["usage: git roam node <command>", "", "Commands:", "  create [--path <path>] [--id <uuid>]  Create a Node with an editable linked worktree", "    Requires subcommand --path or top-level --deploy-path, not both.", "  delete --node <uuid>  Preview or confirm non-cascading Node deletion"]
     NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Deletion does not cascade into other Nodes whose history records contexts from this Node.", "The preview lists commits that become unreachable from the remaining managed refs; Git objects are not erased.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
-    NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>] [--format text|json|cbor]", "       git roam --deploy-path <absolute-path> node create [--id <uuid>] [--format text|json|cbor]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Create an identity, empty-marker Root, persistent local branch and linked worktree.", "--id accepts UUIDv4, Nil UUID or Max UUID; without it, a fresh UUIDv4 is generated.", "--format text (default) preserves the existing output; json and cbor provide structured machine output.", "JSON paths contain UTF-8 text when valid plus a lossless Base64 byte representation; CBOR paths are byte strings.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
+    NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>]", "       git roam --deploy-path <absolute-path> node create [--id <uuid>]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Create an identity, empty-marker Root, persistent local branch and linked worktree.", "--id accepts UUIDv4, Nil UUID or Max UUID; without it, a fresh UUIDv4 is generated.", "Top-level --format text (default) preserves the existing output; json and cbor provide structured machine output.", "JSON paths contain UTF-8 text when valid plus a lossless Base64 byte representation; CBOR paths are byte strings.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
     CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       --context <revision> [--context <revision> ...]", "", "Select an explicit Node or infer it from the current Node worktree. A Checkpoint may directly follow Root.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Each --context selects one external commit parent; argument order determines parent order.", "Contexts accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "A context may be a Root, Content or Checkpoint and need not be retained by its Node's current branch.", "Duplicate context OIDs and contexts belonging to the target Node are refused.", "Multiple distinct contexts from one external Node are accepted with a compatibility warning.", "Uses the current committed tree, preserving uncommitted index/worktree data."]
   where
     inspectionHelp command description =
@@ -231,24 +244,6 @@ renderHelp topic = case topic of
             , "A selected Node is validated through its complete Git parent ancestry; other local Node branches are not required."
             , "Read-only; repository protection need not be enabled."
             ]
-
-renderDelete :: Deletion.DeletePreview -> Text
-renderDelete report =
-    Text.unlines $
-        [ "Read-only Node deletion preview; no changes were made."
-        , "node " <> node (Deletion.deleteNode report)
-        , "old " <> oid (Deletion.deleteOldTip report)
-        , "root " <> oid (Deletion.deleteRoot report)
-        ]
-            ++ ["plan " <> Text.pack (BSC.unpack identifier) | Just identifier <- [Deletion.deletePlanId report]]
-            ++ ["exclusive commit " <> oid value | value <- Set.toList (Deletion.deleteExclusiveCommits report)]
-            ++ ["checked out " <> Text.pack (show (Worktrees.treePath record)) <> if Worktrees.treeMain record then " (main)" else " (linked)" | record <- Deletion.deleteWorktrees report]
-            ++ ["remove local config " <> Text.pack (BSC.unpack key) | key <- Deletion.deleteConfigKeys report]
-            ++ ["blocked " <> Text.pack problem | problem <- Deletion.deleteProblems report]
-            ++ ["Exclusive commits are not erased; they are unreachable from the remaining managed refs at this observation.", "No cascading removal, object erasure or recovery guarantee. Remote refs remain; deploy may recreate this Node."]
-  where
-    node = Text.pack . BSC.unpack . nodeIdBytes
-    oid = Text.pack . BSC.unpack . objectIdBytes
 
 interactiveDelete :: FilePath -> NodeId -> IO (Either String BS.ByteString)
 interactiveDelete directory node = do
@@ -277,6 +272,7 @@ interactiveDelete directory node = do
 referenceTransactionPhase :: [String] -> Maybe String
 referenceTransactionPhase ["--reference-transaction", phase]
     | phase `elem` ["preparing", "prepared", "committed", "aborted"] = Just phase
+referenceTransactionPhase ("--format" : _ : remaining) = referenceTransactionPhase remaining
 referenceTransactionPhase ("--deploy-path" : _ : remaining) = referenceTransactionPhase remaining
 referenceTransactionPhase _ = Nothing
 
@@ -289,12 +285,25 @@ runCli arguments = case referenceTransactionPhase arguments of
         pure $ case result of
             Right () -> CliResponse ExitSuccess "" ""
             Left problem -> CliResponse (ExitFailure 1) "" ("git-roam: reference update refused: " <> Text.pack problem <> "\n")
-    Nothing -> runParsedCommand (parseCommand arguments)
+    Nothing -> case parseCommand arguments of
+        Left message -> runFormatted (diagnosticFormat arguments) (Left message)
+        parsed -> runParsedCommand parsed
+
+-- Retain the first valid format for diagnostics if later argument parsing fails.
+diagnosticFormat :: [String] -> Output.OutputFormat
+diagnosticFormat ("--format" : "json" : _) = Output.JsonFormat
+diagnosticFormat ("--format" : "cbor" : _) = Output.CborFormat
+diagnosticFormat ("--deploy-path" : _ : rest) = diagnosticFormat rest
+diagnosticFormat _ = Output.TextFormat
 
 runParsedCommand :: Either Text Command -> IO CliResponse
-runParsedCommand parsed = case parsed of
+runParsedCommand = runFormatted Output.TextFormat
+
+runFormatted :: Output.OutputFormat -> Either Text Command -> IO CliResponse
+runFormatted format parsed = case parsed of
+    Right (Formatted selected command) -> runFormatted selected (Right command)
     Left message -> pure (failure 2 (message <> "\nTry 'git roam --help' for usage."))
-    Right (ShowVersion) -> pure (success ("git-roam " <> Text.pack packageVersion <> "\n"))
+    Right (ShowVersion) -> pure (resultResponse [("version", Output.String (Text.pack packageVersion))] ("git-roam " <> Text.pack packageVersion <> "\n"))
     Right (ShowHelp topic) -> pure (success (renderHelp topic))
     Right (CheckNode node) -> inspect False node
     Right (StatusNode node) -> inspect True node
@@ -305,18 +314,18 @@ runParsedCommand parsed = case parsed of
         result <- Deletion.previewDelete (nativeGit defaultGitExecutable) directory node
         pure $ case result of
             Left problem -> failure 1 (Text.pack problem)
-            Right report -> CliResponse (if null (Deletion.deleteProblems report) then ExitSuccess else ExitFailure 1) (Encoding.encodeUtf8 (renderDelete report)) ""
+            Right report -> CliResponse (if null (Deletion.deleteProblems report) then ExitSuccess else ExitFailure 1) (if format == Output.TextFormat then Encoding.encodeUtf8 (renderDelete report) else Output.encodeValue format (deleteValue report)) ""
     Right (ExecuteDelete node confirmation) -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath
         authorized <- maybe (interactiveDelete directory node) (pure . Right . BSC.pack) confirmation
         case authorized of
-            Left problem -> pure (failure 1 (Text.pack problem))
+            Left problem -> pure (failureAs "confirmation_failed" (Text.pack problem))
             Right identifier -> do
                 result <- Deletion.executeDelete executable (nativeGit defaultGitExecutable) directory node identifier
                 pure $ case result of
-                    Left (Deletion.DeleteFailure reason details) -> failure 1 (Text.unlines (map Text.pack (reason : details)))
-                    Right report -> success ("Deleted local Node branch " <> Text.pack (BSC.unpack (nodeIdBytes (Deletion.deleteNode report))) <> ". Git objects and remote refs were not erased.\n")
+                    Left failed@(Deletion.DeleteFailure reason details) -> applicationFailure (Deletion.deleteFailureDiagnostic failed) (Deletion.deleteFailureEvidence failed) reason details
+                    Right report -> resultResponse (("deleted", Output.Boolean True) : deleteFields report) ("Deleted local Node branch " <> Text.pack (BSC.unpack (nodeIdBytes (Deletion.deleteNode report))) <> ". Git objects and remote refs were not erased.\n")
     Right (CreateCheckpoint node source contexts) -> do
         loaded <-
             try
@@ -326,24 +335,27 @@ runParsedCommand parsed = case parsed of
                     FileMessage path -> BS.readFile path
                 )
         case loaded of
-            Left problem -> pure (failure 1 ("Cannot read Checkpoint message: " <> Text.pack (show (problem :: IOException))))
+            Left problem -> pure (failureAs "message_read_failed" ("Cannot read Checkpoint message: " <> Text.pack (show (problem :: IOException))))
             Right message -> do
                 directory <- getCurrentDirectory
                 executable <- getExecutablePath
                 result <- Checkpoints.checkpoint executable (nativeGit defaultGitExecutable) directory node message contexts
                 pure $ case result of
-                    Left (Checkpoints.CheckpointFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
+                    Left failed@(Checkpoints.CheckpointFailure reason details) -> applicationFailure (Checkpoints.checkpointFailureDiagnostic failed) (Checkpoints.checkpointFailureEvidence failed) reason details
                     Right value ->
                         CliResponse
                             ExitSuccess
-                            ( Encoding.encodeUtf8 $
-                                Text.unlines
-                                    ( ["node " <> nodeText (Checkpoints.checkpointNode value), "checkpoint " <> oidText (Checkpoints.checkpointOid value), "predecessor " <> oidText (Checkpoints.checkpointPredecessor value)]
-                                        ++ ["context " <> oidText oid | oid <- Checkpoints.checkpointContexts value]
-                                    )
+                            ( if format /= Output.TextFormat
+                                then Output.encodeValue format (Output.Object [("node", nodeValue (Checkpoints.checkpointNode value)), ("checkpoint", oidValue (Checkpoints.checkpointOid value)), ("predecessor", oidValue (Checkpoints.checkpointPredecessor value)), ("contexts", Output.Array (map oidValue (Checkpoints.checkpointContexts value))), ("diagnostics", Output.Array [Output.diagnostic "multiple_context_versions" "warning" (Text.pack warning) | warning <- Checkpoints.checkpointWarnings value])])
+                                else
+                                    Encoding.encodeUtf8 $
+                                        Text.unlines
+                                            ( ["node " <> nodeText (Checkpoints.checkpointNode value), "checkpoint " <> oidText (Checkpoints.checkpointOid value), "predecessor " <> oidText (Checkpoints.checkpointPredecessor value)]
+                                                ++ ["context " <> oidText oid | oid <- Checkpoints.checkpointContexts value]
+                                            )
                             )
-                            (Text.unlines (map ("warning: " <>) (map Text.pack (Checkpoints.checkpointWarnings value))))
-    Right (CreateNode path specifiedNode format) -> do
+                            (if format == Output.TextFormat then Text.unlines (map ("warning: " <>) (map Text.pack (Checkpoints.checkpointWarnings value))) else "")
+    Right (CreateNode path specifiedNode localFormat) -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath
         let git = nativeGit defaultGitExecutable
@@ -351,22 +363,23 @@ runParsedCommand parsed = case parsed of
             Nothing -> Creation.createNode executable git directory path
             Just node -> Creation.createNodeWith (pure node) executable git directory path
         case result of
-            Left (Creation.CreationFailure reason details) ->
-                pure (failure 1 (Text.unlines (Text.pack reason : map Text.pack details)))
+            Left failed@(Creation.CreationFailure reason details) ->
+                pure (applicationFailure (Creation.creationFailureDiagnostic failed) (Creation.creationFailureEvidence failed) reason details)
             Right report -> do
-                encoded <- try (Output.renderCreation format report) :: IO (Either IOException BS.ByteString)
+                encoded <- try (Output.renderCreation (if format == Output.TextFormat then localFormat else format) report) :: IO (Either IOException BS.ByteString)
                 pure $ case encoded of
                     Right bytes -> CliResponse ExitSuccess bytes ""
                     Left problem ->
-                        failure 1 ("Node was created, but output encoding failed: " <> Text.pack (show problem) <> ". Inspect the existing Node before retrying.")
+                        failureAs "output_encoding_failed" ("Node was created, but output encoding failed: " <> Text.pack (show problem) <> ". Inspect the existing Node before retrying.")
     Right UndeployNodes -> do
         directory <- getCurrentDirectory
         executable <- getExecutablePath
         result <- Undeployment.undeploy executable (nativeGit defaultGitExecutable) directory
         pure $ case result of
-            Left (Undeployment.UndeploymentFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
+            Left failed@(Undeployment.UndeploymentFailure reason details) -> applicationFailure (Undeployment.undeploymentFailureDiagnostic failed) (Undeployment.undeploymentFailureEvidence failed) reason details
             Right report ->
-                success
+                resultResponse
+                    [("removed_worktrees", worktreePairs (Undeployment.removedWorktrees report)), ("retained_main_nodes", worktreePairs (Undeployment.retainedMainNodes report))]
                     ( Text.unlines
                         ( ["Undeployed " <> decimal (length (Undeployment.removedWorktrees report)) <> " Node linked worktrees."]
                             ++ ["removed " <> nodeText node <> " " <> Text.pack (show path) | (node, path) <- Undeployment.removedWorktrees report]
@@ -377,21 +390,34 @@ runParsedCommand parsed = case parsed of
         directory <- getCurrentDirectory
         executable <- getExecutablePath
         result <- Deployment.deploy executable (nativeGit defaultGitExecutable) directory path remote
-        pure $ case result of
-            Left (Deployment.DeploymentFailure reason details) -> failure 1 (Text.unlines (Text.pack reason : map Text.pack details))
-            Right report ->
-                success
-                    ( Text.unlines
-                        ( ["Deployed " <> decimal (length (Deployment.deployedWorktrees report)) <> " Nodes."]
-                            ++ [nodeText node <> " " <> Text.pack (show target) | (node, target) <- Deployment.deployedWorktrees report]
-                            ++ ["tracking " <> nodeText node <> " " <> Text.pack (show ref) | (node, ref) <- Deployment.trackingSources report]
-                        )
-                    )
+        case result of
+            Left failed@(Deployment.DeploymentFailure reason details) -> pure (applicationFailure (Deployment.deploymentFailureDiagnostic failed) (Deployment.deploymentFailureEvidence failed) reason details)
+            Right report -> do
+                encoded <- try $ do
+                    paths <- if format == Output.TextFormat then pure [] else mapM (\(node, target) -> do bytes <- encodePath target; pure (node, bytes)) (Deployment.deployedWorktrees report)
+                    pure $
+                        resultResponse
+                            [("deployed_worktrees", worktreePairs paths), ("tracking_sources", Output.Array [Output.Object [("node", nodeValue node), ("ref", Output.Bytes ref)] | (node, ref) <- Deployment.trackingSources report])]
+                            ( Text.unlines
+                                ( ["Deployed " <> decimal (length (Deployment.deployedWorktrees report)) <> " Nodes."]
+                                    ++ [nodeText node <> " " <> Text.pack (show target) | (node, target) <- Deployment.deployedWorktrees report]
+                                    ++ ["tracking " <> nodeText node <> " " <> Text.pack (show ref) | (node, ref) <- Deployment.trackingSources report]
+                                )
+                            )
+                pure $ case (encoded :: Either IOException CliResponse) of
+                    Right response -> response
+                    Left problem -> failureAs "output_encoding_failed" ("Deployment completed, but output encoding failed: " <> Text.pack (show problem) <> ". Inspect existing worktrees before retrying.")
   where
+    applicationFailure diagnosticValue evidence reason details
+        | format == Output.TextFormat = failure 1 (Text.unlines (map Text.pack (reason : details)))
+        | Just known <- evidence = CliResponse (ExitFailure 1) (Output.encodeValue format (Output.Object [("success", Output.Boolean False), ("diagnostics", Output.Array [Output.renderDiagnostic diagnosticValue]), ("evidence", Output.evidenceValue known), ("details", Output.Array (map (Output.String . Text.pack) details))])) ""
+        | otherwise = diagnosticFailure 1 (Diagnostic.diagnosticCode diagnosticValue) (Text.unlines (map Text.pack (reason : details)))
+    failureAs category message = if format == Output.TextFormat then failure 1 message else diagnosticFailure 1 category message
+    diagnosticFailure code category message = CliResponse (ExitFailure code) "" (Encoding.decodeUtf8 (Output.encodeValue Output.JsonFormat (Output.diagnostic category "error" message)))
     lifecycle operation message = do
         directory <- getCurrentDirectory
         result <- operation directory
-        pure $ either (failure 1 . Text.pack) (const (success message)) result
+        pure $ either (failureAs "protection_failed" . Text.pack) (const (resultResponse [("enabled", Output.Boolean (message == "Repository protection enabled.\n"))] message)) result
     inspect status requested = do
         directory <- getCurrentDirectory
         let git = nativeGit defaultGitExecutable
@@ -402,7 +428,7 @@ runParsedCommand parsed = case parsed of
             Left problem -> pure (Left problem)
             Right node -> inspectState git directory [] node
         pure $ case outcome of
-            Left problem -> failure (inspectionExit problem) (inspectionDiagnostic problem)
+            Left problem -> if format == Output.TextFormat then failure (inspectionExit problem) (inspectionDiagnostic problem) else if not (inspectionHasReport problem) then diagnosticFailure (inspectionExit problem) (inspectionCode problem) (inspectionDiagnostic problem) else CliResponse (ExitFailure (inspectionExit problem)) (Output.encodeValue format (Output.Object [("valid", Output.Boolean False), ("nodes", Output.Array []), ("diagnostics", Output.Array [Output.diagnostic (inspectionCode problem) "error" (inspectionDiagnostic problem)])])) ""
             Right report ->
                 let issues = reportProblems report
                     output =
@@ -413,23 +439,14 @@ runParsedCommand parsed = case parsed of
                                     then "OK: " <> decimal (length (reportNodes report)) <> " Nodes; histories and recorded contexts are valid.\n"
                                     else ""
                     errors = Text.concat ["git-roam: " <> stateDiagnostic issue <> "\n" | issue <- issues]
-                 in CliResponse (if null issues then ExitSuccess else ExitFailure 1) (Encoding.encodeUtf8 output) errors
+                 in CliResponse (if null issues then ExitSuccess else ExitFailure 1) (if format == Output.TextFormat then Encoding.encodeUtf8 output else Output.encodeValue format (inspectionValue report)) (if format == Output.TextFormat then errors else "")
+    resultResponse fields text = if format == Output.TextFormat then success text else CliResponse ExitSuccess (Output.encodeValue format (Output.Object fields)) ""
     success output = CliResponse ExitSuccess (Encoding.encodeUtf8 output) ""
-    failure code message = CliResponse (ExitFailure code) "" ("git-roam: " <> message <> "\n")
-
-decimal :: Int -> Text
-decimal = Text.pack . show
-
-nodeText :: NodeId -> Text
-nodeText = Text.pack . BSC.unpack . nodeIdBytes
-
-oidText :: ObjectId -> Text
-oidText = Text.pack . BSC.unpack . objectIdBytes
-
-stateDiagnostic :: StateProblem -> Text
-stateDiagnostic issue = case issue of
-    UnknownNodeTip node tip -> "history-unavailable: " <> nodeText node <> " points to unknown " <> oidText tip
-    RefIdentityMismatch node actual tip -> "identity-mismatch: branch " <> nodeText node <> " points to Node " <> nodeText actual <> " at " <> oidText tip
+    failure code message =
+        CliResponse (ExitFailure code) "" $
+            if format == Output.TextFormat
+                then "git-roam: " <> message <> "\n"
+                else Encoding.decodeUtf8 (Output.encodeValue Output.JsonFormat (Output.diagnostic (if code == 2 then "invalid_arguments" else "operation_failed") "error" message))
 
 inspectionExit :: InspectionError -> Int
 inspectionExit problem = case problem of
@@ -439,38 +456,3 @@ inspectionExit problem = case problem of
     SymbolicNodeBranch _ _ -> 1
     NodeNotManaged _ -> 1
     _ -> 3
-
-inspectionDiagnostic :: InspectionError -> Text
-inspectionDiagnostic problem = case problem of
-    HistoryFailure (ObjectUnavailable oid (WrongObjectType kind)) -> "object-type-mismatch: " <> oidText oid <> " has type " <> Text.pack (show kind)
-    ReferencesChanged -> "observation-changed: Node refs changed during inspection; run the command again."
-    ShallowRepository -> "history-incomplete: shallow repositories cannot establish complete Node history."
-    MissingReachableObjects objects -> "objects-missing: " <> Text.intercalate ", " (map (Text.pack . BSC.unpack) objects)
-    NodeNotManaged node -> "node-not-managed: no local branch for " <> nodeText node
-    SymbolicNodeBranch node target -> "symbolic-node-branch: " <> nodeText node <> " points to " <> Text.pack (show target)
-    HistoryFailure (ObjectUnavailable oid reason) -> "history-unavailable: " <> oidText oid <> " " <> Text.pack (show reason)
-    HistoryFailure reason -> "history-invalid: " <> Text.pack (show reason)
-    _ -> "git-read-failure: " <> Text.pack (show problem)
-
-renderStatus :: InspectionReport -> Text
-renderStatus report
-    | null (reportNodes report) = "No managed Nodes.\n"
-    | otherwise = Text.concat (map renderNode (reportNodes report))
-  where
-    renderNode node =
-        Text.unlines $
-            [ "node " <> nodeText (viewNode node)
-            , "  tip " <> oidText (viewTip node) <> " (" <> kind (viewKind node) <> ")"
-            , "  checkpoint " <> maybe "none" oidText (viewLatestCheckpoint node)
-            , "  content-tail " <> (case viewKind node of Content _ -> "yes"; _ -> "no")
-            , "  checkpoints " <> decimal (viewCheckpointCount node)
-            , "  contexts " <> (if null (viewContextParents node) then "none" else "")
-            ]
-                ++ ["    " <> oidText oid | oid <- viewContextParents node]
-                ++ [ "  worktree " <> Text.pack (show (worktreePath worktree)) <> if worktreeIsMain worktree then " (main; not a removable deployment)" else " (linked)"
-                   | worktree <- reportWorktrees report
-                   , worktreeNode worktree == Just (viewNode node)
-                   ]
-    kind Root = "root"
-    kind (Content _) = "content"
-    kind (Checkpoint _ _) = "checkpoint"

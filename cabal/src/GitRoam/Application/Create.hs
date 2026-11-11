@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
-module GitRoam.Application.Create (createNode, createNodeWith, createdBundlePath, CreationResult (..), CreationFailure (..)) where
+module GitRoam.Application.Create (createNode, createNodeWith, createdBundlePath, CreationResult (..), CreationFailure (CreationFailure), creationFailureEvidence, creationFailureDiagnostic) where
 
 import Control.Exception (IOException, try)
 import Control.Monad (forM_, unless, when)
@@ -11,11 +12,13 @@ import qualified Data.ByteString.Char8 as BSC
 import Data.IORef (newIORef, readIORef, writeIORef)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import GitRoam.Application.Inspect (inspectState, reportManagedState, validateCandidate)
 import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Application.Worktree
+import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
 import GitRoam.Git.Worktrees
@@ -39,7 +42,22 @@ data CreationResult = CreationResult
 createdBundlePath :: CreationResult -> FilePath
 createdBundlePath result = createdPath result </> BSC.unpack (nodeIdBytes (createdNode result))
 
-data CreationFailure = CreationFailure String [String] deriving (Eq, Show)
+data CreationFailure = CreationFailureData String [String] (Maybe Evidence) Diagnostic deriving (Eq, Show)
+
+pattern CreationFailure :: String -> [String] -> CreationFailure
+pattern CreationFailure reason details <- CreationFailureData reason details _ _
+    where
+        CreationFailure reason details = CreationFailureData reason details Nothing (Diagnostic "creation_failed" Error (Text.pack reason))
+{-# COMPLETE CreationFailure #-}
+
+creationFailureEvidence :: CreationFailure -> Maybe Evidence
+creationFailureEvidence (CreationFailureData _ _ evidence _) = evidence
+
+creationFailureDiagnostic :: CreationFailure -> Diagnostic
+creationFailureDiagnostic (CreationFailureData _ _ _ value) = value
+
+withEvidence :: Evidence -> CreationFailure -> CreationFailure
+withEvidence evidence (CreationFailureData reason details _ diagnosticValue) = CreationFailureData reason details (Just evidence) diagnosticValue
 
 environment :: [(String, Maybe String)]
 environment = readOnlyEnvironment ++ [(name, Nothing) | name <- ["GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"]]
@@ -105,9 +123,9 @@ createNodeWith generate executable git directory path = do
                         ownsRef <- readIORef installed
                         issued <- readIORef attempted
                         details <- compensate session common format node rootOid target ownsRef issued
-                        pure (Right (Left (CreationFailure problem details)))
+                        pure (Right (Left (withEvidence (emptyEvidence{evidenceNode = Just node, evidenceCandidate = Just rootOid, evidenceRefConfirmed = Just ownsRef, evidenceAttempted = Just issued}) (CreationFailure problem details))))
     pure $ case outcome of
-        Left problem -> Left (CreationFailure (show (problem :: IOException)) ["Creation interrupted; inspect actual refs/worktrees. Existing objects are not deleted."])
+        Left problem -> Left (withEvidence emptyEvidence (CreationFailure (show (problem :: IOException)) ["Creation interrupted; inspect actual refs/worktrees. Existing objects are not deleted."]))
         Right (Left problem) -> Left (CreationFailure problem [])
         Right (Right result) -> result
   where

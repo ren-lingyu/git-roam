@@ -13,6 +13,7 @@ import qualified GitRoam.Application.Checkpoint as Checkpoints
 import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Cli (CheckpointMessage (..), Command (..), parseCommand)
+import GitRoam.Diagnostic (Evidence (..))
 import GitRoam.Git
 import GitRoam.Git.Objects (nativeHistorySource)
 import GitRoam.ObjectId
@@ -487,7 +488,9 @@ postInstallFailure git executable directory _ = do
                         else pure result
     outcome <- Checkpoints.checkpoint executable failing directory (Just nodeA) "Installed, then inspection failed" [textOid b]
     case outcome of
-        Left (Checkpoints.CheckpointFailure _ details) ->
+        Left failed@(Checkpoints.CheckpointFailure _ details) -> do
+            assertEqual (Just True) (Checkpoints.checkpointFailureEvidence failed >>= evidenceRefConfirmed)
+            assertEqual (Just nodeA) (Checkpoints.checkpointFailureEvidence failed >>= evidenceNode)
             assertTrue "Installed history was not diagnosed" (any ("Ref update completed" `isPrefixOf`) details)
         Right value -> fail (show value)
     current <- tip git directory Sha1 nodeA

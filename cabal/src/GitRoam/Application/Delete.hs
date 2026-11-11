@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
-module GitRoam.Application.Delete (DeletePreview (..), DeleteFailure (..), previewDelete, executeDelete) where
+module GitRoam.Application.Delete (DeletePreview (..), DeleteFailure (DeleteFailure), deleteFailureEvidence, deleteFailureDiagnostic, previewDelete, executeDelete) where
 
 import Control.Exception (IOException, try)
 import Control.Monad (forM_, unless)
@@ -13,9 +14,11 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
 import GitRoam.Application.Worktree (withProtectedSession)
+import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
 import GitRoam.Git.Worktrees
@@ -41,7 +44,22 @@ data DeletePreview = DeletePreview
     }
     deriving (Eq, Show)
 
-data DeleteFailure = DeleteFailure String [String] deriving (Eq, Show)
+data DeleteFailure = DeleteFailureData String [String] (Maybe Evidence) Diagnostic deriving (Eq, Show)
+
+pattern DeleteFailure :: String -> [String] -> DeleteFailure
+pattern DeleteFailure reason details <- DeleteFailureData reason details _ _
+    where
+        DeleteFailure reason details = DeleteFailureData reason details Nothing (Diagnostic "deletion_failed" Error (Text.pack reason))
+{-# COMPLETE DeleteFailure #-}
+
+deleteFailureEvidence :: DeleteFailure -> Maybe Evidence
+deleteFailureEvidence (DeleteFailureData _ _ evidence _) = evidence
+
+deleteFailureDiagnostic :: DeleteFailure -> Diagnostic
+deleteFailureDiagnostic (DeleteFailureData _ _ _ value) = value
+
+withEvidence :: Evidence -> DeleteFailure -> DeleteFailure
+withEvidence evidence (DeleteFailureData reason details _ diagnosticValue) = DeleteFailureData reason details (Just evidence) diagnosticValue
 data Plan = Plan ManagedState ManagedState DeletePreview [Worktree] [(BS.ByteString, BS.ByteString)] Repository
 
 query :: Git IO -> FilePath -> [String] -> BS.ByteString -> IO (Either String BS.ByteString)
@@ -163,4 +181,4 @@ executeDelete executable git directory node authorization = do
                 configDetails = case configuration of
                     Right (Right entries) -> ("Remaining reviewed-scope local config entries: " ++ show (length entries)) : ["remaining local config key " ++ BSC.unpack key | (key, _) <- entries]
                     _ -> ["Local branch configuration could not be fully inspected"]
-            pure (Left (DeleteFailure reason (["Deletion transaction attempted: " ++ show tried ++ "; response confirmed: " ++ show done, "No automatic ref rollback or worktree cleanup was performed."] ++ refs ++ configDetails)))
+            pure (Left (withEvidence (emptyEvidence{evidenceNode = Just node, evidenceAttempted = Just tried, evidenceRefConfirmed = Just done, evidenceActualRefs = case actual of Right (Right state) -> Just (Map.toList (managedRefs state)); _ -> Nothing, evidenceRemainingConfig = case configuration of Right (Right entries) -> Just (map fst entries); _ -> Nothing}) (DeleteFailure reason (["Deletion transaction attempted: " ++ show tried ++ "; response confirmed: " ++ show done, "No automatic ref rollback or worktree cleanup was performed."] ++ refs ++ configDetails))))

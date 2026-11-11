@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import GitRoam.Application.Delete
 import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Cli (Command (..), HelpTopic (..), parseCommand)
+import GitRoam.Diagnostic (Evidence (..))
 import GitRoam.Git
 import GitRoam.Git.Objects
 import GitRoam.ObjectId
@@ -323,7 +324,9 @@ lostResponse git executable repo _ = do
             pure (if isTransaction invocation then Left (GitTransportError "lost deletion response") else result)
     result <- executeDelete executable losing repo nodeA token
     case result of
-        Left (DeleteFailure _ details) -> assertTrue "Actual outcome was not reported" (any (isInfixOf "response confirmed: False") details)
+        Left failed@(DeleteFailure _ details) -> do
+            assertEqual (Just False) (deleteFailureEvidence failed >>= evidenceRefConfirmed)
+            assertTrue "Actual outcome was not reported" (any (isInfixOf "response confirmed: False") details)
         Right value -> fail (show value)
     state <- snapshot git repo
     assertEqual Map.empty (managedRefs state)
@@ -337,7 +340,9 @@ failedCleanup git executable repo _ = do
     let failing = Git $ \invocation -> if "--unset-all" `elem` gitArguments invocation then pure (Right (GitResult (ExitFailure 4) "" "")) else runGit git invocation
     result <- executeDelete executable failing repo nodeA token
     case result of
-        Left (DeleteFailure _ details) -> assertTrue "Confirmed deletion missing" (any (isInfixOf "response confirmed: True") details)
+        Left failed@(DeleteFailure _ details) -> do
+            assertEqual (Just True) (deleteFailureEvidence failed >>= evidenceRefConfirmed)
+            assertTrue "Confirmed deletion missing" (any (isInfixOf "response confirmed: True") details)
         Right value -> fail (show value)
     state <- snapshot git repo
     assertEqual Map.empty (managedRefs state)

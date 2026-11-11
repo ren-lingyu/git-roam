@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
-module GitRoam.Application.Undeploy (undeploy, UndeploymentResult (..), UndeploymentFailure (..)) where
+module GitRoam.Application.Undeploy (undeploy, UndeploymentResult (..), UndeploymentFailure (UndeploymentFailure), undeploymentFailureEvidence, undeploymentFailureDiagnostic) where
 
 import Control.Exception (IOException, try)
 import Control.Monad (forM_, unless)
@@ -8,13 +9,16 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.ByteString as BS
 import Data.IORef (modifyIORef', newIORef, readIORef)
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as Text
 import GitRoam.Application.Inspect (inspectState, reportManagedState)
 import GitRoam.Application.Protection (requireProtectionFor)
 import GitRoam.Application.Worktree
+import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
 import GitRoam.Git.Worktrees
-import GitRoam.ObjectId (ObjectFormat)
+import GitRoam.ObjectId (ObjectFormat, ObjectId)
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
 import GitRoam.Repository
@@ -25,7 +29,22 @@ data UndeploymentResult = UndeploymentResult
     , retainedMainNodes :: [(NodeId, BS.ByteString)]
     }
     deriving (Eq, Show)
-data UndeploymentFailure = UndeploymentFailure String [String] deriving (Eq, Show)
+data UndeploymentFailure = UndeploymentFailureData String [String] (Maybe Evidence) Diagnostic deriving (Eq, Show)
+
+pattern UndeploymentFailure :: String -> [String] -> UndeploymentFailure
+pattern UndeploymentFailure reason details <- UndeploymentFailureData reason details _ _
+    where
+        UndeploymentFailure reason details = UndeploymentFailureData reason details Nothing (Diagnostic "undeployment_failed" Error (Text.pack reason))
+{-# COMPLETE UndeploymentFailure #-}
+
+undeploymentFailureEvidence :: UndeploymentFailure -> Maybe Evidence
+undeploymentFailureEvidence (UndeploymentFailureData _ _ evidence _) = evidence
+
+undeploymentFailureDiagnostic :: UndeploymentFailure -> Diagnostic
+undeploymentFailureDiagnostic (UndeploymentFailureData _ _ _ value) = value
+
+withEvidence :: Evidence -> UndeploymentFailure -> UndeploymentFailure
+withEvidence evidence (UndeploymentFailureData reason details _ diagnosticValue) = UndeploymentFailureData reason details (Just evidence) diagnosticValue
 
 loadState :: Git IO -> FilePath -> IO (Either String ManagedState)
 loadState git directory = do
@@ -67,22 +86,23 @@ undeploy executable git directory = do
                 case applied of
                     Right result -> pure (Right (Right (result{removedWorktrees = removed})))
                     Left problem -> do
-                        details <- remainingState git common (repositoryObjectFormat repository)
-                        pure (Right (Left (UndeploymentFailure problem (("Confirmed removals: " ++ show removed) : details))))
+                        (details, remaining, refs) <- remainingState git common (repositoryObjectFormat repository)
+                        pure (Right (Left (withEvidence (emptyEvidence{evidenceRemoved = removed, evidenceRemainingWorktrees = remaining, evidenceActualRefs = refs}) (UndeploymentFailure problem (("Confirmed removals: " ++ show removed) : details)))))
     case outcome of
         Left problem -> do
             removed <- readIORef completed
             pure
                 ( Left
-                    ( UndeploymentFailure
-                        (show (problem :: IOException))
-                        ["Confirmed removals: " ++ show removed, "Operation interrupted; inspect actual refs/worktrees. No rollback was attempted."]
+                    ( withEvidence (emptyEvidence{evidenceRemoved = removed}) $
+                        UndeploymentFailure
+                            (show (problem :: IOException))
+                            ["Confirmed removals: " ++ show removed, "Operation interrupted; inspect actual refs/worktrees. No rollback was attempted."]
                     )
                 )
         Right (Left problem) -> pure (Left (UndeploymentFailure problem []))
         Right (Right result) -> pure result
 
-remainingState :: Git IO -> FilePath -> ObjectFormat -> IO [String]
+remainingState :: Git IO -> FilePath -> ObjectFormat -> IO ([String], Maybe [Worktree], Maybe [(NodeId, ObjectId)])
 remainingState git directory format = do
     records <- listWorktrees git directory format
     state <- loadState git directory
@@ -95,4 +115,6 @@ remainingState git directory format = do
                     Left problem -> "Actual managed state could not be validated: " ++ problem
                     Right actual -> "Actual managed refs: " ++ show (managedRefs actual)
                ]
+        , either (const Nothing) Just records
+        , either (const Nothing) (Just . Map.toList . managedRefs) state
         )

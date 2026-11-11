@@ -130,8 +130,8 @@ globalPathTest =
     mapM_
         equivalent
         [ ["node", "create"]
-        , ["node", "create", "--id", "11111111-1111-4111-8111-111111111111", "--format", "json"]
-        , ["node", "create", "--format", "cbor"]
+        , ["--format", "json", "node", "create", "--id", "11111111-1111-4111-8111-111111111111"]
+        , ["--format", "cbor", "node", "create"]
         , ["deploy"]
         , ["deploy", "--remote", "origin"]
         ]
@@ -170,7 +170,7 @@ globalConflictTest =
     mapM_
         rejected
         [ ["node", "create", "--path", "/nodes"]
-        , ["node", "create", "--format", "json", "--path", "relative"]
+        , ["--format", "json", "node", "create", "--path", "relative"]
         , ["deploy", "--path", "/nodes"]
         , ["deploy", "--remote", "origin", "--path", "/elsewhere"]
         ]

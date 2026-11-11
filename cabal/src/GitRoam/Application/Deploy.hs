@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
-module GitRoam.Application.Deploy (deploy, DeploymentResult (..), DeploymentFailure (..)) where
+module GitRoam.Application.Deploy (deploy, DeploymentResult (..), DeploymentFailure (DeploymentFailure), deploymentFailureEvidence, deploymentFailureDiagnostic) where
 
 import Control.Exception (IOException, try)
 import Control.Monad (forM, forM_, unless)
@@ -12,9 +13,11 @@ import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import GitRoam.Application.Inspect (validateCandidate)
 import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Application.Worktree
+import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
 import GitRoam.Git.Worktrees
@@ -31,7 +34,22 @@ data DeploymentResult = DeploymentResult
     , trackingSources :: [(NodeId, BS.ByteString)]
     }
     deriving (Eq, Show)
-data DeploymentFailure = DeploymentFailure String [String] deriving (Eq, Show)
+data DeploymentFailure = DeploymentFailureData String [String] (Maybe Evidence) Diagnostic deriving (Eq, Show)
+
+pattern DeploymentFailure :: String -> [String] -> DeploymentFailure
+pattern DeploymentFailure reason details <- DeploymentFailureData reason details _ _
+    where
+        DeploymentFailure reason details = DeploymentFailureData reason details Nothing (Diagnostic "deployment_failed" Error (Text.pack reason))
+{-# COMPLETE DeploymentFailure #-}
+
+deploymentFailureEvidence :: DeploymentFailure -> Maybe Evidence
+deploymentFailureEvidence (DeploymentFailureData _ _ evidence _) = evidence
+
+deploymentFailureDiagnostic :: DeploymentFailure -> Diagnostic
+deploymentFailureDiagnostic (DeploymentFailureData _ _ _ value) = value
+
+withEvidence :: Evidence -> DeploymentFailure -> DeploymentFailure
+withEvidence evidence (DeploymentFailureData reason details _ diagnosticValue) = DeploymentFailureData reason details (Just evidence) diagnosticValue
 data Source = Source BS.ByteString BS.ByteString ObjectId deriving (Eq, Ord, Show)
 data Snapshot = Snapshot (Map.Map NodeId ObjectId) [(BS.ByteString, ObjectId)] deriving (Eq, Show)
 
@@ -123,9 +141,9 @@ deploy executable git directory path remote = do
                         installed <- readIORef established
                         started <- readIORef attempted
                         details <- compensate git session common format (if installed then sources else Map.empty) started plan
-                        pure (Right (Left (DeploymentFailure problem details)))
+                        pure (Right (Left (withEvidence (emptyEvidence{evidenceRefConfirmed = Just installed, evidenceAttempted = Just (not (Set.null started))}) (DeploymentFailure problem details))))
     pure $ case outcome of
-        Left problem -> Left (DeploymentFailure (show (problem :: IOException)) ["Operation interrupted; inspect actual refs and worktrees before continuing."])
+        Left problem -> Left (withEvidence emptyEvidence (DeploymentFailure (show (problem :: IOException)) ["Operation interrupted; inspect actual refs and worktrees before continuing."]))
         Right (Left problem) -> Left (DeploymentFailure problem [])
         Right (Right value) -> value
   where

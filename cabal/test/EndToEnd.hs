@@ -2,10 +2,14 @@
 
 module Main (main) where
 
+import qualified Codec.CBOR.Read as CBOR
+import qualified Codec.CBOR.Term as CBOR
 import Control.Exception (bracket_)
 import Control.Monad (forM_)
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString.Lazy as BL
 import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -26,7 +30,8 @@ import WorktreeFixture
 main :: IO ()
 main =
     runTests $
-        [("public CLI lifecycle and native synchronization " ++ backend ++ " " ++ show format, fixture backend format (lifecycle backend format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+        [("structured command lifecycle " ++ backend ++ " " ++ show format, fixture backend format structuredLifecycle) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [("public CLI lifecycle and native synchronization " ++ backend ++ " " ++ show format, fixture backend format (lifecycle backend format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("global deployment wrapper and independent Hook " ++ backend ++ " " ++ show format, fixture backend format (globalDeploymentPath format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("native ref maintenance preserves Node deletion protection " ++ backend ++ " " ++ show format, fixture backend format (refMaintenance backend)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
 
@@ -255,13 +260,13 @@ globalDeploymentPath format git executable repo parent = do
         canonical node = BSC.unpack (nodeIdBytes node)
         unusedFile = parent </> "unused-deployment-file"
     createDirectory bin
-    writeFile wrapper ("#!" ++ shell ++ "\nexec " ++ quote executable ++ " --deploy-path " ++ quote rootPath ++ " \"$@\"\n")
+    writeFile wrapper ("#!" ++ shell ++ "\nexec " ++ quote executable ++ " --format text --deploy-path " ++ quote rootPath ++ " \"$@\"\n")
     permissions <- getPermissions wrapper
     setPermissions wrapper (setOwnerExecutable True permissions)
     bracket_ (setEnv "PATH" (bin ++ [searchPathSeparator] ++ maybe "" id previousPath)) (maybe (unsetEnv "PATH") (setEnv "PATH") previousPath) $ do
         _ <- wrapped ["enable"]
         _ <- wrapped ["node", "create", "--id", canonical nodeA]
-        _ <- wrapped ["node", "create", "--id", canonical nodeB, "--format", "json"]
+        _ <- wrapped ["node", "create", "--id", canonical nodeB]
         let aPath = rootPath </> shortName nodeA
         doesDirectoryExist aPath >>= assertEqual True
         ok git repo ["config", "--get", "hook.git-roam-reference-transaction.command"] "" >>= assertEqual "git-roam --reference-transaction\n"
@@ -304,3 +309,73 @@ globalDeploymentPath format git executable repo parent = do
         assertEqual ExitSuccess (gitExitCode ignoredDisable)
         readFile unusedFile >>= assertEqual "not a directory\n"
         snapshot git repo >>= assertEqual before
+
+structuredLifecycle :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+structuredLifecycle git executable repo parent = do
+    inherited <- getEnvironment
+    let environment = [(name, Nothing) | (name, _) <- inherited, "GIT_" `isPrefixOf` name] ++ [("GIT_CONFIG_NOSYSTEM", Just "1"), ("GIT_CONFIG_GLOBAL", Just "/dev/null"), ("GIT_AUTHOR_NAME", Just "Structured"), ("GIT_AUTHOR_EMAIL", Just "structured@example.invalid"), ("GIT_COMMITTER_NAME", Just "Structured"), ("GIT_COMMITTER_EMAIL", Just "structured@example.invalid")]
+        call encoding location arguments = runGit (nativeGit executable) (GitInvocation location (["--format", encoding] ++ arguments) "" environment) >>= expectRight
+        decode encoding bytes =
+            if encoding == "json"
+                then do
+                    _ <- expectRight (Aeson.eitherDecodeStrict' bytes :: Either String Aeson.Value)
+                    assertEqual 10 (BS.last bytes)
+                else do
+                    (remaining, _) <- expectRight (CBOR.deserialiseFromBytes CBOR.decodeTerm (BL.fromStrict bytes))
+                    assertEqual BL.empty remaining
+        success encoding location arguments = do
+            response <- call encoding location arguments
+            assertEqual ExitSuccess (gitExitCode response)
+            decode encoding (gitStdout response)
+            assertEqual BS.empty (gitStderr response)
+        canonical = BSC.unpack . nodeIdBytes
+    success "json" repo ["enable"]
+    forM_ ["json", "cbor"] $ \encoding -> do
+        success encoding repo ["check"]
+        success encoding repo ["status"]
+        success encoding repo ["undeploy"]
+        success encoding repo ["version"]
+    success "json" repo ["disable"]
+    root git repo nodeA
+    root git repo nodeB
+    success "cbor" repo ["enable"]
+    -- Validate controlled fixture roots with the installed Hook.
+    bRoot <- BSC.init <$> ok git repo ["rev-parse", canonical nodeB] ""
+    bTree <- BSC.init <$> ok git repo ["rev-parse", canonical nodeB ++ "^{tree}"] ""
+    bContent <- BSC.init <$> ok git repo ["commit-tree", BSC.unpack bTree, "-p", BSC.unpack bRoot, "-m", "Historical B Content"] ""
+    forM_ ["json", "cbor"] $ \encoding -> do
+        success encoding repo ["deploy", "--path", parent </> "nodes"]
+        success encoding repo ["status"]
+        blocked <- call encoding repo ["node", "delete", "--node", canonical nodeB, "--dry-run"]
+        assertEqual (ExitFailure 1) (gitExitCode blocked)
+        decode encoding (gitStdout blocked)
+        warning <- call encoding repo ["checkpoint", "--node", canonical nodeA, "-m", "Machine checkpoint", "--context", canonical nodeB, "--context", BSC.unpack bContent]
+        assertEqual ExitSuccess (gitExitCode warning)
+        decode encoding (gitStdout warning)
+        assertTrue "Structured warning is missing" ("multiple_context_versions" `BS.isInfixOf` gitStdout warning)
+        assertEqual BS.empty (gitStderr warning)
+        success encoding repo ["undeploy"]
+        success encoding repo ["node", "delete", "--node", canonical nodeB, "--dry-run"]
+        missing <- call encoding parent ["status"]
+        assertTrue "Repository discovery succeeded outside a repository" (gitExitCode missing /= ExitSuccess)
+        assertEqual BS.empty (gitStdout missing)
+        _ <- expectRight (Aeson.eitherDecodeStrict' (gitStderr missing) :: Either String Aeson.Value)
+        pure ()
+    preview <- call "json" repo ["node", "delete", "--node", canonical nodeB, "--dry-run"]
+    value <- expectRight (Aeson.eitherDecodeStrict' (gitStdout preview) :: Either String Aeson.Value)
+    fields <- case Aeson.fromJSON value :: Aeson.Result (Map.Map String Aeson.Value) of
+        Aeson.Error message -> fail message
+        Aeson.Success object -> pure object
+    plan <- case Map.lookup "plan_id" fields of
+        Just identifier -> case Aeson.fromJSON identifier :: Aeson.Result String of
+            Aeson.Success identifierText -> pure identifierText
+            Aeson.Error message -> fail message
+        Nothing -> fail "Missing deletion plan"
+    success "cbor" repo ["node", "delete", "--node", canonical nodeB, "--confirm", plan]
+    success "cbor" repo ["disable"]
+    _ <- ok git repo ["update-ref", "refs/heads/" ++ canonical nodeA, BSC.unpack bRoot] ""
+    forM_ ["json", "cbor"] $ \encoding -> do
+        invalid <- call encoding repo ["check"]
+        assertEqual (ExitFailure 1) (gitExitCode invalid)
+        decode encoding (gitStdout invalid)
+        assertEqual BS.empty (gitStderr invalid)

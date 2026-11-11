@@ -1,8 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module GitRoam.Application.Checkpoint (
     CheckpointResult (..),
-    CheckpointFailure (..),
+    CheckpointFailure (CheckpointFailure),
+    checkpointFailureEvidence,
+    checkpointFailureDiagnostic,
     checkpoint,
 ) where
 
@@ -20,6 +23,7 @@ import qualified Data.Text.Encoding as Encoding
 import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
 import GitRoam.Application.Worktree (withProtectedSession)
+import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (checkStoredConnectivity, readOnlyEnvironment, resolveCommitReference, withHistorySource)
 import GitRoam.ObjectId
@@ -39,7 +43,22 @@ data CheckpointResult = CheckpointResult
     }
     deriving (Eq, Show)
 
-data CheckpointFailure = CheckpointFailure String [String] deriving (Eq, Show)
+data CheckpointFailure = CheckpointFailureData String [String] (Maybe Evidence) Diagnostic deriving (Eq, Show)
+
+pattern CheckpointFailure :: String -> [String] -> CheckpointFailure
+pattern CheckpointFailure reason details <- CheckpointFailureData reason details _ _
+    where
+        CheckpointFailure reason details = CheckpointFailureData reason details Nothing (Diagnostic "checkpoint_failed" Error (Text.pack reason))
+{-# COMPLETE CheckpointFailure #-}
+
+checkpointFailureEvidence :: CheckpointFailure -> Maybe Evidence
+checkpointFailureEvidence (CheckpointFailureData _ _ evidence _) = evidence
+
+checkpointFailureDiagnostic :: CheckpointFailure -> Diagnostic
+checkpointFailureDiagnostic (CheckpointFailureData _ _ _ value) = value
+
+withEvidence :: Evidence -> CheckpointFailure -> CheckpointFailure
+withEvidence evidence (CheckpointFailureData reason details _ diagnosticValue) = CheckpointFailureData reason details (Just evidence) diagnosticValue
 
 -- Selection is ordered and explicit. No inherited context is consulted and
 -- no synthetic Content object is made. An omitted Node is inferred when the
@@ -160,4 +179,6 @@ checkpoint executable git directory requested message revisions = do
                             then "Ref update completed before follow-up failure; no history rollback was attempted."
                             else "Object construction does not prove ref installation; inspect actual refs. No history rollback was attempted."
                         ]
-            pure (Left (CheckpointFailure reason details))
+            pure $ Left $ case proposed of
+                Nothing -> CheckpointFailure reason details
+                Just value -> withEvidence (emptyEvidence{evidenceNode = Just (checkpointNode value), evidenceCandidate = Just (checkpointOid value), evidenceRefConfirmed = Just advanced}) (CheckpointFailure reason details)

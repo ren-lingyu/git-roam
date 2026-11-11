@@ -57,9 +57,9 @@ arguments = do
     assertEqual (Right (CreateNode "work" Nothing TextFormat)) (parseCommand ["node", "create", "--path", "work"])
     assertEqual (Right (CreateNode "work" (Just nodeA) TextFormat)) (parseCommand ["node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA)])
     assertEqual (Right (CreateNode "work" (Just nodeA) TextFormat)) (parseCommand ["node", "create", "--id", BSC.unpack (nodeIdBytes nodeA), "--path", "work"])
-    assertEqual (Right (CreateNode "work" Nothing JsonFormat)) (parseCommand ["node", "create", "--format", "json", "--path", "work"])
-    assertEqual (Right (CreateNode "work" (Just nodeA) CborFormat)) (parseCommand ["node", "create", "--path", "work", "--format", "cbor", "--id", BSC.unpack (nodeIdBytes nodeA)])
-    assertEqual (Right (CreateNode "work" Nothing TextFormat)) (parseCommand ["node", "create", "--format", "text", "--path", "work"])
+    assertEqual (Right (Formatted JsonFormat (CreateNode "work" Nothing TextFormat))) (parseCommand ["--format", "json", "node", "create", "--path", "work"])
+    assertEqual (Right (Formatted CborFormat (CreateNode "work" (Just nodeA) TextFormat))) (parseCommand ["--format", "cbor", "node", "create", "--path", "work", "--id", BSC.unpack (nodeIdBytes nodeA)])
+    assertEqual (Right (Formatted TextFormat (CreateNode "work" Nothing TextFormat))) (parseCommand ["--format", "text", "node", "create", "--path", "work"])
     assertEqual (Right (ShowHelp NodeCreateHelp)) (parseCommand ["help", "node", "create"])
     forM_
         [ ["node", "create"]
@@ -320,10 +320,10 @@ cliLoop git executable repo _ = do
     assertTrue "Specified UUID was not used" (node == nodeA)
     assertTrue "Incorrect bundle path" (("bundle " <> BSC.pack (show (target </> BSC.unpack (nodeIdBytes node)))) `BS.isInfixOf` gitStdout result)
     doesFileExist (target </> BSC.unpack (nodeIdBytes node) </> ".roam") >>= assertEqual True
-    json <- cli ["node", "create", "--path", "nodes", "--id", BSC.unpack (nodeIdBytes nodeB), "--format", "json"]
+    json <- cli ["--format", "json", "node", "create", "--path", "nodes", "--id", BSC.unpack (nodeIdBytes nodeB)]
     assertEqual ExitSuccess (gitExitCode json)
     assertTrue "JSON creation output is missing its node field" ("\"node\"" `BS.isInfixOf` gitStdout json)
-    cbor <- cli ["node", "create", "--path", "nodes", "--format", "cbor"]
+    cbor <- cli ["--format", "cbor", "node", "create", "--path", "nodes"]
     assertEqual ExitSuccess (gitExitCode cbor)
     assertEqual 164 (BS.head (gitStdout cbor)) -- A definite CBOR map with four entries.
     writeFile (target </> note) "A real note\n"

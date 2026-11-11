@@ -17,6 +17,7 @@ library
     GitRoam.Application.Undeploy
     GitRoam.Application.Worktree
     GitRoam.Cli
+    GitRoam.Diagnostic
     GitRoam.Git
     GitRoam.Git.Objects
     GitRoam.Git.Worktrees
@@ -308,8 +309,10 @@ test-suite end-to-end-tests
 
   build-tool-depends: git-roam:git-roam
   build-depends:
+    , aeson
     , base        >=4.16 && <5
     , bytestring
+    , cborg
     , containers
     , directory
     , filepath
