@@ -337,6 +337,8 @@ The v0.1.0 =discard= workflow, formal dependency closure, and retention of all p
 
 Clean nested Node linked worktrees are removed deepest first. Uncommitted, untracked, ignored and otherwise unprotected data, locked or prunable registrations, unfinished Git operations, and non-target nested worktrees prevent removal. Main worktrees are retained and reported separately, even when attached to a Node branch. Detached and ordinary non-Node worktrees are left in place. Main or other non-target user files are not cleaned.
 
+Rebase state directories (=rebase-merge= and =rebase-apply=) prevent removal even when the index and worktree are clean. A residual =REBASE_HEAD= alone permits undeployment when all other removal checks pass.
+
 Node branches, commit objects, tracking configuration and Git-roam protection remain in place. Repeating =undeploy= with no linked targets succeeds. The command can run inside a target worktree; later Git operations use the common Git directory after the invocation directory is removed. A deployment parent directory may remain empty.
 
 Removal is not a filesystem transaction. If Git fails or state changes after execution starts, the operation stops, reports failure with confirmed removals and available actual remaining state, and leaves newly edited or unsafe worktrees in place. It does not automatically recreate removed worktrees, reset files or move refs. Successful removal is followed by shared history validation, ref preservation, remaining-worktree and protection checks. These checks detect anomalies without claiming isolation from arbitrary external processes.

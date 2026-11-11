@@ -14,7 +14,8 @@ import GitRoam.Git
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
-import System.Directory (doesDirectoryExist, doesFileExist, removeFile)
+import GitRoam.Worktree.Paths (decodePath)
+import System.Directory (createDirectory, doesDirectoryExist, doesFileExist, removeDirectory, removeFile)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
 import System.FilePath
@@ -26,6 +27,7 @@ main =
     runTests $
         [("undeploy CLI is whole-set and has no force/path options", arguments)]
             ++ [("undeploy retains refs and protection " ++ backend ++ " " ++ show format, fixture backend format lifecycle) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [("rebase state directories block undeploy but residual REBASE_HEAD does not " ++ backend ++ " " ++ show format, fixture backend format rebaseState) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [ ("unsafe second target prevents all removal", fixture "files" Sha1 dirtyPreflight)
                , ("ignored data and locked worktrees prevent all removal", fixture "files" Sha1 ignoredLocked)
                , ("main checkout is reported and never modified", fixture "files" Sha1 mainWorktree)
@@ -73,6 +75,35 @@ lifecycle git executable repo parent = do
     snapshot git repo >>= assertEqual before
     hookConfig git repo >>= assertEqual config
     undeploy executable git repo >>= expectRight >>= assertEqual [] . removedWorktrees
+
+rebaseState :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+rebaseState git executable repo parent = do
+    (first, second) <- setup git repo parent
+    enable git executable repo
+    before <- snapshot git repo
+    config <- hookConfig git repo
+    let adminPath name = do
+            bytes <- BSC.init <$> ok git second ["rev-parse", "--path-format=absolute", "--git-path", name] ""
+            decodePath bytes
+        blocked name = do
+            location <- adminPath name
+            createDirectory location
+            outcome <- undeploy executable git repo
+            assertEqual (Left (UndeploymentFailure ("In-progress Git operation: " ++ name) [])) outcome
+            forM_ [first, second] $ \path -> doesDirectoryExist path >>= assertEqual True
+            removeDirectory location
+    -- Active state directories must block even without REBASE_HEAD.
+    forM_ ["rebase-merge", "rebase-apply"] blocked
+    residual <- adminPath "REBASE_HEAD"
+    headOid <- ok git second ["rev-parse", "HEAD"] ""
+    BS.writeFile residual headOid
+    -- A reachable OID is deliberately used: reachability is not rebase state.
+    forM_ ["rebase-merge", "rebase-apply"] blocked
+    report <- undeploy executable git repo >>= expectRight
+    assertEqual 2 (length (removedWorktrees report))
+    forM_ [first, second] $ \path -> doesDirectoryExist path >>= assertEqual False
+    snapshot git repo >>= assertEqual before
+    hookConfig git repo >>= assertEqual config
 
 dirtyPreflight :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 dirtyPreflight git executable repo parent = do

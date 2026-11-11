@@ -261,7 +261,8 @@ planRemovalFor git directory state selected = guardIO $ runExceptT $ do
 removable :: Git IO -> FilePath -> [FilePath] -> IO (Either String ())
 removable git path nested = runExceptT $ do
     -- In-progress sequencers may have an otherwise completely clean index/tree.
-    forM_ ["MERGE_HEAD", "rebase-merge", "rebase-apply", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_START", "sequencer", "index.lock"] $ \name -> do
+    -- REBASE_HEAD can outlive a rebase; its state directories are authoritative.
+    forM_ ["MERGE_HEAD", "rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_START", "sequencer", "index.lock"] $ \name -> do
         location <- ExceptT (command git path ["rev-parse", "--path-format=absolute", "--git-path", name] BS.empty)
         nativePath <- lift (decodePath (BS.init location))
         active <- lift (exists nativePath)

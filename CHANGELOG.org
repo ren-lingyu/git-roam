@@ -8,6 +8,9 @@
 ** Added
 - Add top-level =--deploy-path <absolute-path>= before the command to supply the deployment root for =node create= and =deploy=. Reject relative values and combinations with a subcommand =--path=; other commands accept the option without using the directory.
 
+** Fixed
+- Allow =undeploy= when only a residual =REBASE_HEAD= remains after a rebase. Rebase state directories (=rebase-merge= and =rebase-apply=) and all other removal safety checks still prevent unsafe removal.
+
 * DONE v0.2.0
 CLOSED: [2026-11-10 Tue 15:29]
 :PROPERTIES:
