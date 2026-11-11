@@ -1,38 +1,54 @@
 # Git Roam current state
 
-## Active objective: stage B Status / protocol-validation redesign
+## Current handoff: stage B1 complete; v0.3.0 development target
 
-The user supplied a seven-node development guide and a supplementary judgment,
-then authorized archival assessment, GAW memory/archive writes and a checkpoint.
-This records an adopted plan, not B1 implementation or project build/test/Git
-write authorization. Await an explicit B1 implementation instruction; then
-inspect the actual latest HEAD and required callers before choosing edits.
-See [status-stage-b.md](status-stage-b.md) for the contract and phase gates.
-This new unreleased stage B is distinct from the completed v0.2.0 protocol
-cutover stages bearing similar letters in historical sections below.
+The user requested B1 implementation and synchronized documentation, with the
+CHANGELOG TODO target at v0.3.0. B1 is implemented and verified in the project
+worktree; ordinary project files remain unstaged/uncommitted at the inspected
+main baseline 17c2594c6423c899b39d99bdcb01431efc2e9eb9. The initial user edit
+already set TODO v0.3.0 and was preserved. Package/release metadata remains
+0.2.0; no release transition, tag or push is implied.
 
-The plan names main at 17c2594c6423c899b39d99bdcb01431efc2e9eb9;
-read-only inspection confirmed current HEAD matches. CHANGELOG.org has an
-existing unstaged user modification; the project index is clean. Preserve it.
-Earlier clean-worktree and next-action statements below describe historical
-handoffs; this active objective governs resumption. Previous tasks' test
-permissions do not authorize checks for this task.
+Git.Refs now provides typed batch local/remote Node observations, full refname,
+object-format-aware OID, symbolic target and remote path-prefix evidence.
+Inspect/Deploy/Worktree use it while retaining caller-specific strictness and
+all protocol/safety preflight. Existing worktree porcelain parsing is reused.
+No public CLI/output/protocol change; the later Status property interface is
+not implemented. See [status-stage-b.md](status-stage-b.md) for the adopted full
+B1–B7 direction, B1 findings and phase gates. This stage B is distinct from the
+already completed v0.2.0 protocol-cutover phases mentioned historically below.
 
-Adopted: retain B1–B7, migrate all management consumers coherently in B5, and
-keep worktrees/status independent exact-select properties linked by raw path.
-Status observes without protocol validity; mutators still need a complete
-trusted ManagedState and execution-time safety checks. No storage protocol
-change, permanent compatibility wrapper or automatic network query.
+Final authorized 300s, one-job/one-core isolated nix flake check passed with
+exit 0: fresh compilation under -Wall -Werror, all 15 suites / 298 test groups,
+and treefmt on 53 eligible files with zero changes. This includes 12 new Refs
+groups, with native observation and strict caller safety across SHA-1/SHA-256 x
+files/reftable. Only x86_64-linux was checked; other declared platforms omitted.
+Successful derivation: /nix/store/crskxfnnm8lwpzjx5kwflyikxhw3zvjd-git-roam-0.2.0.drv.
+All 55 source/document files match the verified isolated snapshot by SHA-256;
+tmp/b1-check-manifest.json is temporary verification material, not an archive.
+Final static diff --check passed. No unchanged test reruns are needed.
 
-Archival assessment selected decision-bearing original excerpts and the entire
-supplement as bounded design evidence, rather than the full conversation or
-copies of recoverable code/official Git documentation. The archive is explicitly
-a selected text capture, not a byte-exact original document or proof of current
-implementation. Other necessary requirements are distilled in status-stage-b.md.
-[Source selection and limits](../archive/2026-11-11T18-21-37Z--stage-b-plan/MANIFEST.md).
-No builds, tests, benchmarks or external documentation verification ran during
-this assessment. No additional external parent is needed for this planning
-checkpoint; inherited GAW history already retains the inspected baseline.
+Initial attempts encountered a sandbox daemon restriction, one formatting
+difference, an accidentally removed forM import and a wrong new UUIDv1 test
+expectation; all were corrected. No timeout occurred. Canonical existing Node
+refs accept non-v4 UUIDs; creation's stricter identity policy is separate.
+The complete execution bounds and earlier failed derivations are in the stage B
+memory. Test success belongs to the verified uncommitted source, not the original
+baseline. This completion checkpoint therefore adds no guessed project parent.
+
+The plan's decision-bearing excerpts and complete supplement remain immutable
+historical evidence: [source selection and limits](../archive/2026-11-11T18-21-37Z--stage-b-plan/MANIFEST.md).
+No new raw archive is needed for routine build logs/recoverable source.
+Keep B1–B7, migrate all management callers together in B5, and keep worktrees/
+status independent exact-select properties linked by raw path. Status may be
+partial; mutators still require complete trusted ManagedState and fresh preflight.
+
+Next: await user review/commit of B1 or a new instruction. Do not start B2,
+project staging/commits/pushes, releases or unrelated work automatically. If the
+user commits B1, compare its blobs with the retained verification manifest before
+claiming that exact commit was tested. B1 Nix execution permission applies only
+to this task; later phases require their own active authorization. Earlier
+clean-worktree and next-action statements below describe historical handoffs.
 
 ## Completed follow-ups: creation format cleanup and output documentation
 

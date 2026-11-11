@@ -8,8 +8,10 @@ selected original evidence is linked from current.md. Supplied baseline:
 ren-lingyu/git-roam main, 17c2594c6423c899b39d99bdcb01431efc2e9eb9. Current HEAD
 matched during read-only assessment. Future phases inspect actual latest HEAD.
 Target: current unreleased line; Root/Content/Checkpoint protocol is unchanged.
-Only assessment, memory/archive and checkpoint work is authorized in this task.
-Do not execute the guide's builds, commits or pushes as implicit authorization.
+Initial authorization covered assessment and memory/archive/checkpoint only.
+The user now authorized B1 implementation plus synchronized docs (TODO v0.3.0),
+on-demand Nix eval/build/check and outside-workspace read-only diagnostics.
+The guide itself does not authorize project commits or pushes.
 
 Retain seven independently buildable/testable/reviewable development nodes.
 B5 must migrate all relevant callers together, rather than leave a new
@@ -52,6 +54,65 @@ including Application.Worktree. No test or benchmark executed. The user credits
 Git official for-each-ref/worktree/status/cat-file interfaces; the trailing
 “git-for-each-ref Documentation+3” is an unresolved citation marker, not verified
 source links. No official-page contents were supplied or checked here.
+
+## B1 implementation and completed verification
+
+Canonical Node ref identity uses Protocol.Identity.parseNodeId: arbitrary
+canonical lowercase hyphenated UUID text, not only v4/Nil/Max. Creation has a
+separate stricter ID policy. B1 must preserve non-v4 canonical refs; a mistaken
+new test expectation was corrected rather than changing production behavior.
+
+The shared reader preserves full names, object-format OIDs, symbolic targets
+and remote path prefixes; one for-each-ref call handles each requested scope.
+Callers retain strict symbolic/error policies and existing validation/preflight.
+Duplicate relevant rows now fail closed rather than Map.fromList losing evidence;
+this concerns malformed adapter output, not valid native ref enumeration.
+Worktree porcelain continues to use the existing parser without duplication.
+
+Implemented paths: new cabal/src/GitRoam/Git/Refs.hs and cabal/test/Refs.hs,
+consumer migration in Application/{Inspect,Deploy,Worktree}.hs, Cabal module/
+Refs-suite registration, README and root CHANGELOG. CLI/Output/Protocol are
+unchanged. Worktree registration reuses existing Git.Worktrees; no second
+porcelain parser or permanent compatibility API was introduced. README records
+only B1 as implemented and distinguishes planned later Status behavior. The
+user's existing TODO v0.3.0 title is retained; released history/package metadata
+is unchanged.
+
+Verification used an isolated 55-file snapshot in tmp/b1-check including both
+untracked new files, without project staging. Authorized command:
+`timeout 300s nix flake check path:/home/lingyu/Projects/git-roam/tmp/b1-check --no-update-lock-file --max-jobs 1 --cores 1 --print-build-logs`.
+The initial sandbox attempt could not connect to the daemon. First outside-
+sandbox check stopped at one Deploy formatting difference. The next passed
+formatting but compilation found an accidentally removed forM import used by
+compensation (failed product derivation crwkbpzanrx12c3041mc38hqxwpkp7mb).
+Restoring it enabled fresh compilation; the following check passed all 14 old
+suites and eight new native groups but the new identity unit wrongly rejected
+canonical UUIDv1 (failed product derivation vr7x85yc36zk1i9jza1pp0bxdp5viyp7).
+The test was corrected to assert acceptance, preserving production semantics.
+
+Final check returned exit 0 within 300s, no timeout: fresh compilation with
+-Wall -Werror; 15 suites / 298 groups pass, including 12 new Refs groups.
+Treefmt processed 53 eligible files, zero changes. Successful product derivation:
+/nix/store/crskxfnnm8lwpzjx5kwflyikxhw3zvjd-git-roam-0.2.0.drv.
+Verified system x86_64-linux only; aarch64-linux/aarch64-darwin were omitted.
+All 55 current source/document files match the successful snapshot's SHA-256
+manifest; static diff --check passed. The manifest remains temporary material
+at tmp/b1-check-manifest.json, not necessary raw archival evidence.
+
+Coverage includes canonical/non-v4/Nil/Max identity, ordinary branch filtering,
+byte-safe remote-prefix/symbolic evidence, order/duplicate and malformed/OID
+failures, one-call batching with invocation/error/warning preservation, native
+SHA-1/SHA-256 x files/reftable refs and shared worktree observations, plus all
+three callers' strict symbolic handling. Existing selected Inspect still accepts
+an unrelated symbolic Node; whole-set Inspect and Worktree/Deploy refuse it,
+even when its OID matches the trusted snapshot. Deploy also still refuses
+symbolic remote candidates for existing local Nodes. No paths are created by
+these refused operation scenarios. Existing lifecycle/Hook/race suites pass.
+This does not establish all-platform, exact-minimum-Git or 10^4-Node benchmark
+claims. No benchmark was run. The actual implementation is uncommitted, so the
+completion memory checkpoint has no additional project parent pretending to
+represent that tested source. Recoverable source/tests and durable results
+suffice; routine failed/successful build logs need no new archive.
 
 ## Public Status decisions
 
@@ -233,6 +294,8 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-Next: await explicit B1 implementation instruction; inspect latest HEAD and
-preserve the existing CHANGELOG edit, map callers/failure policies and identify
-authorized paths/check commands before beginning implementation.
+B1 is complete in the verified uncommitted worktree. Await user review/commit
+or a new instruction; do not start B2 automatically. If the user commits, compare
+committed blobs with the current verification manifest before claiming exact
+committed-source test equivalence. Recheck latest HEAD before the next phase;
+B2–B7 implementation and future check permissions are not implied by B1.
