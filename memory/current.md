@@ -1,5 +1,27 @@
 # Git Roam current state
 
+## Follow-up: remove residual creation-local format state
+
+The user identified that CreateNode still carried an always-TextFormat argument
+after removal of local CLI --format, and that Output's module comment still
+described creation only. The previously committed feature worktree was clean.
+Current edits simplify CreateNode to FilePath plus optional NodeId, remove the
+unused createArgs format accumulator and localFormat rendering fallback, update
+six parser assertions, and describe Output as the shared CLI output layer.
+Only Cli.hs, Output.hs and test/Creation.hs change; no new user-facing behavior
+is intended. The existing authorized 300s one-job/one-core isolated flake check
+completed with exit 0: fresh compilation, all 14 suites / 286 test groups and
+treefmt (51 eligible files, zero changes) passed. Successful derivation:
+/nix/store/gprcwzygm4h569y43231mlgbfklydyb1-git-roam-0.2.0.drv.
+Only x86_64-linux was checked; other declared platforms were omitted. No timeout
+or failed attempt occurred for this follow-up. All 53 current source files match
+the checked snapshot by SHA-256; the temporary manifest is recorded separately
+as tmp/create-format-cleanup-verification.json so the earlier committed feature's
+manifest remains intact. Final diff --check passes. The three project files are
+modified but unstaged/uncommitted. No project parent is attached to this cleanup
+checkpoint because the tested changes are uncommitted. Await user review/commit;
+do not rerun unchanged checks.
+
 ## Completed implementation: unified top-level output format
 
 The unified CLI output implementation is complete and committed by the user as
