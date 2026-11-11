@@ -1,5 +1,39 @@
 # Git Roam current state
 
+## Active objective: stage B Status / protocol-validation redesign
+
+The user supplied a seven-node development guide and a supplementary judgment,
+then authorized archival assessment, GAW memory/archive writes and a checkpoint.
+This records an adopted plan, not B1 implementation or project build/test/Git
+write authorization. Await an explicit B1 implementation instruction; then
+inspect the actual latest HEAD and required callers before choosing edits.
+See [status-stage-b.md](status-stage-b.md) for the contract and phase gates.
+This new unreleased stage B is distinct from the completed v0.2.0 protocol
+cutover stages bearing similar letters in historical sections below.
+
+The plan names main at 17c2594c6423c899b39d99bdcb01431efc2e9eb9;
+read-only inspection confirmed current HEAD matches. CHANGELOG.org has an
+existing unstaged user modification; the project index is clean. Preserve it.
+Earlier clean-worktree and next-action statements below describe historical
+handoffs; this active objective governs resumption. Previous tasks' test
+permissions do not authorize checks for this task.
+
+Adopted: retain B1–B7, migrate all management consumers coherently in B5, and
+keep worktrees/status independent exact-select properties linked by raw path.
+Status observes without protocol validity; mutators still need a complete
+trusted ManagedState and execution-time safety checks. No storage protocol
+change, permanent compatibility wrapper or automatic network query.
+
+Archival assessment selected decision-bearing original excerpts and the entire
+supplement as bounded design evidence, rather than the full conversation or
+copies of recoverable code/official Git documentation. The archive is explicitly
+a selected text capture, not a byte-exact original document or proof of current
+implementation. Other necessary requirements are distilled in status-stage-b.md.
+[Source selection and limits](../archive/2026-11-11T18-21-37Z--stage-b-plan/MANIFEST.md).
+No builds, tests, benchmarks or external documentation verification ran during
+this assessment. No additional external parent is needed for this planning
+checkpoint; inherited GAW history already retains the inspected baseline.
+
 ## Completed follow-ups: creation format cleanup and output documentation
 
 The user identified that CreateNode still carried an always-TextFormat argument

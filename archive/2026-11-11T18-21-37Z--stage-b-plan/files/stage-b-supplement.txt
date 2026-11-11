@@ -1,0 +1,7 @@
+对开发计划的补充判断
+我建议保留 7 个节点，而不是进一步拆成十几个阶段。目前最值得严格控制的是 B5：它需要一次性完成所有依赖 InspectionReport.reportManagedState 的管理操作迁移，否则很容易留下新的中间抽象。
+
+此外，文档中对 status 的 JSON 结构作了一项具体化建议：将 worktrees 和 status 保持为两个独立的 Node property，并通过 worktree 路径关联。这比让选择 -p status 隐式改变 worktrees 字段结构更适合我们已经确定的精确属性选择语义。
+
+上述指导以实际仓库代码为基线，并参考 Git 官方的 for-each-ref、worktree、status porcelain 和 cat-file 接口。
+git-for-each-ref Documentation+3
