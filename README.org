@@ -65,7 +65,7 @@ Help and version queries do not require a Git repository. Successful queries wri
 
 The optional =--id= on =node create= accepts a canonical lowercase UUIDv4, Nil UUID (=00000000-0000-0000-0000-000000000000=), or Max UUID (=ffffffff-ffff-ffff-ffff-ffffffffffff=). Without it Git-roam generates a fresh UUIDv4, never either extreme. Successful creation prints the =node= identity, =root= OID, =worktree= path, and =bundle= path (the UUID subdirectory inside that worktree). By default (=--format text=), paths use the existing Haskell-escaped quoted output format. The top-level =--format text|json|cbor= option applies to =check=, =status=, =checkpoint=, =deploy=, =undeploy=, =node create/delete=, =enable/disable= and =version=. Place it before the command; =node create --format= is no longer accepted. Formatting does not change operation semantics or exit codes.
 
-The structured outputs use a four-field top-level map: =node= (canonical UUID), =root= (lowercase hexadecimal Git object ID), =worktree= (linked worktree root), and =bundle= (its UUID subdirectory). The JSON value is a UTF-8 object, followed by one LF. Its path fields are objects of the form:
+Structured creation results use a four-field top-level map: =node= (canonical UUID), =root= (lowercase hexadecimal Git object ID), =worktree= (linked worktree root), and =bundle= (its UUID subdirectory). The JSON value is a UTF-8 object, followed by one LF. Its path fields are objects of the form:
 
 #+begin_src json
   {"utf8": "/path/to/worktree", "base64": "L3BhdGgvdG8vd29ya3RyZWU="}
@@ -73,7 +73,7 @@ The structured outputs use a four-field top-level map: =node= (canonical UUID), 
 
 =base64= is the standard padded Base64 encoding of the exact filesystem bytes; it is authoritative. =utf8= is the decoded path for valid UTF-8, otherwise =null=. Do not infer path bytes by re-encoding the human-readable field. CBOR (RFC 8949) emits one complete map without a trailing newline: =node= and =root= are CBOR text strings, while =worktree= and =bundle= are CBOR byte strings containing the same original filesystem bytes. No custom CBOR tags are used.
 
-On success stdout contains only the requested representation. Errors and warnings remain text on stderr with the existing exit statuses; a successful creation followed by an unexpected encoding failure reports that the Node was created and must be inspected before retrying.
+On successful creation stdout contains only the requested representation. Error and warning handling follows [[*Structured command output][Structured command output]], with the existing exit statuses. A successful creation followed by an unexpected encoding failure reports that the Node was created and must be inspected before retrying.
 
 * Deployment path selection
 The development tree after v0.2.0 adds top-level =--deploy-path <absolute-path>=. Place it before the command to supply the worktree deployment root for =node create= or =deploy=:
@@ -367,8 +367,10 @@ Creation keeps =node=, =root=, =worktree= and =bundle=. Inspection results conta
 =valid=, =nodes= and =diagnostics=. Checkpoint results contain =node=,
 =checkpoint=, =predecessor=, =contexts= and =diagnostics=. Deployment reports
 =deployed_worktrees= and =tracking_sources=; undeployment reports
-=removed_worktrees= and =retained_main_nodes=. Worktree entries have =node= and
-=path=. Protection results have =enabled= and version results have =version=.
+=removed_worktrees= and =retained_main_nodes=. These deployment and undeployment
+worktree entries have =node= and =path=. Worktrees nested in inspection Nodes
+and listed in deletion previews have =path= and =main=. Protection results have
+=enabled= and version results have =version=.
 Deletion previews include =node=, =old_tip=, =root=, =exclusive_commits=,
 =worktrees=, =config_keys=, =plan_id= and =diagnostics=. Successful execution
 also reports =deleted: true=. Absent values use =null= and empty sets use arrays.

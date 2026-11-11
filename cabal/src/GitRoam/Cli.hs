@@ -267,8 +267,9 @@ interactiveDelete directory node = do
                                 pure (if answer == identifier then Right identifier else Left "Node deletion declined; no changes were made")
     pure $ either (Left . show) id (result :: Either IOException (Either String BS.ByteString))
 
--- Internal Hook dispatch is independent of public deployment-path validation.
--- A PATH wrapper can prepend the option, but the Hook never reads its value.
+-- Internal Hook dispatch is independent of public top-level option validation.
+-- Ignore complete --format and --deploy-path pairs prepended by PATH wrappers;
+-- the Hook never reads their values.
 referenceTransactionPhase :: [String] -> Maybe String
 referenceTransactionPhase ["--reference-transaction", phase]
     | phase `elem` ["preparing", "prepared", "committed", "aborted"] = Just phase
