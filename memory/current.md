@@ -1,11 +1,11 @@
 # Git Roam current state
 
-## Follow-up: remove residual creation-local format state
+## Completed follow-ups: creation format cleanup and output documentation
 
 The user identified that CreateNode still carried an always-TextFormat argument
 after removal of local CLI --format, and that Output's module comment still
 described creation only. The previously committed feature worktree was clean.
-Current edits simplify CreateNode to FilePath plus optional NodeId, remove the
+The cleanup simplifies CreateNode to FilePath plus optional NodeId, removes the
 unused createArgs format accumulator and localFormat rendering fallback, update
 six parser assertions, and describe Output as the shared CLI output layer.
 Only Cli.hs, Output.hs and test/Creation.hs change; no new user-facing behavior
@@ -17,10 +17,24 @@ Only x86_64-linux was checked; other declared platforms were omitted. No timeout
 or failed attempt occurred for this follow-up. All 53 current source files match
 the checked snapshot by SHA-256; the temporary manifest is recorded separately
 as tmp/create-format-cleanup-verification.json so the earlier committed feature's
-manifest remains intact. Final diff --check passes. The three project files are
-modified but unstaged/uncommitted. No project parent is attached to this cleanup
-checkpoint because the tested changes are uncommitted. Await user review/commit;
-do not rerun unchanged checks.
+manifest remains intact. The user committed all three files as refactor(cli):
+remove redundant creation format state. All 53 blobs of that committed snapshot
+match the verified manifest. The prior cleanup checkpoint had no project parent
+because its tested changes were then uncommitted.
+
+The user subsequently committed docs(cli): align structured output documentation.
+Its complete two-file diff was reviewed: README limits the four-field map to
+creation, replaces stale text-only stderr claims with a link to the shared output
+section, and distinguishes deployment/undeployment node/path pairs from nested
+inspection/deletion path/main pairs. The Hook comment now describes both ignored
+global prefix pairs. Runtime code is unchanged by this documentation commit.
+Static diff --check passed; tests were not rerun for docs/comments. Historical
+release notes and the old v0.2.0 handoff were deliberately left as versioned facts.
+The project worktree and index are clean. The new checkpoint associates the final
+reviewed committed handoff; the full test evidence belongs to its byte-confirmed
+cleanup parent, with the documentation-only difference explicitly recorded here.
+Both follow-ups are complete. Await the next user objective; do not rerun unchanged
+checks or initiate release work automatically.
 
 ## Completed implementation: unified top-level output format
 
