@@ -1,6 +1,85 @@
 # Git Roam current state
 
-## Objective and production baseline
+## Completed issue 2: pack-refs loose pruning
+
+The user committed the issue 1 fix as fix(undeploy): allow residual REBASE_HEAD
+during removal, then requested implementation of issue 2. The project worktree
+was clean. The repair preserves transaction old OIDs and allows a zero-new-OID
+Node row only for the files backend when its nonzero old OID matches the actual
+ref, loose file and unique packed entry, with no packed-refs.lock before/after
+reading. Real files-backend deletions hold that lock through prepared, including
+their nested packed transaction; nested old OIDs may also be zero. Git upstream
+2.54.0 and 2.56.0 sources confirm that distinction. The candidate logical ref is
+retained; other updates still undergo existing candidate validation. Unreadable
+evidence and unsupported backends refuse deletion.
+
+Two new Protection groups cover evidence failures and mixed transactions on both
+object formats. Four new EndToEnd groups use the installed Hook, both ref
+backends/formats, linked-worktree pack-refs with and without pruning, repeated
+packing, native Content commit plus maintenance pack-refs, preserved refs/reflogs/
+Hook config, and genuine deletion rejection for loose-only, duplicate and
+packed-only refs (update-ref with/without expected OID, branch -D, and single/multi
+stdin transactions). README protection prose and unreleased CHANGELOG are updated.
+The user authorized one 300s flake check with max-jobs=1/cores=1. The approved
+outside-sandbox run passed treefmt (50 files, zero changes) but failed production
+compilation under -Werror=name-shadowing: local values shadowed the existing
+configuration helper. Renamed it to packedValues within the authorized repair
+scope. No test suite ran. Failed derivation:
+/nix/store/qb1j5mz4jz22kw1p613qg7hfjhkshbpv-git-roam-0.2.0.drv.
+The user subsequently authorized on-demand testing within this task. Repeating
+the same exact flake check command with the same limits is authorized until this
+repair is verified; do not broaden commands or run unchanged checks after passing.
+The second run completed with exit 0 within the limit. Fresh compilation and all
+14 suites / 280 test groups passed, including the six new regression groups.
+Treefmt processed 50 files with zero changes. Successful product derivation:
+/nix/store/b5qj44c7p218hnvkmi72pqsqf4r0gdbb-git-roam-0.2.0.drv.
+Only x86_64-linux was checked; aarch64-linux and aarch64-darwin were omitted.
+Final diff --check passed. The user committed the five intended source/test/
+documentation files as fix(protection): allow pruning redundant loose Node refs.
+The latest project commit has the reviewed five-file scope and the project
+worktree/index are clean. Both reported issues are implemented, verified and
+committed in separate commits. The agent did not stage or commit project files.
+Await the next user objective; do not rerun unchanged checks or reproduce the
+reported incident repository. No version bump or release action is implied.
+
+For the completion handoff, both committed repair diffs were reviewed against
+the inherited completed-feature baseline. They contain only the seven reviewed
+source/test/documentation paths and agree with the staged changes previously
+reviewed in this session. The project-parent association grounds this final
+committed-source review; the test executions described above preceded the
+user's commits and were not rerun solely for checkpoint provenance. This is one
+completion checkpoint for the combined resolved objective, not reconstructed
+intermediate checkpoints or a claim that memory was checkpointed earlier.
+
+## Completed issue 1: residual REBASE_HEAD removal preflight
+
+The user reported two maintenance-related false refusals and requested source
+review, then authorized implementing issue 1 first as a separate change. Do not
+reproduce their incident repository. The source worktree was clean before this
+change. Worktree.removable now omits REBASE_HEAD as an independent blocker while
+retaining rebase-merge/rebase-apply and all other existing checks. New
+Undeployment regression groups cover files/reftable and SHA-1/SHA-256: each
+state directory blocks all removal both with and without REBASE_HEAD, then a
+residual REBASE_HEAD containing a reachable OID allows removal while refs and
+Hook configuration remain unchanged. The user committed the source, tests and
+documentation together before starting issue 2.
+The user authorized one 300s flake check with max-jobs=1 and cores=1. The initial
+sandbox attempt could not open Nix's fetcher cache; the approved outside-sandbox
+run completed with exit 0, without timeout. Fresh compilation and all 14 suites /
+274 test groups passed, including all four new regression groups. Treefmt
+processed 50 files with zero changes. Product derivation:
+/nix/store/5ww6lvjzccrl09b5zdnlhzbnnbvjk05s-git-roam-0.2.0.drv.
+Only x86_64-linux was checked; aarch64-linux and aarch64-darwin were omitted.
+The issue 1 repair is implemented, verified and committed.
+At the user's subsequent request, README.org's Full undeployment section and
+CHANGELOG.org's existing unreleased entry now document this fix and the retained
+state-directory safety checks. Released entries and version metadata are unchanged.
+These documentation-only additions passed static diff review and diff --check;
+the earlier flake check predates them and was not rerun.
+The later successful issue 2 flake check includes these committed changes and
+documents; its current results are recorded above.
+
+## Completed feature and production baseline
 
 Completed post-v0.2.0 task: implement top-level --deploy-path as the first Added
 item in the user's existing TODO *unreleased* entry, and update README. Preserve
