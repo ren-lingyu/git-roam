@@ -2,8 +2,9 @@
 
 ## Completed implementation: unified top-level output format
 
-The unified CLI output implementation is complete in the uncommitted project
-worktree. Only top-level --format text|json|cbor is accepted; node create's local
+The unified CLI output implementation is complete and committed by the user as
+feat(cli): unify structured output with a top-level format option. The project
+worktree and index are clean. Only top-level --format text|json|cbor is accepted; node create's local
 option is removed and treated as ordinary invalid arguments. Default text, exit
 codes, history protocol, safety and interaction are preserved. Help stays text;
 version supports all formats. Hook dispatch ignores complete global option pairs
@@ -27,8 +28,8 @@ null; confirmation does not assert post-compensation state. Bundled failure
 pattern synonyms retain the two-argument source interface and legacy reason/
 details text. README, help and unreleased CHANGELOG document the interface and
 breaking local-format removal. Version metadata/released history are unchanged.
-The 17 tracked modified files plus new untracked Diagnostic.hs are one feature;
-include the new module in later staging. No project staging/commit was performed.
+The commit contains all 18 reviewed files, including the new Diagnostic.hs module.
+The agent did not stage or commit project files.
 
 The user authorized targeted Haskell formatting and on-demand checks, one Nix
 job/core, 300s checks and 120s formatting. The isolated 53-file source at
@@ -41,16 +42,20 @@ Successful derivation:
 /nix/store/kxvbirzykc8ax1cd1qnm4xchbj6r5l45-git-roam-0.2.0.drv.
 Only x86_64-linux was verified; aarch64-linux/aarch64-darwin were omitted.
 
-All 53 current source files matched the verified snapshot by SHA-256. The
-manifest at tmp/unified-format-verification.json supports later committed-source
-comparison. Final diff --check passed; the project index is empty. Coverage
+All 53 committed source files were compared against the verified SHA-256 manifest
+and matched exactly, including docs, Cabal metadata and the new module. This
+grounds the existing successful check in the committed feature without rerunning
+unchanged tests. The manifest at tmp/unified-format-verification.json is temporary
+verification material, not a required archive. Final diff --check passed. Coverage
 includes JSON/CBOR framing/model parity, arbitrary path bytes, format conflicts,
 both ref backends/object formats, empty/multiple Nodes, warnings, invalid-history
 reports, deletion execution, actual Hook wrappers and enhanced existing partial-
-failure injection tests. No raw archive is needed. This completion checkpoint
-has no additional project parent because the tested feature is uncommitted;
-do not attach the old main tip as if it contained this source. Await user review
-or commit; do not rerun unchanged checks or initiate release work.
+failure injection tests. No raw archive is needed. The previous implementation
+checkpoint had no project parent because the tested source was uncommitted.
+The new committed-source handoff associates the now byte-confirmed feature
+snapshot; its only new ancestor is the reviewed feature on the retained baseline.
+This task is complete. Await the next user objective; do not rerun unchanged
+checks or initiate version bumps, releases or node list work automatically.
 
 ## Completed issue 2: pack-refs loose pruning
 
