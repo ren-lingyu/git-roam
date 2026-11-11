@@ -10,6 +10,7 @@
 
 ** Fixed
 - Allow =undeploy= when only a residual =REBASE_HEAD= remains after a rebase. Rebase state directories (=rebase-merge= and =rebase-apply=) and all other removal safety checks still prevent unsafe removal.
+- Allow =pack-refs= and its maintenance task to prune redundant loose Node refs after packing them, while continuing to refuse ordinary Node branch deletion.
 
 * DONE v0.2.0
 CLOSED: [2026-11-10 Tue 15:29]

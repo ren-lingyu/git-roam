@@ -9,7 +9,7 @@ import GitRoam.Application.Protection (evaluateTransaction)
 import GitRoam.Git
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
-import System.Directory (createDirectory, removeDirectory)
+import System.Directory (createDirectory, removeDirectory, removeFile)
 import System.FilePath ((</>))
 import TestSupport
 import WorktreeFixture (fixture, nodeA, nodeB, ok, root)
@@ -60,6 +60,46 @@ main =
                | backend <- ["files", "reftable"]
                , format <- [Sha1, Sha256]
                ]
+            ++ [("loose pruning requires matching unlocked packed evidence " ++ show format, fixture "files" format (pruningEvidence format)) | format <- [Sha1, Sha256]]
+
+pruningEvidence :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+pruningEvidence format git _ directory _ = do
+    root git directory nodeA
+    root git directory nodeB
+    a <- tip git directory format nodeA
+    b <- tip git directory format nodeB
+    let zeros = BS.replicate (objectIdLength format) 48
+        pruning = update nodeA (textOid a) zeros
+        packed = directory </> ".git" </> "packed-refs"
+        lock = packed ++ ".lock"
+    reject directory pruning
+    _ <- ok git directory ["pack-refs", "--all", "--no-prune"] ""
+    accept directory pruning
+    forM_ [zeros, "invalid", BS.replicate (objectIdLength format - 1) 49, textOid b] $ \old ->
+        reject directory (update nodeA old zeros)
+    -- The same packed contents exist during a real deletion's prepared phase.
+    writeFile lock "locked"
+    reject directory pruning
+    removeFile lock
+    accept directory pruning
+    bTree <- treeOf git directory b
+    bContent <- commit git directory format bTree [b] "B Content"
+    accept directory (pruning <> update nodeB (textOid b) (textOid bContent))
+    reject directory (pruning <> update nodeB (textOid b) (textOid a))
+    original <- BS.readFile packed
+    BS.appendFile packed (textOid a <> " " <> BSC.pack (ref nodeA) <> "\n")
+    reject directory pruning
+    BS.writeFile packed original
+    aTree <- treeOf git directory a
+    next <- commit git directory format aTree [a] "A Content"
+    setRef git directory nodeA next
+    -- A newer loose tip must not be mistaken for the older packed version.
+    reject directory (update nodeA (textOid next) zeros)
+    reject directory pruning
+    _ <- ok git directory ["pack-refs", "--all", "--no-prune"] ""
+    accept directory (update nodeA (textOid next) zeros)
+    removeFile packed
+    reject directory (update nodeA (textOid next) zeros)
 
 -- Non-prepared phases never veto a transaction. Ignore non-Node refs, but
 -- reject malformed input even if it does not name a Node ref.

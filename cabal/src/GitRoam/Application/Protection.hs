@@ -29,7 +29,7 @@ import GitRoam.Protocol.History (CommitKind (..), lookupCommit, validatedKind)
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository (ManagedState, managedHistory, validateOrdinaryTransition)
 import GitRoam.Repository
-import System.Directory (createDirectory, removeDirectory)
+import System.Directory (createDirectory, doesPathExist, removeDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (isAbsolute, takeFileName, (</>))
 import Text.Read (readMaybe)
@@ -182,7 +182,7 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
             when (length nodes /= Set.size (Set.fromList nodes)) (throwE "Duplicate Node branch updates in one transaction")
             raw <- ExceptT (checked directory ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/"])
             before <- Map.fromList . concat <$> mapM (decodeRef format) (BSC.lines raw)
-            after <- foldM (apply format before) before updates
+            after <- foldM (apply repository before) before updates
             -- A direct Content extension or amendment adds no context edges.
             -- Only these cases can safely validate a single Node: any new
             -- Checkpoint or arbitrary rewrite must be checked against *all*
@@ -205,9 +205,9 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
                 either (throwE . show) pure (validateOrdinaryTransition oldState newState)
   where
     parseUpdate row = case BSC.words row of
-        [_old, new, ref] -> case BS.stripPrefix "refs/heads/" ref >>= either (const Nothing) Just . parseNodeId of
+        [old, new, ref] -> case BS.stripPrefix "refs/heads/" ref >>= either (const Nothing) Just . parseNodeId of
             Nothing -> Right Nothing
-            Just node -> Right (Just (node, new))
+            Just node -> Right (Just (node, (old, new)))
         -- HEAD and other non-Node refs may coexist in the same transaction.
         _ -> Left "Malformed reference-transaction input"
 
@@ -220,11 +220,52 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
                 pure [(node, object)]
         _ -> throwE "Malformed managed reference observation"
 
-    apply format before state (node, bytes) = do
+    apply repository before state (node, (old, bytes)) = do
+        let format = repositoryObjectFormat repository
         unless (Map.member node before) (throwE "New Node branches require a controlled Git-roam operation")
-        when (BS.null bytes || BS.all (== 48) bytes) (throwE "Node deletion requires an explicit Git-roam operation")
-        oid <- either throwE pure (parseObjectId format bytes)
-        pure (Map.insert node oid state)
+        if bytes == BS.replicate (objectIdLength format) 48
+            then do
+                previous <- either (const (throwE deletionRefused)) pure (parseObjectId format old)
+                unless (Map.lookup node before == Just previous) (throwE deletionRefused)
+                pruning <- lift (retainedPackedRef directory repository node previous)
+                unless pruning (throwE deletionRefused)
+                pure state
+            else do
+                oid <- either throwE pure (parseObjectId format bytes)
+                pure (Map.insert node oid state)
+
+    deletionRefused = "Node deletion requires an explicit Git-roam operation"
+
+-- Git's files backend commits packed refs and releases packed-refs.lock before
+-- pruning redundant loose refs. Real deletions hold that lock during prepared,
+-- including the nested packed transaction, where old OIDs can be zero. Matching
+-- packed contents alone cannot distinguish those deletions from loose pruning.
+-- Keep the logical ref unchanged only with matching old, loose and packed OIDs;
+-- unknown backends, unreadable evidence and any packed lock fail closed.
+retainedPackedRef :: FilePath -> Repository -> NodeId -> ObjectId -> IO Bool
+retainedPackedRef directory repository node oid = do
+    backend <- checked directory ["rev-parse", "--show-ref-format"]
+    if backend /= Right "files\n"
+        then pure False
+        else do
+            outcome <- try inspect :: IO (Either IOException Bool)
+            pure (either (const False) id outcome)
+  where
+    inspect = case Encoding.decodeUtf8' (repositoryCommonDirectory repository) of
+        Left _ -> pure False
+        Right common -> do
+            let root = Text.unpack common
+                ref = "refs/heads/" <> nodeIdBytes node
+                lock = root </> "packed-refs.lock"
+            locked <- doesPathExist lock
+            if locked
+                then pure False
+                else do
+                    loose <- BS.readFile (root </> "refs" </> "heads" </> BSC.unpack (nodeIdBytes node))
+                    packed <- BS.readFile (root </> "packed-refs")
+                    stillLocked <- doesPathExist lock
+                    let packedValues = [value | row <- BSC.lines packed, [value, name] <- [BSC.words row], name == ref]
+                    pure (not stillLocked && BSC.lines loose == [objectIdBytes oid] && packedValues == [objectIdBytes oid])
 
 -- Never use the scoped fast path for newly introduced Checkpoints or more
 -- general rewrites: they may introduce historical context from another Root.

@@ -222,6 +222,8 @@ Git resolves =git-roam= through the Git process's =PATH= on every invocation. Th
 
 Ordinary Git updates may add Content, advance to a valid history or rewrite an existing Node's history, including old Checkpoints. They must preserve the Node's Root identity and a structurally valid history. Ordinary creation or deletion of canonical Node branches is refused: use the controlled Git-roam lifecycle operations. The Hook validates complete candidate state for Checkpoints and general rewrites at =prepared=, including cross-Node Root consistency; a direct Content extension or amendment can use a scoped single-Node fast path.
 
+With the files ref backend, =git pack-refs --all --prune= and Git's pack-refs maintenance task may remove redundant loose Node refs once the same OIDs are stored in =packed-refs=. Node branches and their histories remain available, and ordinary Node branch deletion still requires an explicit Git-roam operation.
+
 =disable= removes only Git-roam's matching protection configuration and requires that all Node linked worktrees have been safely removed first. This includes manually created linked worktrees. It does not delete branches or objects, or switch or remove the main worktree. Use =undeploy= to remove Node linked worktrees before disabling protection.
 
 Protection operations share a common-directory operation lock. A busy or unavailable lock causes refusal and is not automatically removed. This coordination and Git's ref transactions do not guarantee isolation from arbitrary external writers. Internal controlled operations must validate their plan and use conditional ref updates; their per-call bypass disables only Git-roam's own named Hook.

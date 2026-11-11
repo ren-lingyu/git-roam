@@ -28,6 +28,61 @@ main =
     runTests $
         [("public CLI lifecycle and native synchronization " ++ backend ++ " " ++ show format, fixture backend format (lifecycle backend format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("global deployment wrapper and independent Hook " ++ backend ++ " " ++ show format, fixture backend format (globalDeploymentPath format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [("native ref maintenance preserves Node deletion protection " ++ backend ++ " " ++ show format, fixture backend format (refMaintenance backend)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+
+refMaintenance :: String -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+refMaintenance backend git executable repo parent = do
+    root git repo nodeA
+    root git repo nodeB
+    let linked = parent </> "linked"
+        branch node = "refs/heads/" ++ BSC.unpack (nodeIdBytes node)
+        loose node = repo </> ".git" </> "refs" </> "heads" </> BSC.unpack (nodeIdBytes node)
+        run location arguments input = runGit git (GitInvocation location arguments input []) >>= expectRight
+        maintain arguments = do
+            result <- run linked arguments ""
+            assertEqual ExitSuccess (gitExitCode result)
+            assertEqual BS.empty (gitStderr result)
+        refuse arguments input = do
+            before <- snapshot git repo
+            result <- run repo arguments input
+            assertTrue "Native Node deletion succeeded" (gitExitCode result /= ExitSuccess)
+            assertTrue "Deletion was not refused by Git-roam" ("Node deletion requires an explicit Git-roam operation" `BS.isInfixOf` gitStderr result)
+            snapshot git repo >>= assertEqual before
+        refuseDeletions = do
+            old <- BSC.init <$> ok git repo ["rev-parse", branch nodeB] ""
+            aOld <- BSC.init <$> ok git repo ["rev-parse", branch nodeA] ""
+            forM_ [["update-ref", "-d", branch nodeB], ["update-ref", "-d", branch nodeB, BSC.unpack old], ["branch", "-D", BSC.unpack (nodeIdBytes nodeB)]] $ \arguments -> refuse arguments ""
+            refuse ["update-ref", "--stdin"] (BSC.unlines ["start", "delete " <> BSC.pack (branch nodeB) <> " " <> old, "prepare", "commit"])
+            refuse ["update-ref", "--stdin"] (BSC.unlines ["start", "delete " <> BSC.pack (branch nodeB) <> " " <> old, "update " <> BSC.pack (branch nodeA) <> " " <> aOld, "prepare", "commit"])
+        reflog = ok git linked ["reflog", "show", "--format=%H%x00%gs", branch nodeB] ""
+    manual git repo linked nodeA
+    enable git executable repo
+    initial <- snapshot git repo
+    config <- ok git repo ["config", "--local", "--get-regexp", "^hook\\."] ""
+    beforeLog <- reflog
+    -- Exercise real deletion first with loose-only, then duplicate, then packed-only refs.
+    refuseDeletions
+    maintain ["pack-refs", "--all", "--no-prune"]
+    if backend == "files"
+        then forM_ [nodeA, nodeB] $ \node -> doesPathExist (loose node) >>= assertEqual True
+        else pure ()
+    refuseDeletions
+    maintain ["pack-refs", "--all", "--prune"]
+    maintain ["pack-refs", "--all", "--prune"]
+    if backend == "files"
+        then forM_ [nodeA, nodeB] $ \node -> doesPathExist (loose node) >>= assertEqual False
+        else pure ()
+    snapshot git repo >>= assertEqual initial
+    reflog >>= assertEqual beforeLog
+    refuseDeletions
+    _ <- ok git linked ["commit", "--allow-empty", "-m", "Content after ref packing"] ""
+    advanced <- snapshot git repo
+    maintain ["maintenance", "run", "--task=pack-refs"]
+    snapshot git repo >>= assertEqual advanced
+    if backend == "files"
+        then doesPathExist (loose nodeA) >>= assertEqual False
+        else pure ()
+    ok git repo ["config", "--local", "--get-regexp", "^hook\\."] "" >>= assertEqual config
 
 lifecycle :: String -> ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 lifecycle backend format git executable repo parent = do
