@@ -1,14 +1,14 @@
 # Git Roam current state
 
-## Current handoff: B2 review corrections verified and user-staged
+## Active objective: implement B3 commit metadata
 
-The user committed initial B2 at a2018485275e476c9cb9645cb2dc67c27b40b482.
-All 57 blobs matched its original verification manifest; that exact committed
-state is grounded in the previous GAW checkpoint. The user then supplied a B2
-review. Its three issue groups are now repaired and verified in the project
-worktree/index; the user staged the seven changed paths, including the final
-additional CLI assertions. No unstaged changes remain. The agent did not stage
-or commit ordinary project files. The fix is still uncommitted on initial B2.
+Initial B2 was committed at a2018485275e476c9cb9645cb2dc67c27b40b482.
+The user has now committed the reviewed corrections at
+693f478fca5a680de8aa188ae66280772a0d738c. All 58 committed blobs match the final
+B2 review manifest. The project worktree/index were clean at B3 entry, and the
+user explicitly requested B3. The following B2 test evidence applies to that
+committed state; B3 source changes/tests are in progress and uncommitted.
+No agent ordinary project staging or commit has been performed.
 
 Corrected remote-only config (no merge => known no upstream), scalar remote
 precedence (native upstream:remotename, with last-read config as evidence), and
@@ -56,8 +56,9 @@ tmp/commit.md: fix(GitRoam.Application.Status): preserve scoped upstream observa
 No Breaking footer because this repairs the intended contract without changing
 CLI/schema. Split assessment: not necessary, medium complexity, one B2 fix.
 No raw transcript/review archive is needed; maintained regressions and these
-conclusions retain the necessary evidence. This completion checkpoint adds no
-project parent for staged, uncommitted fixes.
+conclusions retain the necessary evidence. The original completion checkpoint added no
+project parent for then-uncommitted fixes. The B3 transition now grounds the
+committed B2 correction by the exact 58-file match, without repeating tests.
 
 See [status-stage-b.md](status-stage-b.md) for the full B1–B7 direction and review
 correction details. B5 must still migrate Hook ref enumeration and remove
@@ -73,10 +74,18 @@ On-demand working-directory Nix eval/build/check and outside-workspace read-only
 commands are authorized; B2 scoped Haskell/Cabal formatting uses a 120s bound,
 checks 300s and one job/core. Respect actual user staging and preserve their index.
 
-Next: await user review/commit of this B2 fix before treating B2 as frozen or
-starting B3. If committed, compare its blobs to the review verification manifest
-before grounding that exact commit; do not rerun unchanged tests just to obtain
-a parent. No agent project commits/pushes, lifecycle changes or release action.
+Current B3 work: add independent byte-safe tip commit metadata parsing and
+reuse the raw cat-file reader/batch transport without expanding protocol parsing.
+Return tree, ordered parents, author/committer names/emails/dates, subject and
+original message. Subject is the first LF-delimited message line, dropping only
+a terminal CR from that line; message remains byte-for-byte unchanged. Dates use
+integer Unix seconds plus the raw signed four-digit offset. No mailmap/encoding
+transcoding, history walk, ancestor validation or working-tree scan. Default
+properties stay tip/worktrees/remote; explicit commit omits dependency properties.
+Add malformed/byte/date/continuation tests, four-combination native and adapter
+cost/failure tests, sync docs, run authorized checks, draft the full-diff commit
+message, and maintain memory. B3 formatting is explicitly authorized on changed
+Haskell/Cabal files with the existing local treefmt and 120s bound.
 Earlier handoff sections below describe historical states, not next actions.
 
 ## Completed follow-ups: creation format cleanup and output documentation

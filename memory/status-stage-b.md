@@ -282,13 +282,25 @@ during execution and then staged the final test assertions; no agent project
 staging was performed. The complete seven-path diff is reviewed as one coherent
 fix. Static diff HEAD --check passed. Draft tmp/commit.md uses
 fix(GitRoam.Application.Status): preserve scoped upstream observations,
-without a Breaking footer. Current project HEAD is still initial B2; fixes are
-staged/uncommitted, so completion memory adds no guessed project parent.
+without a Breaking footer. At completion the fixes were staged/uncommitted;
+that checkpoint correctly added no guessed project parent.
 Source/tests plus durable conclusions suffice; no raw review archive is needed.
 
-Await user review/commit, then freeze B2 before proceeding to B3 under a new
-instruction. If the user commits, compare its blobs with the review manifest
-before claiming exact committed-source test equivalence.
+The user committed these corrections at 693f478fca5a680de8aa188ae66280772a0d738c;
+all 58 committed blobs match the reviewed verification manifest and the project
+worktree/index are clean. B2 is frozen; the user explicitly requested B3.
+
+## Active B3 implementation
+
+Implement independent raw tip commit metadata using shared raw object and batch
+transport, without adding metadata parsing to protocol validation. Preserve raw
+name/email/message bytes and encoding headers' message bytes without transcoding.
+Subject uses the first LF-delimited message line with one terminal CR removed;
+message is never normalized. Dates preserve integer seconds and signed HHMM.
+Keep exact property selection/default cost boundaries and partial diagnostics.
+Cover native SHA-1/SHA-256 x files/reftable plus parser, byte and fault/cost tests.
+B3 scoped Haskell/Cabal formatting was explicitly authorized; Nix checks retain
+300s/one-job/one-core limits. Update docs and draft the complete-diff commit.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -533,8 +545,8 @@ notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
 B1 and initial B2 were committed by the user. B2 review corrections are now
-verified and user-staged, not committed; await review/commit and freeze B2 before
-a new B3 instruction. Only within this conversation / the
+committed and verified by manifest equivalence. B3 is now explicitly requested
+and active. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;
