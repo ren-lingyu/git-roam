@@ -20,6 +20,7 @@ library
     GitRoam.Cli
     GitRoam.Diagnostic
     GitRoam.Git
+    GitRoam.Git.Commit
     GitRoam.Git.Objects
     GitRoam.Git.Refs
     GitRoam.Git.Worktrees
@@ -131,6 +132,7 @@ test-suite status-tests
   hs-source-dirs:     test
   main-is:            Status.hs
   other-modules:
+    CommitProperty
     StatusRegression
     TestSupport
     WorktreeFixture
@@ -145,6 +147,7 @@ test-suite status-tests
     , directory
     , filepath
     , git-roam
+    , text
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded -Werror

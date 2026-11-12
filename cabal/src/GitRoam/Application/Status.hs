@@ -25,6 +25,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import GitRoam.Application.Protection (ProtectionState, observeProtection)
 import GitRoam.Git
+import qualified GitRoam.Git.Commit as Commit
 import GitRoam.Git.Objects (readOnlyEnvironment)
 import qualified GitRoam.Git.Refs as Refs
 import qualified GitRoam.Git.Worktrees as Worktrees
@@ -33,8 +34,8 @@ import GitRoam.Protocol.Identity
 import GitRoam.Repository
 import System.Exit (ExitCode (..))
 
--- Later phases add commit metadata and working-tree status to this model.
-data NodeProperty = TipProperty | WorktreesProperty | RemoteProperty deriving (Eq, Ord, Show)
+-- Working-tree file status is added separately from registered worktrees.
+data NodeProperty = TipProperty | CommitProperty | WorktreesProperty | RemoteProperty deriving (Eq, Ord, Show)
 data NodeSelection = AllNodes | SelectedNodes (Set.Set NodeId) deriving (Eq, Show)
 data PropertySelection = DefaultProperties | SelectedProperties (Set.Set NodeProperty) deriving (Eq, Show)
 data StatusQuery = RepositoryStatus | NodeStatusQuery NodeSelection PropertySelection deriving (Eq, Show)
@@ -53,6 +54,7 @@ data RemoteObservation = RemoteObservation
 data NodeStatus = NodeStatus
     { statusNode :: NodeId
     , statusTip :: PropertyResult ObjectId
+    , statusCommit :: PropertyResult Commit.CommitMetadata
     , statusWorktrees :: PropertyResult [Worktrees.Worktree]
     , statusRemote :: PropertyResult RemoteObservation
     }
@@ -77,6 +79,7 @@ selectedProperties (SelectedProperties values) = values
 
 propertyName :: NodeProperty -> Text
 propertyName TipProperty = "tip"
+propertyName CommitProperty = "commit"
 propertyName WorktreesProperty = "worktrees"
 propertyName RemoteProperty = "remote"
 
@@ -100,12 +103,16 @@ queryStatus git directory request = do
             wants property = Set.member property properties
             scope = if wants RemoteProperty then Refs.LocalAndRemoteUpstreams else Refs.LocalNodes
         (before, upstreamBeforeErrors) <- observeRefs format scope
+        let localRefs = Map.fromList [(Refs.observedNode ref, ref) | ref <- Refs.observationRefs before, Refs.observedRemotePrefix ref == Nothing]
+            chosen = case selection of AllNodes -> Map.keys localRefs; SelectedNodes values -> Set.toAscList values
+        commits <-
+            if wants CommitProperty
+                then Commit.readCommitMetadata safeGit directory format environment [Refs.observedTip ref | node <- chosen, Just ref <- [Map.lookup node localRefs], BS.null (Refs.observedSymbolic ref)]
+                else pure Map.empty
         trees <- if wants WorktreesProperty then Just <$> Worktrees.listWorktrees safeGit directory format else pure Nothing
         configs <- if wants RemoteProperty then Just <$> Refs.readUpstreamConfig safeGit directory environment else pure Nothing
         (after, upstreamAfterErrors) <- observeRefs format scope
-        let localRefs = Map.fromList [(Refs.observedNode ref, ref) | ref <- Refs.observationRefs before, Refs.observedRemotePrefix ref == Nothing]
-            chosen = case selection of AllNodes -> Map.keys localRefs; SelectedNodes values -> Set.toAscList values
-            chosenSet = Set.fromList chosen
+        let chosenSet = Set.fromList chosen
             registered = case trees of
                 Just (Right records) -> Just (Map.map reverse (Map.fromListWith (++) [(node, [tree]) | tree <- records, Just node <- [Worktrees.worktreeNode tree]]))
                 _ -> Nothing
@@ -122,13 +129,15 @@ queryStatus git directory request = do
                         NodeStatus
                             node
                             (if not (wants TipProperty) then NotRequested else case found of Just ref | BS.null (Refs.observedSymbolic ref) -> Available (Refs.observedTip ref); _ -> Unavailable)
+                            (if not (wants CommitProperty) then NotRequested else case found of Just ref | BS.null (Refs.observedSymbolic ref), Just (Right value) <- Map.lookup (Refs.observedTip ref) commits -> Available value; _ -> Unavailable)
                             (if not (wants WorktreesProperty) then NotRequested else maybe Unavailable (Available . Map.findWithDefault [] node) registered)
                             (if not (wants RemoteProperty) then NotRequested else Available (RemoteObservation upstream (remoteTips node)))
                     missing = case found of
                         Nothing -> [issue (if Refs.observationComplete before then "node_not_found" else "node_unavailable") (Just node) Nothing "No reliable local Node ref was observed"]
                         Just ref | not (BS.null (Refs.observedSymbolic ref)) -> [issue "symbolic_node_branch" (Just node) (Just TipProperty) "The Node branch is symbolic"]
                         _ -> []
-                 in (row, missing ++ [value | wants RemoteProperty, value <- upstreamIssues])
+                    commitIssues = [issue "commit_unavailable" (Just node) (Just CommitProperty) (show problem) | wants CommitProperty, Just ref <- [found], BS.null (Refs.observedSymbolic ref), Just (Left problem) <- [Map.lookup (Refs.observedTip ref) commits]]
+                 in (row, missing ++ commitIssues ++ [value | wants RemoteProperty, value <- upstreamIssues])
             rows = map build chosen
             fingerprint observed = Map.fromList [(Refs.observedRef ref, (Refs.observedTip ref, Refs.observedSymbolic ref)) | ref <- Refs.observationRefs observed]
             upstreamFingerprint observed = Map.fromList [(Refs.observedRef ref, (Refs.observedUpstream ref, Refs.observedUpstreamRemote ref)) | ref <- Refs.observationRefs observed]

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module GitRoam.Git.Objects (decodeCommit, decodeTree, nativeHistorySource, withHistorySource, readOnlyEnvironment, checkStoredConnectivity, peelStoredCommit, resolveCommitReference) where
+module GitRoam.Git.Objects (decodeCommit, decodeTree, readStoredObject, nativeHistorySource, withHistorySource, readOnlyEnvironment, checkStoredConnectivity, peelStoredCommit, resolveCommitReference) where
 
 import Control.Monad (foldM, unless, when)
 import Control.Monad.Trans.Class (lift)
@@ -93,21 +93,22 @@ nativeHistorySource git directory format environment =
         (readStored "tree" (decodeTree format))
   where
     readStored expected decoder oid = do
-        outcome <-
-            runGit git $
-                GitInvocation
-                    directory
-                    ["--no-replace-objects", "cat-file", "--batch"]
-                    (objectIdBytes oid <> "\n")
-                    (environment ++ readOnlyEnvironment)
-        pure $ case outcome of
-            Left problem -> Left (ObjectReadFailure (BSC.pack (show problem)))
-            Right result
-                | gitExitCode result /= ExitSuccess -> Left (ObjectReadFailure (gitStderr result))
-                | otherwise -> do
-                    (kind, body) <- envelope oid (gitStdout result)
-                    if kind /= expected then Left (WrongObjectType kind) else pure ()
-                    either (Left . ObjectReadFailure . BSC.pack) Right (decoder body)
+        outcome <- readStoredObject git directory environment oid
+        pure $ do
+            (kind, body) <- outcome
+            if kind /= expected then Left (WrongObjectType kind) else pure ()
+            either (Left . ObjectReadFailure . BSC.pack) Right (decoder body)
+
+-- Raw object transport shared by protocol decoding and optional metadata reads.
+-- Keep decoding policies independent; neither reader walks history here.
+readStoredObject :: (Monad m) => Git m -> FilePath -> [(String, Maybe String)] -> ObjectId -> m (Either ObjectProblem (BS.ByteString, BS.ByteString))
+readStoredObject git directory environment oid = do
+    outcome <- runGit git (GitInvocation directory ["--no-replace-objects", "cat-file", "--batch"] (objectIdBytes oid <> "\n") (environment ++ readOnlyEnvironment))
+    pure $ case outcome of
+        Left problem -> Left (ObjectReadFailure (BSC.pack (show problem)))
+        Right result
+            | gitExitCode result /= ExitSuccess -> Left (ObjectReadFailure (gitStderr result))
+            | otherwise -> envelope oid (gitStdout result)
 
 envelope :: ObjectId -> BS.ByteString -> Either ObjectProblem (BS.ByteString, BS.ByteString)
 envelope oid bytes =

@@ -24,6 +24,7 @@ import GitRoam.Application.Protection (ProtectionState (..))
 import qualified GitRoam.Application.Status as Status
 import GitRoam.Diagnostic (Evidence (..))
 import qualified GitRoam.Diagnostic as Diagnostic
+import qualified GitRoam.Git.Commit as Commit
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId (ObjectId, objectIdBytes)
 import GitRoam.Protocol.History
@@ -70,7 +71,7 @@ jsonPath bytes =
         ]
 
 -- One logical model shared by both wire encodings. Bytes never pass through text.
-data Value = Object [(Text, Value)] | Array [Value] | String Text | Bytes BS.ByteString | Number Int | Boolean Bool | Null
+data Value = Object [(Text, Value)] | Array [Value] | String Text | Bytes BS.ByteString | Number Integer | Boolean Bool | Null
     deriving (Eq, Show)
 
 encodeValue :: OutputFormat -> Value -> BS.ByteString
@@ -93,7 +94,7 @@ cborValue value = case value of
     Array values -> CBOR.encodeListLen (fromIntegral (length values)) <> foldMap cborValue values
     String text -> CBOR.encodeString text
     Bytes bytes -> CBOR.encodeBytes bytes
-    Number number -> CBOR.encodeInt number
+    Number number -> CBOR.encodeInteger number
     Boolean flag -> CBOR.encodeBool flag
     Null -> CBOR.encodeNull
 
@@ -195,8 +196,20 @@ statusValue report = case report of
         Object $
             [("node", nodeValue (Status.statusNode node))]
                 ++ property "tip" oidValue (Status.statusTip node)
+                ++ property "commit" commit (Status.statusCommit node)
                 ++ property "worktrees" (Array . map tree) (Status.statusWorktrees node)
                 ++ property "remote" remote (Status.statusRemote node)
+    commit value =
+        Object
+            [ ("tree", oidValue (Commit.metadataTree value))
+            , ("parents", Array (map oidValue (Commit.metadataParents value)))
+            , ("author", identity (Commit.metadataAuthor value))
+            , ("committer", identity (Commit.metadataCommitter value))
+            , ("subject", Bytes (Commit.metadataSubject value))
+            , ("message", Bytes (Commit.metadataMessage value))
+            ]
+    identity value = Object [("name", Bytes (Commit.identityName value)), ("email", Bytes (Commit.identityEmail value)), ("date", date (Commit.identityDate value))]
+    date value = Object [("timestamp", Number (Commit.dateTimestamp value)), ("offset", String (Encoding.decodeUtf8 (Commit.dateOffset value)))]
     tree value =
         Object
             [ ("path", Bytes (Worktrees.treePath value))
@@ -226,9 +239,15 @@ renderStatus report = case report of
         Text.unlines $
             ["node " <> nodeText (Status.statusNode value)]
                 ++ field "tip" (\name oid -> [name <> " " <> oidText oid]) (Status.statusTip value)
+                ++ field "commit" renderCommit (Status.statusCommit value)
                 ++ field "worktrees" renderTrees (Status.statusWorktrees value)
                 ++ field "remote" renderRemote (Status.statusRemote value)
     raw = maybe "unavailable" (Text.pack . show)
+    renderCommit name value =
+        [name, "  tree " <> oidText (Commit.metadataTree value)]
+            ++ ["  parent " <> oidText parent | parent <- Commit.metadataParents value]
+            ++ ["  author " <> renderIdentity (Commit.metadataAuthor value), "  committer " <> renderIdentity (Commit.metadataCommitter value), "  subject " <> Text.pack (show (Commit.metadataSubject value)), "  message " <> Text.pack (show (Commit.metadataMessage value))]
+    renderIdentity value = Text.pack (show (Commit.identityName value)) <> " <" <> Text.pack (show (Commit.identityEmail value)) <> "> " <> Text.pack (show (Commit.dateTimestamp (Commit.identityDate value))) <> " " <> Encoding.decodeUtf8 (Commit.dateOffset (Commit.identityDate value))
     flag True = "yes"
     flag False = "no"
     renderTrees name [] = [name <> " none"]
@@ -274,7 +293,7 @@ deleteFields report =
 inspectionValue :: InspectionReport -> Value
 inspectionValue report = Object [("valid", Boolean (null (reportProblems report))), ("nodes", Array (map view (reportNodes report))), ("diagnostics", Array [diagnostic (case problem of UnknownNodeTip _ _ -> "history_unavailable"; RefIdentityMismatch _ _ _ -> "identity_mismatch") "error" (stateDiagnostic problem) | problem <- reportProblems report])]
   where
-    view node = Object [("node", nodeValue (viewNode node)), ("tip", oidValue (viewTip node)), ("kind", String (case viewKind node of Root -> "root"; Content _ -> "content"; Checkpoint _ _ -> "checkpoint")), ("latest_checkpoint", maybe Null oidValue (viewLatestCheckpoint node)), ("contexts", Array (map oidValue (viewContextParents node))), ("checkpoint_count", Number (viewCheckpointCount node)), ("content_tail", Boolean (case viewKind node of Content _ -> True; _ -> False)), ("worktrees", Array [Object [("path", Bytes (worktreePath tree)), ("main", Boolean (worktreeIsMain tree))] | tree <- reportWorktrees report, worktreeNode tree == Just (viewNode node)])]
+    view node = Object [("node", nodeValue (viewNode node)), ("tip", oidValue (viewTip node)), ("kind", String (case viewKind node of Root -> "root"; Content _ -> "content"; Checkpoint _ _ -> "checkpoint")), ("latest_checkpoint", maybe Null oidValue (viewLatestCheckpoint node)), ("contexts", Array (map oidValue (viewContextParents node))), ("checkpoint_count", Number (fromIntegral (viewCheckpointCount node))), ("content_tail", Boolean (case viewKind node of Content _ -> True; _ -> False)), ("worktrees", Array [Object [("path", Bytes (worktreePath tree)), ("main", Boolean (worktreeIsMain tree))] | tree <- reportWorktrees report, worktreeNode tree == Just (viewNode node)])]
 
 inspectionCode :: InspectionError -> Text
 inspectionCode problem = case problem of

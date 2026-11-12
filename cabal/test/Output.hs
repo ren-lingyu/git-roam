@@ -127,7 +127,7 @@ sharedModel = do
     fromTerm term = case term of
         Term.TMap fields -> Object [(key, fromTerm item) | (Term.TString key, item) <- fields]
         Term.TList items -> Array (map fromTerm items)
-        Term.TInt n -> Number n
+        Term.TInt n -> Number (fromIntegral n)
         Term.TBool b -> Boolean b
         Term.TNull -> Null
         Term.TString text -> String text

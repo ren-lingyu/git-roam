@@ -162,13 +162,14 @@ parseSubcommand deployment arguments = case arguments of
         option : value : rest | option `elem` ["-p", "--property"] -> do
             property <- case value of
                 "tip" -> Right Status.TipProperty
+                "commit" -> Right Status.CommitProperty
                 "worktrees" -> Right Status.WorktreesProperty
                 "remote" -> Right Status.RemoteProperty
-                _ -> Left "Unknown or unavailable Status property (expected tip, worktrees, remote)"
+                _ -> Left "Unknown or unavailable Status property (expected tip, commit, worktrees, remote)"
             statusArgs selected nodes (property : properties) rest
         [] | selected == Just "repo", null nodes, null properties -> Right (QueryStatus Status.RepositoryStatus)
         [] | selected == Just "node" -> Right (QueryStatus (Status.NodeStatusQuery (if null nodes then Status.AllNodes else Status.SelectedNodes (Set.fromList nodes)) (if null properties then Status.DefaultProperties else Status.SelectedProperties (Set.fromList properties))))
-        _ -> Left "Usage: git roam status -t repo | -t node [-n <uuid>]... [-p tip|worktrees|remote]..."
+        _ -> Left "Usage: git roam status -t repo | -t node [-n <uuid>]... [-p tip|commit|worktrees|remote]..."
     createArgs path node args = case args of
         [] -> CreateNode <$> deploymentPath path <*> pure node
         "--path" : value : rest | path == Nothing && validValue value -> createArgs (Just value) node rest
@@ -238,7 +239,7 @@ renderHelp topic = case topic of
     HelpHelp -> Text.unlines ["usage: git roam help [command]", "", "Show general help or help for an available command."]
     VersionHelp -> Text.unlines ["usage: git roam version", "       git roam --version", "", "Print the package version."]
     CheckHelp -> inspectionHelp "check" "Validate the complete protocol history reachable from the selected managed Node refs."
-    StatusHelp -> Text.unlines ["usage: git roam status -t repo", "       git roam status -t node [-n <uuid>]... [-p tip|worktrees|remote]...", "", "--type/-t is required exactly once. Repo rejects --node/-n and --property/-p.", "Node queries default to all canonical local Node branches and tip, worktrees, remote.", "Repeat --node/-n or --property/-p for set selection; properties are exact, not additive.", "Global --format belongs before status. No history validation, worktree file scan or network query.", "Remote observations use local refs and upstream configuration. Partial reads have diagnostics and nonzero exit.", "Commit metadata and working-tree status properties are not yet available."]
+    StatusHelp -> Text.unlines ["usage: git roam status -t repo", "       git roam status -t node [-n <uuid>]... [-p tip|commit|worktrees|remote]...", "", "--type/-t is required exactly once. Repo rejects --node/-n and --property/-p.", "Node queries default to all canonical local Node branches and tip, worktrees, remote.", "Repeat --node/-n or --property/-p for set selection; properties are exact, not additive.", "Global --format belongs before status. No history validation, worktree file scan or network query.", "Remote observations use local refs and upstream configuration. Partial reads have diagnostics and nonzero exit.", "Commit metadata reads only selected tips as raw bytes, without mailmap or encoding conversion. Working-tree status is not yet available."]
     EnableHelp -> Text.unlines ["usage: git roam enable", "", "Install or validate the repository-local reference-transaction Hook.", "The Hook runs git-roam --reference-transaction from Git's PATH, not a pinned executable path.", "An existing canonical Hook is unchanged; recognized old absolute-path Git-roam Hooks are migrated.", "Incomplete, inherited or divergent configuration is refused; Node history is not changed."]
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "       git roam --deploy-path <absolute-path> deploy [--remote <remote>]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
