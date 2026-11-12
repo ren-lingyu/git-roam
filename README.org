@@ -4,6 +4,8 @@
 * Version status
 Git-roam v0.2.0 implements the Checkpoint context protocol, including its public commands and reference-transaction Hook. This protocol is incompatible with v0.1.0 formal Checkpoint dependencies. See [[file:CHANGELOG.org][Changelog]] and the [[file:CHANGELOGS/v0.2.0.org][v0.2.0 release notes]] for the changes.
 
+The current development target is v0.3.0. Its first Status/validation refactoring step (B1) shares batch Node ref observations across inspection, deployment and worktree planning, retaining complete refnames, object-format-aware OIDs and symbolic-ref targets. Remote Node candidates share Deployment's existing UUID-suffix rule; a ref-path prefix is not proof of a configured remote name. Worktree registration continues to use the shared NUL-delimited parser. Each operation retains its own validation and safety policy. The public =check= and =status= interfaces described below are unchanged at B1; the later property-based Status interface is not yet implemented.
+
 Git-roam represents independently versioned, UUID-identified Nodes in standard Git repositories. A Node's first-parent history contains its Root, ordinary Content commits and optional Checkpoints. A Checkpoint fixes an explicitly selected historical context from other Nodes. It is not a complete knowledge dependency declaration and does not cause other Node branches to advance. Native Git transports and retains reachable history; Git-roam does not infer knowledge relationships from Org links.
 
 * History context and compatibility

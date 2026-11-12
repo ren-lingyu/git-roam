@@ -15,11 +15,11 @@ import Control.Monad (unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BSC
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import GitRoam.Git
 import GitRoam.Git.Objects
+import qualified GitRoam.Git.Refs as Refs
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.History
@@ -112,24 +112,21 @@ inspectState git directory environment target = do
         case outcome of
             Left problem -> throwE (InspectionTransportFailure arguments problem)
             Right result
-                | gitExitCode result == ExitSuccess
-                , not (take 1 arguments == ["for-each-ref"] && not (BS.null (gitStderr result))) ->
-                    pure (gitStdout result)
+                | gitExitCode result == ExitSuccess -> pure (gitStdout result)
                 | otherwise -> throwE (InspectionGitFailure arguments result)
 
     readRefs format = do
-        let arguments = ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/"]
-        bytes <- query arguments
-        pairs <- mapM (decodeRef format arguments) (BSC.lines bytes)
-        pure (Map.fromList [pair | Just pair <- pairs])
+        let arguments = Refs.nodeRefArguments Refs.LocalNodes
+        observed <- lift (Refs.readNodeRefs git directory (environment ++ readOnlyEnvironment) format Refs.LocalNodes)
+        records <- either (throwE . failure arguments) pure observed
+        pure (Map.fromList [(Refs.observedNode record, (Refs.observedTip record, Refs.observedSymbolic record)) | record <- records])
 
-    decodeRef format arguments row = case BS.split 0 row of
-        [name, oid, symbolic] -> case BS.stripPrefix "refs/heads/" name >>= either (const Nothing) Just . parseNodeId of
-            Nothing -> pure Nothing
-            Just node -> do
-                object <- either (const (throwE (InvalidGitOutput arguments row))) pure (parseObjectId format oid)
-                pure (Just (node, (object, symbolic)))
-        _ -> throwE (InvalidGitOutput arguments row)
+    failure arguments problem = case problem of
+        Refs.RefTransportFailure value -> InspectionTransportFailure arguments value
+        Refs.RefCommandFailure value -> InspectionGitFailure arguments value
+        Refs.MalformedRefOutput row -> InvalidGitOutput arguments row
+        Refs.InvalidRefObject row _ -> InvalidGitOutput arguments row
+        Refs.DuplicateNodeRef row -> InvalidGitOutput arguments row
 
     connectivity provider tips = do
         outcome <- lift (checkStoredConnectivity git directory environment provider tips)

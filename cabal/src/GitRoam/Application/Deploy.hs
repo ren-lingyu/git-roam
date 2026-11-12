@@ -20,6 +20,7 @@ import GitRoam.Application.Worktree
 import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
+import qualified GitRoam.Git.Refs as Refs
 import GitRoam.Git.Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
@@ -61,38 +62,28 @@ query git directory args input = do
     outcome <- runGit git (GitInvocation directory args input environment)
     pure $ case outcome of
         Left problem -> Left (show problem)
-        Right result | gitExitCode result == ExitSuccess && ("for-each-ref" `notElem` args || BS.null (gitStderr result)) -> Right (gitStdout result)
+        Right result | gitExitCode result == ExitSuccess -> Right (gitStdout result)
         Right result -> Left (show args ++ ": " ++ show (gitStderr result))
 
 readSnapshot :: Git IO -> FilePath -> ObjectFormat -> IO (Either String Snapshot)
 readSnapshot git directory format = runExceptT $ do
-    bytes <- ExceptT (query git directory ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/", "refs/remotes/"] "")
-    rows <- fmap concat $ forM (BSC.lines bytes) $ \row -> case BS.split 0 row of
-        [name, oid, symbolic] -> case localNode name of
-            Just node -> do
-                unless (BS.null symbolic) (throwE "Symbolic local Node branch")
-                object <- either throwE pure (parseObjectId format oid)
-                pure [(Left node, object)]
-            Nothing -> case remoteNode name of
-                Just _ -> do
-                    unless (BS.null symbolic) (throwE "Symbolic remote Node candidate")
-                    object <- either throwE pure (parseObjectId format oid)
-                    pure [(Right name, object)]
-                Nothing -> pure []
-        _ -> throwE "Malformed Node ref observation"
-    pure (Snapshot (Map.fromList [(node, oid) | (Left node, oid) <- rows]) [(name, oid) | (Right name, oid) <- rows])
+    observed <- lift (Refs.readNodeRefs git directory environment format Refs.LocalAndRemoteNodes)
+    records <- either (throwE . refFailure) pure observed
+    forM_ records $ \record ->
+        unless (BS.null (Refs.observedSymbolic record)) $
+            throwE (case Refs.observedRemotePrefix record of Nothing -> "Symbolic local Node branch"; Just _ -> "Symbolic remote Node candidate")
+    pure
+        ( Snapshot
+            (Map.fromList [(Refs.observedNode record, Refs.observedTip record) | record <- records, Refs.observedRemotePrefix record == Nothing])
+            [(Refs.observedRef record, Refs.observedTip record) | record <- records, Refs.observedRemotePrefix record /= Nothing]
+        )
   where
-    localNode name = BS.stripPrefix "refs/heads/" name >>= either (const Nothing) Just . parseNodeId
-
-remoteNode :: BS.ByteString -> Maybe (BS.ByteString, NodeId)
-remoteNode ref = do
-    suffix <- BS.stripPrefix "refs/remotes/" ref
-    let (prefix, uuid) = BSC.breakEnd (== '/') suffix
-    if BS.null prefix
-        then Nothing
-        else do
-            node <- either (const Nothing) Just (parseNodeId uuid)
-            pure (BS.init prefix, node)
+    refFailure problem = case problem of
+        Refs.RefTransportFailure value -> show value
+        Refs.RefCommandFailure value -> show (Refs.nodeRefArguments Refs.LocalAndRemoteNodes) ++ ": " ++ show (gitStderr value)
+        Refs.InvalidRefObject _ message -> message
+        Refs.MalformedRefOutput _ -> "Malformed Node ref observation"
+        Refs.DuplicateNodeRef _ -> "Duplicate Node ref observation"
 
 selectSources :: Maybe BS.ByteString -> Snapshot -> Either String (Map.Map NodeId Source)
 selectSources chosen (Snapshot locals remotes) = traverse select grouped
@@ -102,7 +93,7 @@ selectSources chosen (Snapshot locals remotes) = traverse select grouped
             (++)
             [ (node, [Source remote ref oid])
             | (ref, oid) <- remotes
-            , Just (remote, node) <- [remoteNode ref]
+            , Just (remote, node) <- [Refs.remoteNodeCandidate ref]
             , Map.notMember node locals
             , maybe True (== remote) chosen
             ]

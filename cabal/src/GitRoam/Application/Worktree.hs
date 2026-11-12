@@ -37,6 +37,7 @@ import qualified Data.Set as Set
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor, withOperationLock)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
+import qualified GitRoam.Git.Refs as Refs
 import GitRoam.Git.Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
@@ -88,7 +89,7 @@ command git directory arguments input = do
     outcome <- request git directory arguments input
     pure $
         outcome >>= \result ->
-            if gitExitCode result == ExitSuccess && (take 1 arguments /= ["for-each-ref"] || BS.null (gitStderr result))
+            if gitExitCode result == ExitSuccess
                 then Right (gitStdout result)
                 else Left (show arguments ++ ": " ++ show (gitStderr result))
 
@@ -109,18 +110,20 @@ observeRefs :: Git IO -> FilePath -> Map NodeId ObjectId -> IO (Either String (R
 observeRefs git directory expected = runExceptT $ do
     found <- lift (inspectRepository git directory pathEnvironment)
     repository <- either (throwE . show) pure found
-    bytes <- ExceptT (command git directory ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/"] BS.empty)
-    pairs <- fmap concat $ forM (BSC.lines bytes) $ \row -> case BS.split 0 row of
-        [ref, oid, sym] -> case BS.stripPrefix "refs/heads/" ref >>= either (const Nothing) Just . parseNodeId of
-            Nothing -> pure []
-            Just node -> do
-                unless (BS.null sym) (throwE "Symbolic Node ref in worktree plan")
-                object <- either throwE pure (parseObjectId (repositoryObjectFormat repository) oid)
-                pure [(node, object)]
-        _ -> throwE "Malformed ref observation"
-    unless (Map.fromList pairs == expected) (throwE "Managed refs changed or the supplied snapshot is not repository-wide")
+    observed <- lift (Refs.readNodeRefs git directory pathEnvironment (repositoryObjectFormat repository) Refs.LocalNodes)
+    refs <- either (throwE . refFailure) pure observed
+    forM_ refs $ \record -> unless (BS.null (Refs.observedSymbolic record)) (throwE "Symbolic Node ref in worktree plan")
+    let actual = Map.fromList [(Refs.observedNode record, Refs.observedTip record) | record <- refs]
+    unless (actual == expected) (throwE "Managed refs changed or the supplied snapshot is not repository-wide")
     records <- ExceptT (listWorktrees git directory (repositoryObjectFormat repository))
     pure (repository, records)
+  where
+    refFailure problem = case problem of
+        Refs.RefTransportFailure value -> show value
+        Refs.RefCommandFailure value -> show (Refs.nodeRefArguments Refs.LocalNodes) ++ ": " ++ show (gitStderr value)
+        Refs.InvalidRefObject _ message -> message
+        Refs.MalformedRefOutput _ -> "Malformed ref observation"
+        Refs.DuplicateNodeRef _ -> "Duplicate ref observation"
 
 registered :: Git IO -> Repository -> Worktree -> IO (Either String FilePath)
 registered git repository record = runExceptT $ do
