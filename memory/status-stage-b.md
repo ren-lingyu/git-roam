@@ -9,8 +9,9 @@ ren-lingyu/git-roam main, 17c2594c6423c899b39d99bdcb01431efc2e9eb9. Current HEAD
 matched during read-only assessment. Future phases inspect actual latest HEAD.
 Target: current unreleased line; Root/Content/Checkpoint protocol is unchanged.
 Initial authorization covered assessment and memory/archive/checkpoint only.
-The user now authorized B1 implementation plus synchronized docs (TODO v0.3.0),
-on-demand Nix eval/build/check and outside-workspace read-only diagnostics.
+The user authorized B1 and subsequently B2 implementation, synchronized docs
+(TODO v0.3.0), on-demand working-directory Nix eval/build/check, outside-workspace
+read-only diagnostics and B2 scoped Haskell/Cabal formatting.
 The guide itself does not authorize project commits or pushes.
 
 Retain seven independently buildable/testable/reviewable development nodes.
@@ -48,12 +49,12 @@ extracts tree/parents, not presentation metadata. requireProtection requires
 exact singleton expected event/command/enabled values in BOTH repository-local
 and effective config; matching config does not prove runtime Hook availability.
 
-Evidence: targeted reads of Cli.hs, Output.hs, Application/{Inspect,Deploy,
+Initial planning evidence: targeted reads of Cli.hs, Output.hs, Application/{Inspect,Deploy,
 Protection}.hs and Git/{Objects,Worktrees}.hs, plus caller/preflight searches
-including Application.Worktree. No test or benchmark executed. The user credits
+including Application.Worktree. No test or benchmark ran in that initial assessment. The user credits
 Git official for-each-ref/worktree/status/cat-file interfaces; the trailing
 “git-for-each-ref Documentation+3” is an unresolved citation marker, not verified
-source links. No official-page contents were supplied or checked here.
+source links. No official-page contents were supplied or checked during that initial assessment.
 
 ## B1 implementation and completed verification
 
@@ -116,10 +117,94 @@ manifest and the project worktree/index are clean. The committed-source handoff
 associates that exact project state without rerunning unchanged tests. Recoverable source/tests and durable results
 suffice; routine failed/successful build logs need no new archive.
 
+## Completed B2: independent Status and partial observations
+
+B2 is implemented and verified, not yet committed. The baseline is the user's
+B1 commit. Changed project paths: Application/{Status,Protection,Inspect,Deploy,
+Worktree}.hs, Git/Refs.hs, Cli.hs, Output.hs, git-roam.cabal; tests Status/Refs/
+Unit/Output/Inspection/EndToEnd; README.org and CHANGELOG.org (17 paths total,
+including two new files). Package/release metadata and Protocol modules are
+unchanged. The TODO development target stays v0.3.0.
+
+RefObservation is the foundation result, carrying reliable typed records and
+errors. observationComplete derives from errors; requireCompleteRefs is the
+strict policy gate used by Inspect/Deploy/Worktree. Decode retains independent
+valid rows, quarantines every duplicate including valid/malformed conflicts,
+and marks incomplete/truncated observations. Exit-success warnings preserve
+reliable rows but fail completeness; transport/nonzero process stdout is not
+salvaged without a reliability guarantee. This fulfills the post-B1 B2 model
+requirement rather than wrapping the old strict reader with Status.
+
+LocalAndRemoteUpstreams extends batch ref atoms with Git's resolved upstream.
+One batch branch remote/merge config read preserves original/missing/duplicate
+config independently of the resolved ref. Official for-each-ref and config
+references were consulted for this implementation:
+https://git-scm.com/docs/git-for-each-ref and https://git-scm.com/docs/git-config.
+Native tests establish the used upstream behavior. Status accepts local remote='.',
+keeps configured missing-target evidence, and diagnoses ambiguity. No per-Node
+Git calls. Default before/after ref reads, batch config and worktree registration
+have identical subprocess counts at 2 and 34 Nodes in every format/backend.
+
+Application.Status separates typed query/property/Node/remote/report/diagnostic
+models from Output.Value. PropertyResult distinguishes NotRequested,
+Unavailable and Available, including known absent upstream versus failed config.
+Remote refs distinguish unknown from known-empty and retain known partial refs.
+CLI requires a single -t repo|node; -n/-p repeat as sets, UUID order is stable,
+properties are exact/default tip/worktrees/remote, and missing selected Nodes
+have diagnostics while successes survive. Repo rejects selectors and observes
+only protection, using shared local/effective reads and actual requireProtection
+requirements. Config warning/read failures are unavailable and strict checks
+reject them; no runtime executable availability is asserted.
+
+Text/JSON/CBOR outputs are independent from the old inspection display. Raw
+paths, branch/ref/config/identity-related bytes use Output.Bytes. Node UUID/OID
+stay text. Omitted vs empty vs unavailable properties are distinct; partial
+machine reports include contextual diagnostics in stdout, exit 3 and remain
+complete values. Before-report failures keep empty stdout and stderr JSON Lines;
+argument errors exit 2. Check retains its previous scope/validation/report at
+B2. It still uses InspectionReport; B5/B6 work is not silently claimed done.
+Commit and worktree status properties are rejected until B3/B4 implement them.
+
+Added 16 Status test groups: parser and exact selection; partial/duplicate/
+truncated/warning evidence plus strict consumers; protection config states;
+byte-safe JSON/CBOR; native batch upstream/local '.'/missing/ambiguous config,
+remote-only exclusion and multiple ref paths; invalid protocol still observable;
+partial property/config failures, ref races and CLI complete partial reports.
+Native integration/CLI groups cover SHA-1/SHA-256 x files/reftable. Adapter traces
+prove no cat-file/history/status/fetch calls in defaults and exact tip costs.
+Existing public workflow tests were migrated for the intentional Status break;
+existing management/Hook/safety/protocol tests pass.
+
+The first check passed formatting but failed new production list head under
+-Werror=x-partial (derivation 2xi8l9mrwb7kw6vjbqdj44rqqq5x6yqi); byte-boundary
+parsing/patterns fixed it. The next fresh build passed 16 suites / 314 groups
+(derivation hx37ciw8inkzyxcydpgxlha3nj5540bz). Review then strengthened unavailable
+upstream modeling, text presentation, config warning handling, multi-remote tests
+and the 2-to-34-Node call-count regression. The final fresh code build/check
+passed all 16 suites / 314 groups under -Wall -Werror:
+/nix/store/0r192cnaqkms3rpx13lmf1sj5j9g5wix-git-roam-0.2.0.drv.
+All checks used 300s, max-jobs=1, cores=1; no timeout occurred. Only x86_64-linux
+was verified, other declared systems omitted. A formatter tree-root flag
+conflict was corrected before formatting; scoped formatting then passed.
+
+After removing an obsolete B1 no-CLI-change sentence from root CHANGELOG, final
+flake check reused the identical Cabal product and freshly passed treefmt on
+55 eligible files, zero changes. All 57 final source/document files match the
+isolated checked snapshot at tmp/b2-check; SHA-256 manifest is temporary
+verification material, tmp/b2-check-manifest.json. Static diff --check passed.
+No new raw archive or guessed project parent for uncommitted code is needed.
+
+The entire phase diff, including new files, is reviewed as one coherent B2
+change. Draft tmp/commit.md uses full module scope GitRoam.Application.Status
+and a BREAKING-CHANGE footer. Await user review/commit or explicit B3 instruction;
+if committed, verify its blobs against the manifest before claiming exact
+committed-source equivalence. Do not repeat unchanged tests solely for a parent.
+
 ## Post-B1 requirements adopted for B2 and B5
 
-The user refined the plan after inspecting actual B1. These are required phase
-outcomes, not completed implementation. Keep B1–B7 as seven nodes.
+The user refined the plan after inspecting actual B1. These requirements were
+adopted before B2 implementation; B2 completion is recorded above, while the B5
+requirements remain pending. Keep B1–B7 as seven nodes.
 
 B2 must evolve the shared ref observation to retain independently reliable
 partial results and diagnostics, while exposing an explicit completeness
@@ -166,8 +251,9 @@ no management reportManagedState/InspectionReport dependency or duplicate Hook
 ref enumeration remains, plus strict incomplete-observation and installed-Hook
 transaction/safety regressions.
 
-This addition updates planning/memory only; no B2/B5 code or new test run is
-claimed. The already verified B1 snapshot remains the implementation baseline.
+At adoption this addition changed planning only. B2 requirements are now
+implemented and verified as recorded above; the B5 Hook/management migrations
+remain pending. Do not infer their completion from B2 shared-reader changes.
 
 ## Public Status decisions
 
@@ -327,7 +413,8 @@ Each node: builds, all existing and appropriate new tests pass under
 skipped failures, no protocol/data-safety regression, independently reviewable
 and committable. Keep necessary cross-module migration together. Suggested
 checks: cd cabal; cabal test all, and root nix flake check; actual environment
-and explicit execution authorization control. NONE ran in this assessment.
+and explicit execution authorization control. None ran during initial planning;
+B1/B2 execution evidence above supplies the actual current verification.
 
 Test layers: unit CLI/selection/parser/time/model/encoding, native Git integration
 and real CLI/installed-Hook end-to-end. Relevant phase end-to-end matrix:
@@ -355,8 +442,8 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-B1 is complete, verified and committed by the user. Await an instruction for B2;
-recheck latest HEAD before beginning. Only within this conversation / the
+B1 is complete, verified and committed by the user. B2 is complete and verified
+in the uncommitted worktree; await review/commit or a new B3 instruction. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;

@@ -1,77 +1,81 @@
 # Git Roam current state
 
-## Current handoff: stage B1 complete; v0.3.0 development target
+## Current handoff: B2 implemented and verified; awaiting user review
 
-The user requested B1 implementation and synchronized documentation, with the
-CHANGELOG TODO target at v0.3.0. The user committed B1 as
-refactor(GitRoam.Git.Refs): share batch Node ref observations. The project
-worktree/index are clean; all 55 committed blobs match the successful B1
-verification manifest, with the inspected baseline as the direct parent. The initial user edit
-already set TODO v0.3.0 and was preserved. Package/release metadata remains
-0.2.0; no release transition, tag or push is implied.
+B2 is complete in the project worktree on the user's committed B1 baseline,
+refactor(GitRoam.Git.Refs): share batch Node ref observations. Ordinary project
+files are unstaged/uncommitted (15 modified tracked paths plus new
+cabal/src/GitRoam/Application/Status.hs and cabal/test/Status.hs). No agent
+project staging, commit, branch or push was performed. Development TODO stays
+v0.3.0; package/release metadata remains 0.2.0 and release history is untouched.
 
-Git.Refs now provides typed batch local/remote Node observations, full refname,
-object-format-aware OID, symbolic target and remote path-prefix evidence.
-Inspect/Deploy/Worktree use it while retaining caller-specific strictness and
-all protocol/safety preflight. Existing worktree porcelain parsing is reused.
-No public CLI/output/protocol change; the later Status property interface is
-not implemented. See [status-stage-b.md](status-stage-b.md) for the adopted full
-B1–B7 direction, B1 findings and phase gates. This stage B is distinct from the
-already completed v0.2.0 protocol-cutover phases mentioned historically below.
+The foundation now returns RefObservation with reliable records and typed
+errors, with observationComplete/requireCompleteRefs for strict consumers.
+Malformed/truncated records do not erase independent successes; all duplicates
+are quarantined. Successful Git warnings retain reliable rows but mark the set
+incomplete; failed transports/nonzero processes are not salvaged as success.
+Inspect/Deploy/Worktree explicitly require completeness. Status uses this model
+directly, not a wrapper around the former strict-only readNodeRefs result.
 
-Final authorized 300s, one-job/one-core isolated nix flake check passed with
-exit 0: fresh compilation under -Wall -Werror, all 15 suites / 298 test groups,
-and treefmt on 53 eligible files with zero changes. This includes 12 new Refs
-groups, with native observation and strict caller safety across SHA-1/SHA-256 x
-files/reftable. Only x86_64-linux was checked; other declared platforms omitted.
-Successful derivation: /nix/store/crskxfnnm8lwpzjx5kwflyikxhw3zvjd-git-roam-0.2.0.drv.
-All 55 source/document files match the verified isolated snapshot by SHA-256;
-tmp/b1-check-manifest.json is temporary verification material, not an archive.
-Final static diff --check passed. No unchanged test reruns are needed.
+Application.Status provides typed queries/reports and three B2 Node properties:
+tip, worktrees and remote. CLI requires one -t repo|node, supports repeatable
+-n/-p sets and exact properties, defaults to all local UUID branches and those
+three properties. Repo observes only protection config. Upstream uses batch
+ref atoms plus one batch branch-config read, retaining local '.', missing and
+ambiguous configuration evidence. Model/outputs distinguish unrequested,
+empty/absent, unavailable and known partial data. Machine partial reports are
+complete values with contextual diagnostics and exit 3; arguments exit 2.
+Check's existing scope/output/validation is preserved. Commit/status properties
+remain B3/B4 work; no history validation or file scanning in B2 Status.
 
-Initial attempts encountered a sandbox daemon restriction, one formatting
-difference, an accidentally removed forM import and a wrong new UUIDv1 test
-expectation; all were corrected. No timeout occurred. Canonical existing Node
-refs accept non-v4 UUIDs; creation's stricter identity policy is separate.
-The complete execution bounds and earlier failed derivations are in the stage B
-memory. The earlier completion checkpoint recorded tested uncommitted source without
-a project parent. The new committed-source handoff associates the exact B1
-commit after full blob equivalence and eight-file scope review; it introduces
-only the reviewed B1 commit above the already retained baseline. No tests were
-rerun solely for this association.
+Final source passed a fresh authorized 300s one-job/one-core nix flake check:
+16 suites / 314 groups, including 16 new Status groups and native SHA-1/SHA-256
+x files/reftable coverage. All components compile under -Wall -Werror.
+Successful product derivation:
+/nix/store/0r192cnaqkms3rpx13lmf1sj5j9g5wix-git-roam-0.2.0.drv.
+A final CHANGELOG-only wording correction removed the obsolete B1 no-CLI-change
+claim; the final flake check reused the identical product and freshly passed
+treefmt on 55 eligible files with zero changes. All 57 current source/document
+files match the final isolated snapshot by SHA-256. Temporary verification
+manifest: tmp/b2-check-manifest.json. Only x86_64-linux was checked; other
+platforms/minimum Git/10^4-Node timing were not established. No timeout occurred.
+Initial compile stopped at new list head under -Werror; it was replaced with
+byte-boundary parsing and patterns. The subsequent full checks passed; a
+formatter root-option conflict was also corrected before any formatting write.
 
-The plan's decision-bearing excerpts and complete supplement remain immutable
-historical evidence: [source selection and limits](../archive/2026-11-11T18-21-37Z--stage-b-plan/MANIFEST.md).
-No new raw archive is needed for routine build logs/recoverable source.
-Keep B1–B7, migrate all management callers together in B5, and keep worktrees/
-status independent exact-select properties linked by raw path. Status may be
-partial; mutators still require complete trusted ManagedState and fresh preflight.
+Tests prove default queries use the same Git call count for 2 and 34 Nodes
+(two ref snapshots, one batch upstream config, one worktree registration), no
+cat-file/status/fetch calls, independent tip costs, partial-result/strict-view
+behavior, duplicate quarantine, unknown upstream vs absence, config states,
+ref races, remote-only exclusion and complete JSON/CBOR partial reports. README,
+CHANGELOG and CLI help describe the implemented B2 contract and breaking change.
+The complete 17-path diff, including both new files, was reviewed as one coherent
+phase. A commit draft is ready in validated tmp/commit.md:
+feat(GitRoam.Application.Status): add repository and Node queries,
+with a BREAKING-CHANGE footer. No staged diff was substituted for the full
+phase diff. No new raw archive is needed for routine source/check logs.
 
-Post-B1 user requirements refine the pending phases: B2 must retain reliable
-partial ref observations AND expose completeness for strict callers, and gather
-upstream information in batch rather than query each Node. B5 must migrate
-Protection Hook's remaining private ref enumeration to the shared reader and
-remove all management InspectionReport-to-ManagedState dependencies. Strict
-callers/Hook must reject incomplete evidence. The detailed requirements and
-acceptance checks are in status-stage-b.md; these are planned, not implemented.
+See [status-stage-b.md](status-stage-b.md) for the full adopted B1–B7 contract,
+B1/B2 evidence and remaining phases. B5 must still migrate Protection Hook's
+private ref enumeration and remove management InspectionReport/ManagedState
+coupling atomically. Keep worktrees/status independent properties linked by raw
+path. Status partial results never become trusted ManagedState. This new stage
+B is distinct from the completed v0.2.0 protocol-cutover phases below.
 
-Only for this conversation / the current Status-query redesign (B1–B7), the
-user requires a commit-message draft immediately at each subsequent stage
-completion, based on the COMPLETE stage diff, without waiting for a
-separate staging/message request. Before staging, inspect tracked worktree
-changes and new files against the stage baseline; after user staging, use the
-complete staged diff and keep unrelated/unstaged work distinct. Write one draft
-to the validated tmp/commit.md; user prefers the principal full Haskell module
-name as scope (e.g. GitRoam.Git.Refs), preserving module capitalization rather
-than forcing lowercase. This temporary convention ends with the Status-query
-redesign and is not a global rule for other tasks. It does not authorize agent
-project staging/commits.
+Only during this conversation / current Status redesign B1–B7, automatically
+draft a commit message from the COMPLETE stage diff at each phase completion,
+even before user staging; use the principal full Haskell module name as scope,
+preserving capitalization. Save only the message in validated tmp/commit.md.
+This temporary convention ends with the redesign, not a global task preference.
+It does not authorize project staging/commits. User authorized on-demand
+working-directory Nix eval/build/check and outside-workspace read-only commands;
+B2 also had explicit scoped Haskell/Cabal formatting authorization (120s).
 
-Next: await an instruction to start B2. Do not automatically implement later
-stages, stage/commit/push project files or initiate releases. Recheck latest HEAD
-before the next phase. B1 Nix execution permission applies to B1; later phases
-follow active authorization. Earlier clean-worktree and next-action statements
-below describe historical handoffs.
+Next: await user review/commit of B2 or a new B3 instruction. Do not start B3 or
+stage/commit/push project files automatically. If the user commits, compare its
+blobs with the B2 verification manifest before associating test evidence with
+that exact commit. This memory checkpoint adds no project parent for tested
+uncommitted source. Earlier handoff facts below are historical, not next actions.
 
 ## Completed follow-ups: creation format cleanup and output documentation
 
