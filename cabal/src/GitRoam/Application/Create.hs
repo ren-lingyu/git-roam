@@ -15,8 +15,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import GitRoam.Application.Inspect (inspectState, reportManagedState, validateCandidate)
 import GitRoam.Application.Protection (ownHookBypass)
+import GitRoam.Application.Validation (validateCandidate)
 import GitRoam.Application.Worktree
 import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
@@ -70,13 +70,6 @@ query git directory args input = do
         Right result | gitExitCode result == ExitSuccess && ("for-each-ref" `notElem` args || BS.null (gitStderr result)) -> Right (gitStdout result)
         Right result -> Left (show args ++ ": " ++ show (gitStderr result))
 
-stateAt :: Git IO -> FilePath -> IO (Either String ManagedState)
-stateAt git directory = do
-    outcome <- inspectState git directory [] Nothing
-    pure $ case outcome of
-        Left problem -> Left (show problem)
-        Right report -> either (Left . show) Right (reportManagedState report)
-
 branchConfig :: Git IO -> FilePath -> NodeId -> IO (Either String BS.ByteString)
 branchConfig git directory node = do
     outcome <- runGit git (GitInvocation directory ["config", "--local", "--get-regexp", "^branch\\." ++ BSC.unpack (nodeIdBytes node) ++ "\\."] "" environment)
@@ -107,14 +100,14 @@ createNodeWith generate executable git directory path = do
             Left problem -> pure (Left problem)
             Right (common, format, node, rootOid, state, plan, target) -> do
                 applied <- runExceptT $ do
-                    current <- ExceptT (stateAt git common)
+                    current <- ExceptT (loadOperationState git common)
                     unless (managedRefs current == Map.delete node (managedRefs state)) (throwE "Node refs changed before creation")
                     -- Recheck paths before committing a new managed identity.
                     _ <- ExceptT (planDeploymentCandidateFor git common (managedRefs current) state (Set.singleton node) (deploymentRoot plan))
                     _ <- ExceptT (changeRef git common (managedRefs current) node rootOid False)
                     lift (writeIORef installed True)
                     ExceptT (addPlannedWorktree session plan node)
-                    actual <- ExceptT (stateAt git common)
+                    actual <- ExceptT (loadOperationState git common)
                     unless (managedRefs actual == managedRefs state) (throwE "Node refs changed during creation")
                     pure (CreationResult node rootOid target)
                 case applied of
@@ -132,7 +125,7 @@ createNodeWith generate executable git directory path = do
     prepare = runExceptT $ do
         repository <- ExceptT (fmap (either (Left . show) Right) (inspectRepository git directory environment))
         common <- lift (decodePath (repositoryCommonDirectory repository))
-        before <- ExceptT (stateAt git common)
+        before <- ExceptT (loadOperationState git common)
         node <- lift generate
         let uuid = nodeIdBytes node
             isV4 = BS.index uuid 14 == 52 && BS.index uuid 19 `elem` [56, 57, 97, 98]
@@ -173,7 +166,7 @@ createNodeWith generate executable git directory path = do
 
     compensate session common format node rootOid target ownsRef issued = do
         outcome <- runExceptT $ do
-            state <- ExceptT (stateAt git common)
+            state <- ExceptT (loadOperationState git common)
             records <- ExceptT (listWorktrees git common format)
             bytes <- lift (encodePath target)
             let unchanged = Map.lookup node (managedRefs state) == Just rootOid
@@ -188,14 +181,14 @@ createNodeWith generate executable git directory path = do
                                 result <- lift (removePlannedWorktree session removal node)
                                 pure (either (\problem -> ["Worktree compensation refused/failed: " ++ problem]) (const []) result)
                     else pure []
-            actual <- ExceptT (stateAt git common)
+            actual <- ExceptT (loadOperationState git common)
             remaining <- ExceptT (listWorktrees git common format)
             config <- ExceptT (branchConfig git common node)
             when (ownsRef && Map.lookup node (managedRefs actual) == Just rootOid && BS.null config && all ((/= Just node) . worktreeNode) remaining) $ do
                 _ <- ExceptT (fmap (either (Left . show) Right) (validateCandidate git common (Map.delete node (managedRefs actual))))
                 _ <- ExceptT (changeRef git common (managedRefs actual) node rootOid True)
                 pure ()
-            final <- ExceptT (stateAt git common)
+            final <- ExceptT (loadOperationState git common)
             finalRecords <- ExceptT (listWorktrees git common format)
             pure (cleanup ++ ["Actual managed refs: " ++ show (managedRefs final), "Remaining Node worktrees: " ++ show [(worktreeNode r, treePath r) | r <- finalRecords, worktreeNode r /= Nothing]])
         pure $ either (\problem -> ["Compensation stopped; inspect residual state: " ++ problem]) id outcome

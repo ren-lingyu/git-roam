@@ -12,6 +12,7 @@ import qualified Data.Text.Encoding as Encoding
 import qualified GitRoam.Application.Checkpoint as Checkpoints
 import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass)
+import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Cli (CheckpointMessage (..), Command (..), parseCommand)
 import GitRoam.Diagnostic (Evidence (..))
 import GitRoam.Git
@@ -47,10 +48,7 @@ makeCommit git directory format tree parents message = do
     expectRight (parseObjectId format bytes)
 
 inspect :: Git IO -> FilePath -> IO ManagedState
-inspect git directory = do
-    report <- Inspection.inspectState git directory [] Nothing >>= expectRight
-    assertEqual [] (Inspection.reportProblems report)
-    expectRight (Inspection.reportManagedState report)
+inspect git directory = Validation.loadManagedState git directory >>= expectRight
 
 record :: Git IO -> FilePath -> FilePath -> NodeId -> BS.ByteString -> [ObjectId] -> IO Checkpoints.CheckpointResult
 record git executable directory node message contexts =
@@ -396,7 +394,7 @@ mainWorktreeInference git executable directory _ = do
     _ <- ok git directory ["switch", BSC.unpack (nodeIdBytes nodeA)] ""
     headRef <- ok git directory ["symbolic-ref", "-q", "HEAD"] ""
     assertEqual ("refs/heads/" <> nodeIdBytes nodeA <> "\n") headRef
-    inferred <- Inspection.inferNode git directory >>= expectRight
+    inferred <- Validation.inferNode git directory >>= expectRight
     assertEqual (Just nodeA) inferred
     result <-
         cli

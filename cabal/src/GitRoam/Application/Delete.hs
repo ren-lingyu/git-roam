@@ -15,9 +15,9 @@ import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
-import GitRoam.Application.Worktree (withProtectedSession)
+import qualified GitRoam.Application.Validation as Validation
+import GitRoam.Application.Worktree (loadOperationState, withProtectedSession)
 import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
@@ -85,22 +85,17 @@ localConfig git directory node = do
         (key, value) | not (BS.null value) -> Right (key, BS.tail value)
         _ -> Left "Valueless local Node branch configuration requires manual handling before deletion"
 
-loadState :: Git IO -> FilePath -> IO (Either String ManagedState)
-loadState git directory = do
-    result <- Inspection.inspectState git directory [] Nothing
-    pure $ either (Left . show) (either (Left . show) Right . Inspection.reportManagedState) result
-
 collect :: Git IO -> FilePath -> NodeId -> IO (Either String Plan)
 collect git directory node = runExceptT $ do
     repository <- ExceptT (fmap (either (Left . show) Right) (inspectRepository git directory readOnlyEnvironment))
-    before <- ExceptT (loadState git directory)
+    before <- ExceptT (loadOperationState git directory)
     old <- maybe (throwE "The explicit UUID has no managed local Node branch") pure (Map.lookup node (managedRefs before))
     let history = managedHistory before
         candidateRefs = Map.delete node (managedRefs before)
     tip <- maybe (throwE "Validated Node tip is missing") pure (lookupCommit history old)
     -- Unlike v0.1.0, a context reference does not prevent removing this
     -- branch. Git keeps all objects still reachable through the other tips.
-    target <- ExceptT (fmap (either (Left . show) Right) (Inspection.validateCandidate git directory candidateRefs))
+    target <- ExceptT (fmap (either (Left . show) Right) (Validation.validateCandidate git directory candidateRefs))
     fromTarget <- either (throwE . show) pure (reachableHistory history old)
     fromOthers <-
         either
@@ -115,7 +110,7 @@ collect git directory node = runExceptT $ do
         payload = "git-roam-node-delete-v2\0" <> repositoryCommonDirectory repository <> "\0" <> BSC.pack (show (Map.toList (managedRefs before), node, old, exclusive, sortOn treePath records, config))
         identifier = BS.concatMap hex (SHA256.hash payload)
         report = DeletePreview node old (validatedRoot tip) exclusive checkouts (map fst config) problems (if null problems then Just identifier else Nothing)
-    observed <- ExceptT (loadState git directory)
+    observed <- ExceptT (loadOperationState git directory)
     unless (managedRefs observed == managedRefs before) (throwE "Managed refs changed during deletion preview")
     refreshed <- ExceptT (listWorktrees git directory (repositoryObjectFormat repository))
     configNow <- ExceptT (localConfig git directory node)
@@ -146,7 +141,7 @@ executeDelete executable git directory node authorization = do
         lift (writeIORef attempted True)
         _ <- ExceptT (query git common (ownHookBypass ++ ["update-ref", "--stdin"]) (BSC.unlines (["start"] ++ changes ++ ["prepare", "commit"])))
         lift (writeIORef confirmed True)
-        actual <- ExceptT (loadState git common)
+        actual <- ExceptT (loadOperationState git common)
         unless (managedRefs actual == managedRefs after) (throwE "Actual managed refs differ after Node deletion")
         current <- ExceptT (listWorktrees git common (repositoryObjectFormat repository))
         unless (sortOn treePath current == sortOn treePath original) (throwE "Worktree registrations changed during Node deletion")
@@ -161,7 +156,7 @@ executeDelete executable git directory node authorization = do
             pure ()
         residual <- ExceptT (localConfig git common node)
         unless (null residual) (throwE "Local branch configuration cleanup is incomplete")
-        final <- ExceptT (loadState git common)
+        final <- ExceptT (loadOperationState git common)
         unless (managedRefs final == managedRefs after) (throwE "Managed refs changed after configuration cleanup")
         finalWorktrees <- ExceptT (listWorktrees git common (repositoryObjectFormat repository))
         unless (sortOn treePath finalWorktrees == sortOn treePath original) (throwE "Worktree registrations changed after configuration cleanup")
@@ -172,7 +167,7 @@ executeDelete executable git directory node authorization = do
         other -> do
             tried <- readIORef attempted
             done <- readIORef confirmed
-            actual <- try (loadState git directory) :: IO (Either IOException (Either String ManagedState))
+            actual <- try (loadOperationState git directory) :: IO (Either IOException (Either String ManagedState))
             configuration <- try (localConfig git directory node) :: IO (Either IOException (Either String [(BS.ByteString, BS.ByteString)]))
             let reason = either show (either id (const "Deletion failed")) other
                 refs = case actual of

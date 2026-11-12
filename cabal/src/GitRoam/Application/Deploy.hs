@@ -14,8 +14,8 @@ import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import GitRoam.Application.Inspect (validateCandidate)
 import GitRoam.Application.Protection (ownHookBypass)
+import GitRoam.Application.Validation (validateCandidate)
 import GitRoam.Application.Worktree
 import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git

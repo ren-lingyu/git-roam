@@ -11,7 +11,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Data.IORef
 import Data.List (isInfixOf)
-import GitRoam.Application.Inspect
+import GitRoam.Application.Validation
 import GitRoam.Git
 import GitRoam.Git.Objects
 import GitRoam.ObjectId
@@ -345,8 +345,7 @@ real git _ directory _ = do
     root git directory nodeB
     launched <- newIORef (0 :: Int)
     let observed = observeGit (\call -> when ("--batch" `elem` gitArguments call) (atomicModifyIORef' launched (\n -> (n + 1, ())))) git
-    report <- inspectState observed directory [] Nothing >>= expectRight
-    state <- expectRight (reportManagedState report)
+    state <- loadManagedState observed directory >>= expectRight
     readIORef launched >>= assertEqual 1
     writeIORef launched 0
     candidate <- validateCandidate observed directory (managedRefs state) >>= expectRight

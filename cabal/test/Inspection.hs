@@ -12,6 +12,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import GitRoam.Application.Inspect
 import GitRoam.Application.Protection (ownHookBypass)
+import GitRoam.Application.Validation
 import GitRoam.Git
 import GitRoam.Git.Objects
 import GitRoam.ObjectId
@@ -121,7 +122,6 @@ inspect environment directory selected = inspectState native directory environme
 valid :: InspectionReport -> IO ()
 valid report = do
     assertEqual [] (reportProblems report)
-    _ <- expectRight (reportManagedState report)
     pure ()
 
 invokeCli :: [(String, Maybe String)] -> FilePath -> [String] -> IO GitResult
@@ -602,20 +602,20 @@ transitionTest environment = initialized environment "files" Sha1 $ \directory -
     k <- makeCheckpoint environment directory at a [b]
     w <- makeCommit environment directory at [k] "Content 1"
     setRef environment directory uuidA w
-    before <- reportManagedState <$> inspect environment directory Nothing >>= expectRight
+    before <- loadManagedState (withGitEnvironment environment native) directory >>= expectRight
     other <- makeCommit environment directory at [k] "Content 2"
     setRef environment directory uuidA other
-    afterContent <- reportManagedState <$> inspect environment directory Nothing >>= expectRight
+    afterContent <- loadManagedState (withGitEnvironment environment native) directory >>= expectRight
     assertEqual (Right ()) (validateOrdinaryTransition before afterContent)
     setRef environment directory uuidA a
-    afterReset <- reportManagedState <$> inspect environment directory Nothing >>= expectRight
+    afterReset <- loadManagedState (withGitEnvironment environment native) directory >>= expectRight
     assertEqual (Right ()) (validateOrdinaryTransition before afterReset)
     _ <- ok environment directory ["update-ref", "-d", BSC.unpack ("refs/heads/" <> uuidA)] BS.empty
-    afterDelete <- reportManagedState <$> inspect environment directory Nothing >>= expectRight
+    afterDelete <- loadManagedState (withGitEnvironment environment native) directory >>= expectRight
     assertEqual (Left [NodeBranchRemoved (nodeId uuidA)]) (validateOrdinaryTransition afterReset afterDelete)
     alternateRoot <- makeCommit environment directory at [] "another Root"
     setRef environment directory uuidA alternateRoot
-    changedRoot <- reportManagedState <$> inspect environment directory Nothing >>= expectRight
+    changedRoot <- loadManagedState (withGitEnvironment environment native) directory >>= expectRight
     assertEqual (Left [NodeRootChanged (nodeId uuidA) (objectId Sha1 a) (objectId Sha1 alternateRoot)]) (validateOrdinaryTransition afterReset changedRoot)
 
 cliTest :: [(String, Maybe String)] -> IO ()

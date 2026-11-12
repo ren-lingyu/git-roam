@@ -9,6 +9,7 @@ import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified GitRoam.Application.Deploy as Deploy
 import qualified GitRoam.Application.Inspect as Inspect
 import GitRoam.Application.Protection (ownHookBypass)
+import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Application.Worktree (planDeployment)
 import GitRoam.Git
 import GitRoam.Git.Refs
@@ -147,7 +148,7 @@ strictPolicies format git executable repo parent = do
     -- though its map of Node identities and tips would match the trusted state.
     facts <- strictRead git repo [] format LocalNodes >>= expectRight
     assertEqual ["", "refs/heads/ordinary"] (map observedSymbolic facts)
-    Inspect.inspectState git repo [] Nothing >>= assertEqual (Left (Inspect.SymbolicNodeBranch nodeB "refs/heads/ordinary"))
+    Inspect.inspectState git repo [] Nothing >>= assertEqual (Left (Validation.SymbolicNodeBranch nodeB "refs/heads/ordinary"))
     _ <- Inspect.inspectState git repo [] (Just nodeA) >>= expectRight
     let target = parent </> "refused"
     planDeployment git repo state target >>= expectLeft

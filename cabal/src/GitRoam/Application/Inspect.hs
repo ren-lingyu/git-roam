@@ -1,46 +1,23 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module GitRoam.Application.Inspect (
-    InspectionError (..),
     InspectionReport (..),
     NodeView (..),
     WorktreeView (..),
     inspectState,
-    inferNode,
-    validateCandidate,
 ) where
 
-import Control.Monad (unless)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Except (runExceptT, throwE)
+import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import qualified Data.ByteString as BS
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import GitRoam.Application.Validation
 import GitRoam.Git
-import GitRoam.Git.Objects
-import qualified GitRoam.Git.Refs as Refs
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
-import GitRoam.Repository
-import System.Exit (ExitCode (..))
-
-data InspectionError
-    = RepositoryDiscoveryFailure RepositoryError
-    | InspectionGitFailure [String] GitResult
-    | InspectionTransportFailure [String] GitError
-    | InvalidGitOutput [String] BS.ByteString
-    | SymbolicNodeBranch NodeId BS.ByteString
-    | NodeNotManaged NodeId
-    | ShallowRepository
-    | HistoryFailure HistoryError
-    | MissingReachableObjects [BS.ByteString]
-    | ReferencesChanged
-    | CandidateStateInvalid [StateProblem]
-    deriving (Eq, Show)
+import GitRoam.Repository (repositoryObjectFormat)
 
 data WorktreeView = WorktreeView
     { worktreePath :: BS.ByteString
@@ -63,76 +40,21 @@ data InspectionReport = InspectionReport
     { reportNodes :: [NodeView]
     , reportProblems :: [StateProblem]
     , reportWorktrees :: [WorktreeView]
-    , reportManagedState :: Either [StateProblem] ManagedState
     }
     deriving (Eq, Show)
 
--- Read only the selected local branch tips and their Git ancestor closure.
--- Unlike v0.1.0, external context never expands the managed ref selection.
-inspectState :: Git IO -> FilePath -> [(String, Maybe String)] -> Maybe NodeId -> IO (Either InspectionError InspectionReport)
-inspectState git directory environment target = do
-    discovery <- inspectRepository git directory (environment ++ readOnlyEnvironment)
-    case discovery of
-        Left problem -> pure (Left (RepositoryDiscoveryFailure problem))
-        Right repository -> do
-            result <- withHistorySource git directory (repositoryObjectFormat repository) environment $ \provider -> runExceptT $ do
-                before <- readRefs (repositoryObjectFormat repository)
-                let beforeRefs = Map.map fst before
-                -- A changing ref observation takes precedence over failures
-                -- from the provisional view of the repository.
-                outcome <- lift $ runExceptT $ do
-                    shallow <- query ["rev-parse", "--is-shallow-repository"]
-                    unless (shallow == "false\n") $
-                        if shallow == "true\n"
-                            then throwE ShallowRepository
-                            else throwE (InvalidGitOutput ["rev-parse", "--is-shallow-repository"] shallow)
-                    selected <- case target of
-                        Nothing -> pure beforeRefs
-                        Just node -> case Map.lookup node beforeRefs of
-                            Just oid -> pure (Map.singleton node oid)
-                            Nothing -> throwE (NodeNotManaged node)
-                    case [(node, symbolic) | node <- Map.keys selected, Just (_, symbolic) <- [Map.lookup node before], not (BS.null symbolic)] of
-                        (node, symbolic) : _ -> throwE (SymbolicNodeBranch node symbolic)
-                        [] -> pure ()
-                    loaded <- lift (validateHistory (repositoryObjectFormat repository) provider (Map.elems selected))
-                    history <- either (throwE . HistoryFailure) pure loaded
-                    connectivity provider (Map.elems selected)
-                    worktrees <- query ["worktree", "list", "--porcelain", "-z"] >>= parseWorktrees (repositoryObjectFormat repository)
-                    let validated = validateManagedState history selected
-                        problems = either id (const []) validated
-                    views <- mapM (nodeView history) (Map.toList selected)
-                    pure (InspectionReport views problems worktrees validated)
-                after <- readRefs (repositoryObjectFormat repository)
-                unless (before == after) (throwE ReferencesChanged)
-                either throwE pure outcome
-            pure (either (Left . InspectionTransportFailure ["cat-file", "--batch"]) id result)
+-- Legacy check presentation remains until B6. No trusted state is exported
+-- through this report; operations use Validation and their explicit preflight.
+inspectState :: Git IO -> FilePath -> [(String, Maybe String)] -> Maybe NodeId -> IO (Either ValidationError InspectionReport)
+inspectState git directory environment target =
+    withValidationEvidence git directory environment target $ \evidence -> runExceptT $ do
+        worktrees <- ExceptT (validationQuery git directory environment ["worktree", "list", "--porcelain", "-z"]) >>= parseWorktrees (repositoryObjectFormat (validationRepository evidence))
+        let history = validationHistory evidence
+            selected = validationRefs evidence
+            problems = either id (const []) (validateManagedState history selected)
+        views <- mapM (nodeView history) (Map.toList selected)
+        pure (InspectionReport views problems worktrees)
   where
-    query arguments = do
-        outcome <- lift $ runGit git (GitInvocation directory ("--no-replace-objects" : arguments) BS.empty (environment ++ readOnlyEnvironment))
-        case outcome of
-            Left problem -> throwE (InspectionTransportFailure arguments problem)
-            Right result
-                | gitExitCode result == ExitSuccess -> pure (gitStdout result)
-                | otherwise -> throwE (InspectionGitFailure arguments result)
-
-    readRefs format = do
-        let arguments = Refs.nodeRefArguments Refs.LocalNodes
-        observed <- lift (Refs.readNodeRefs git directory (environment ++ readOnlyEnvironment) format Refs.LocalNodes)
-        records <- either (throwE . failure arguments) pure (Refs.requireCompleteRefs observed)
-        pure (Map.fromList [(Refs.observedNode record, (Refs.observedTip record, Refs.observedSymbolic record)) | record <- records])
-
-    failure arguments problem = case problem of
-        Refs.RefTransportFailure value -> InspectionTransportFailure arguments value
-        Refs.RefCommandFailure value -> InspectionGitFailure arguments value
-        Refs.MalformedRefOutput row -> InvalidGitOutput arguments row
-        Refs.InvalidRefObject row _ -> InvalidGitOutput arguments row
-        Refs.DuplicateNodeRef row -> InvalidGitOutput arguments row
-
-    connectivity provider tips = do
-        outcome <- lift (checkStoredConnectivity git directory environment provider tips)
-        missing <- either (throwE . HistoryFailure . uncurry ObjectUnavailable) pure outcome
-        unless (null missing) (throwE (MissingReachableObjects (map objectIdBytes missing)))
-
     nodeView history (node, tip) = do
         value <- maybe (throwE (InvalidGitOutput [] "Validated tip is absent")) pure (lookupCommit history tip)
         firstParents <- either (const (throwE (InvalidGitOutput [] "First-parent history is unavailable"))) pure (firstParentHistory history tip)
@@ -153,47 +75,3 @@ inspectState git directory environment target = do
     parseWorktrees format bytes = case Worktrees.decodeWorktrees format bytes of
         Left _ -> throwE (InvalidGitOutput ["worktree", "list"] bytes)
         Right records -> pure [WorktreeView (Worktrees.treePath r) (Worktrees.worktreeNode r) (Worktrees.treeMain r) | r <- records]
-
--- Infer a Node from the current worktree when its symbolic HEAD names a
--- canonical local Node branch. Detached HEADs and ordinary branches do not
--- imply a Node identity.
-inferNode :: Git IO -> FilePath -> IO (Either InspectionError (Maybe NodeId))
-inferNode git directory = do
-    found <- inspectRepository git directory readOnlyEnvironment
-    case found of
-        Left problem -> pure (Left (RepositoryDiscoveryFailure problem))
-        Right repository | Nothing <- repositoryWorktree repository -> pure (Right Nothing)
-        Right _ -> do
-            result <- runGit git (GitInvocation directory ["symbolic-ref", "-q", "HEAD"] BS.empty readOnlyEnvironment)
-            pure $ case result of
-                Left problem -> Left (InspectionTransportFailure ["symbolic-ref"] problem)
-                Right value | gitExitCode value == ExitFailure 1 -> Right Nothing
-                Right value | gitExitCode value /= ExitSuccess -> Left (InspectionGitFailure ["symbolic-ref"] value)
-                Right value -> case BS.unsnoc (gitStdout value) of
-                    Just (name, 10) -> Right (BS.stripPrefix "refs/heads/" name >>= either (const Nothing) Just . parseNodeId)
-                    _ -> Left (InvalidGitOutput ["symbolic-ref"] (gitStdout value))
-
--- Validate an explicitly supplied candidate ref set. Its history may include
--- context commits no longer retained by any current local Node branch.
--- This function never observes or modifies the live managed ref set.
-validateCandidate :: Git IO -> FilePath -> Map NodeId ObjectId -> IO (Either InspectionError ManagedState)
-validateCandidate git directory refs = runExceptT $ do
-    discovered <- lift (inspectRepository git directory readOnlyEnvironment)
-    repository <- either (throwE . RepositoryDiscoveryFailure) pure discovered
-    let format = repositoryObjectFormat repository
-        arguments = ["rev-parse", "--is-shallow-repository"]
-    observed <- lift (runGit git (GitInvocation directory arguments BS.empty readOnlyEnvironment))
-    result <- either (throwE . InspectionTransportFailure arguments) pure observed
-    unless (gitExitCode result == ExitSuccess) (throwE (InspectionGitFailure arguments result))
-    case gitStdout result of
-        "false\n" -> pure ()
-        "true\n" -> throwE ShallowRepository
-        bytes -> throwE (InvalidGitOutput arguments bytes)
-    validated <- lift $ withHistorySource git directory format [] $ \provider -> runExceptT $ do
-        loaded <- lift (validateHistory format provider (Map.elems refs))
-        history <- either (throwE . HistoryFailure) pure loaded
-        outcome <- lift (checkStoredConnectivity git directory [] provider (Map.elems refs))
-        missing <- either (throwE . HistoryFailure . uncurry ObjectUnavailable) pure outcome
-        unless (null missing) (throwE (MissingReachableObjects (map objectIdBytes missing)))
-        either (throwE . CandidateStateInvalid) pure (validateManagedState history refs)
-    either (throwE . InspectionTransportFailure ["cat-file", "--batch"]) (either throwE pure) validated

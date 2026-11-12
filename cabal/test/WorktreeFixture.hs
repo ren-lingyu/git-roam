@@ -7,7 +7,7 @@ import Control.Monad (unless)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Data.List (isPrefixOf)
-import GitRoam.Application.Inspect (inspectState, reportManagedState)
+import GitRoam.Application.Validation (loadManagedState)
 import GitRoam.Git
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
@@ -73,7 +73,7 @@ root git repo node = do
     pure ()
 
 snapshot :: Git IO -> FilePath -> IO ManagedState
-snapshot git repo = inspectState git repo [] Nothing >>= expectRight >>= expectRight . reportManagedState
+snapshot git repo = loadManagedState git repo >>= expectRight
 
 enable :: Git IO -> FilePath -> FilePath -> IO ()
 enable _ executable repo = do

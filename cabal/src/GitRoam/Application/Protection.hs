@@ -22,9 +22,10 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
-import qualified GitRoam.Application.Inspect as Inspection
+import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
+import qualified GitRoam.Git.Refs as Refs
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.History (CommitKind (..), lookupCommit, validatedKind)
@@ -194,20 +195,22 @@ disableProtection directory = withOperationLock directory $ runExceptT $ do
 -- Prepared is the only phase where a native Git ref transaction may be
 -- rejected. The supplied old OID is not authoritative (it can be all zeros);
 -- read the actual local refs under the operation lock instead.
-evaluateTransaction :: FilePath -> String -> BS.ByteString -> IO (Either String ())
-evaluateTransaction _ phase _ | phase /= "prepared" = pure (Right ())
-evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines input) of
+evaluateTransaction :: Git IO -> FilePath -> String -> BS.ByteString -> IO (Either String ())
+evaluateTransaction _ _ phase _ | phase /= "prepared" = pure (Right ())
+evaluateTransaction git directory _ input = case traverse parseUpdate (BSC.lines input) of
     Left problem -> pure (Left problem)
     Right rows -> case [update | Just update <- rows] of
         [] -> pure (Right ())
         updates -> withOperationLock directory $ runExceptT $ do
-            discovered <- lift (inspectRepository native directory readOnlyEnvironment)
+            discovered <- lift (inspectRepository git directory readOnlyEnvironment)
             repository <- either (throwE . show) pure discovered
             let format = repositoryObjectFormat repository
                 nodes = map fst updates
             when (length nodes /= Set.size (Set.fromList nodes)) (throwE "Duplicate Node branch updates in one transaction")
-            raw <- ExceptT (checked directory ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/"])
-            before <- Map.fromList . concat <$> mapM (decodeRef format) (BSC.lines raw)
+            observed <- lift (Refs.readNodeRefs git directory readOnlyEnvironment format Refs.LocalNodes)
+            records <- either (throwE . show) pure (Refs.requireCompleteRefs observed)
+            mapM_ (\record -> unless (BS.null (Refs.observedSymbolic record)) (throwE "Symbolic Node branches cannot be updated")) records
+            let before = Map.fromList [(Refs.observedNode record, Refs.observedTip record) | record <- records]
             after <- foldM (apply repository before) before updates
             -- A direct Content extension or amendment adds no context edges.
             -- Only these cases can safely validate a single Node: any new
@@ -217,8 +220,8 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
             local <- case updates of
                 [(node, _)] -> do
                     let selected = \refs -> Map.restrictKeys refs (Set.singleton node)
-                    oldState <- lift (Inspection.validateCandidate native directory (selected before)) >>= either (throwE . show) pure
-                    newState <- lift (Inspection.validateCandidate native directory (selected after)) >>= either (throwE . show) pure
+                    oldState <- lift (Validation.validateCandidate git directory (selected before)) >>= either (throwE . show) pure
+                    newState <- lift (Validation.validateCandidate git directory (selected after)) >>= either (throwE . show) pure
                     let oldTip = before Map.! node
                         newTip = after Map.! node
                         simpleContent = localContent oldTip newTip oldState newState
@@ -226,8 +229,8 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
                     pure simpleContent
                 _ -> pure False
             unless local $ do
-                oldState <- lift (Inspection.validateCandidate native directory before) >>= either (throwE . show) pure
-                newState <- lift (Inspection.validateCandidate native directory after) >>= either (throwE . show) pure
+                oldState <- lift (Validation.validateCandidate git directory before) >>= either (throwE . show) pure
+                newState <- lift (Validation.validateCandidate git directory after) >>= either (throwE . show) pure
                 either (throwE . show) pure (validateOrdinaryTransition oldState newState)
   where
     parseUpdate row = case BSC.words row of
@@ -236,15 +239,6 @@ evaluateTransaction directory _ input = case traverse parseUpdate (BSC.lines inp
             Just node -> Right (Just (node, (old, new)))
         -- HEAD and other non-Node refs may coexist in the same transaction.
         _ -> Left "Malformed reference-transaction input"
-
-    decodeRef format row = case BS.split 0 row of
-        [ref, oid, symbolic] -> case BS.stripPrefix "refs/heads/" ref >>= either (const Nothing) Just . parseNodeId of
-            Nothing -> pure []
-            Just node -> do
-                unless (BS.null symbolic) (throwE "Symbolic Node branches cannot be updated")
-                object <- either throwE pure (parseObjectId format oid)
-                pure [(node, object)]
-        _ -> throwE "Malformed managed reference observation"
 
     apply repository before state (node, (old, bytes)) = do
         let format = repositoryObjectFormat repository

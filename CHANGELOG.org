@@ -20,6 +20,7 @@
 - Allow =pack-refs= and its maintenance task to prune redundant loose Node refs after packing them, while continuing to refuse ordinary Node branch deletion.
 
 ** Changed
+- Separate complete protocol validation and candidate-state loading from CLI inspection reports. Migrate management operations to direct validated state while retaining explicit worktree preflight; use the shared complete ref reader in the protection Hook. Keep the current =check= interface and storage protocol unchanged.
 - *Breaking:* Require =status --type/-t repo|node=. Node queries default to all local Nodes with exactly selected =tip=, =worktrees= and =remote= properties; replace the old inferred-Node history display and Status JSON/CBOR schema. Repeat =--node/-n= and =--property/-p= for set selection. =check= retains its current interface.
 - Return complete partial Status reports with contextual diagnostics and nonzero exit for unavailable observations; preserve reliable ref rows while strict inspection/management callers require completeness. Read upstream information in batch.
 - *Breaking:* Remove =node create --format=. Move the option before the command, for example =git roam --format json node create --path /path/to/nodes=.

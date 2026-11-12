@@ -20,9 +20,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
-import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor)
-import GitRoam.Application.Worktree (withProtectedSession)
+import qualified GitRoam.Application.Validation as Validation
+import GitRoam.Application.Worktree (loadOperationState, withProtectedSession)
 import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (checkStoredConnectivity, readOnlyEnvironment, resolveCommitReference, withHistorySource)
@@ -74,13 +74,6 @@ query git directory args input = do
         Right result | gitExitCode result == ExitSuccess && ("rev-parse" `notElem` args || BS.null (gitStderr result)) -> Right (gitStdout result)
         Right result -> Left (show args ++ ": " ++ show (gitStderr result))
 
-stateAt :: Git IO -> FilePath -> IO (Either String ManagedState)
-stateAt git directory = do
-    outcome <- Inspection.inspectState git directory [] Nothing
-    pure $ case outcome of
-        Left problem -> Left (show problem)
-        Right report -> either (Left . show) Right (Inspection.reportManagedState report)
-
 messageValid :: BS.ByteString -> Either String ()
 messageValid bytes = do
     text <- either (const (Left "Checkpoint message must be UTF-8")) Right (Encoding.decodeUtf8' bytes)
@@ -130,9 +123,9 @@ checkpoint executable git directory requested message revisions = do
         node <- case requested of
             Just value -> pure value
             Nothing -> do
-                inferred <- ExceptT (fmap (either (Left . show) Right) (Inspection.inferNode git directory))
+                inferred <- ExceptT (fmap (either (Left . show) Right) (Validation.inferNode git directory))
                 maybe (throwE "Select --node UUID or run inside a Node worktree") pure inferred
-        before <- ExceptT (stateAt git common)
+        before <- ExceptT (loadOperationState git common)
         (old, tree, contexts, warnings) <- ExceptT (prepare git common (repositoryObjectFormat repository) before node revisions)
         forM_ ["GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"] $ \ident -> do
             _ <- ExceptT (query git common ["var", ident] "")
@@ -145,9 +138,9 @@ checkpoint executable git directory requested message revisions = do
         oid <- either throwE pure (maybe (Left "Invalid commit-tree response") (parseObjectId (repositoryObjectFormat repository)) (BS.stripSuffix "\n" bytes))
         let result = CheckpointResult node oid old contexts warnings
         lift (writeIORef candidate (Just result))
-        target <- ExceptT (fmap (either (Left . show) Right) (Inspection.validateCandidate git common (Map.insert node oid (managedRefs before))))
+        target <- ExceptT (fmap (either (Left . show) Right) (Validation.validateCandidate git common (Map.insert node oid (managedRefs before))))
         either (throwE . show) pure (validateOrdinaryTransition before target)
-        current <- ExceptT (stateAt git common)
+        current <- ExceptT (loadOperationState git common)
         unless (managedRefs current == managedRefs before) (throwE "Node refs changed before Checkpoint installation")
         let ref n = "refs/heads/" <> nodeIdBytes n
             input =
@@ -158,7 +151,7 @@ checkpoint executable git directory requested message revisions = do
                     )
         _ <- ExceptT (query git common (ownHookBypass ++ ["update-ref", "--stdin"]) input)
         lift (writeIORef installed True)
-        actual <- ExceptT (stateAt git common)
+        actual <- ExceptT (loadOperationState git common)
         unless (managedRefs actual == managedRefs target) (throwE "Node refs changed after Checkpoint installation")
         ExceptT (requireProtectionFor executable common)
         pure result

@@ -25,6 +25,7 @@ import GitRoam.Application.Inspect
 import qualified GitRoam.Application.Protection as Protection
 import qualified GitRoam.Application.Status as Status
 import qualified GitRoam.Application.Undeploy as Undeployment
+import GitRoam.Application.Validation (ValidationError (..), inferNode)
 import GitRoam.BuildInfo (packageVersion)
 import qualified GitRoam.Diagnostic as Diagnostic
 import GitRoam.Git
@@ -298,7 +299,7 @@ runCli arguments = case referenceTransactionPhase arguments of
     Just phase -> do
         directory <- getCurrentDirectory
         input <- BSC.getContents
-        result <- Protection.evaluateTransaction directory phase input
+        result <- Protection.evaluateTransaction (nativeGit defaultGitExecutable) directory phase input
         pure $ case result of
             Right () -> CliResponse ExitSuccess "" ""
             Left problem -> CliResponse (ExitFailure 1) "" ("git-roam: reference update refused: " <> Text.pack problem <> "\n")
@@ -472,7 +473,7 @@ statusResponse format report =
             (if format == Output.TextFormat then Encoding.encodeUtf8 (renderStatus report) else Output.encodeValue format (Output.statusValue report))
             (if format == Output.TextFormat then Text.unlines ["git-roam: " <> Status.statusMessage issue | issue <- issues] else "")
 
-inspectionExit :: InspectionError -> Int
+inspectionExit :: ValidationError -> Int
 inspectionExit problem = case problem of
     HistoryFailure (ObjectUnavailable _ (WrongObjectType _)) -> 1
     HistoryFailure (ObjectUnavailable _ _) -> 3

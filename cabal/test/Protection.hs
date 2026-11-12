@@ -43,10 +43,10 @@ update :: NodeId -> BS.ByteString -> BS.ByteString -> BS.ByteString
 update node old new = old <> " " <> new <> " " <> BSC.pack (ref node) <> "\n"
 
 accept :: FilePath -> BS.ByteString -> IO ()
-accept directory input = evaluateTransaction directory "prepared" input >>= expectRight
+accept directory input = evaluateTransaction (nativeGit defaultGitExecutable) directory "prepared" input >>= expectRight
 
 reject :: FilePath -> BS.ByteString -> IO ()
-reject directory input = evaluateTransaction directory "prepared" input >>= expectLeft
+reject directory input = evaluateTransaction (nativeGit defaultGitExecutable) directory "prepared" input >>= expectLeft
 
 main :: IO ()
 main =
@@ -107,7 +107,7 @@ phases :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 phases git _ directory _ = do
     root git directory nodeA
     forM_ ["preparing", "committed", "aborted"] $ \phase ->
-        evaluateTransaction directory phase "not a transaction row" >>= expectRight
+        evaluateTransaction (nativeGit defaultGitExecutable) directory phase "not a transaction row" >>= expectRight
     accept directory ""
     accept directory "zero new HEAD\n"
     accept directory "zero new refs/tags/version\n"

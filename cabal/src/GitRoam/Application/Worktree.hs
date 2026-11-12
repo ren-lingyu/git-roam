@@ -19,6 +19,7 @@ module GitRoam.Application.Worktree (
     withProtectedSession,
     addPlannedWorktree,
     removePlannedWorktree,
+    loadOperationState,
 ) where
 
 import Control.Exception (IOException, throwIO, try)
@@ -35,6 +36,7 @@ import qualified Data.Map.Strict as Map
 import Data.Ord (Down (..))
 import qualified Data.Set as Set
 import GitRoam.Application.Protection (ownHookBypass, requireProtectionFor, withOperationLock)
+import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
 import qualified GitRoam.Git.Refs as Refs
@@ -55,6 +57,20 @@ data DeploymentPlan = DeploymentPlan FilePath ManagedState (Map NodeId FilePath)
 data RemovalPlan = RemovalPlan ManagedState [Worktree] [Worktree] [Worktree]
     deriving (Eq, Show)
 data ProtectedSession = ProtectedSession (Git IO) FilePath (IORef (Set.Set BS.ByteString))
+
+-- Operations historically required readable worktree registration even when
+-- they did not display it. Make that guard explicit, keeping it inside the
+-- ref-change check and the strict raw-session completion boundary.
+loadOperationState :: Git IO -> FilePath -> IO (Either String ManagedState)
+loadOperationState git directory = do
+    outcome <- Validation.withValidationEvidence git directory [] Nothing $ \evidence -> runExceptT $ do
+        bytes <- ExceptT (Validation.validationQuery git directory [] ["worktree", "list", "--porcelain", "-z"])
+        _ <- either (const (throwE (Validation.InvalidGitOutput ["worktree", "list"] bytes))) pure (decodeWorktrees (repositoryObjectFormat (Validation.validationRepository evidence)) bytes)
+        either throwE pure (Validation.validateEvidence evidence)
+    pure $ case outcome of
+        Left (Validation.CandidateStateInvalid problems) -> Left (show problems)
+        Left problem -> Left (show problem)
+        Right state -> Right state
 
 deploymentRoot :: DeploymentPlan -> FilePath
 deploymentRoot (DeploymentPlan root _ _ _ _) = root

@@ -11,7 +11,6 @@ import qualified Data.ByteString as BS
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import GitRoam.Application.Inspect (inspectState, reportManagedState)
 import GitRoam.Application.Protection (requireProtectionFor)
 import GitRoam.Application.Worktree
 import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
@@ -46,13 +45,6 @@ undeploymentFailureDiagnostic (UndeploymentFailureData _ _ _ value) = value
 withEvidence :: Evidence -> UndeploymentFailure -> UndeploymentFailure
 withEvidence evidence (UndeploymentFailureData reason details _ diagnosticValue) = UndeploymentFailureData reason details (Just evidence) diagnosticValue
 
-loadState :: Git IO -> FilePath -> IO (Either String ManagedState)
-loadState git directory = do
-    outcome <- inspectState git directory [] Nothing
-    pure $ case outcome of
-        Left problem -> Left (show problem)
-        Right report -> either (Left . show) Right (reportManagedState report)
-
 -- Removal changes deployment only. All targets are checked before the first
 -- native command; after execution starts, failures stop without re-creating or
 -- resetting anything. Subsequent commands run from the surviving common dir.
@@ -63,7 +55,7 @@ undeploy executable git directory = do
         prepared <- runExceptT $ do
             repository <- ExceptT (fmap (either (Left . show) Right) (inspectRepository git directory readOnlyEnvironment))
             common <- lift (decodePath (repositoryCommonDirectory repository))
-            state <- ExceptT (loadState git common)
+            state <- ExceptT (loadOperationState git common)
             plan <- ExceptT (planRemoval git common state)
             pure (repository, common, state, plan)
         case prepared of
@@ -74,7 +66,7 @@ undeploy executable git directory = do
                         node <- maybe (throwE "Non-Node removal target") pure (worktreeNode record)
                         ExceptT (removePlannedWorktree session plan node)
                         lift (modifyIORef' completed (++ [(node, treePath record)]))
-                    actual <- ExceptT (loadState git common)
+                    actual <- ExceptT (loadOperationState git common)
                     unless (managedRefs actual == managedRefs state) (throwE "Managed refs changed during undeployment")
                     final <- ExceptT (listWorktrees git common (repositoryObjectFormat repository))
                     unless
@@ -105,7 +97,7 @@ undeploy executable git directory = do
 remainingState :: Git IO -> FilePath -> ObjectFormat -> IO ([String], Maybe [Worktree], Maybe [(NodeId, ObjectId)])
 remainingState git directory format = do
     records <- listWorktrees git directory format
-    state <- loadState git directory
+    state <- loadOperationState git directory
     pure
         ( [ case records of
                 Left problem -> "Actual worktree state unavailable: " ++ problem

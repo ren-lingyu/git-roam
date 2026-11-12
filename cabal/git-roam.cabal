@@ -16,6 +16,7 @@ library
     GitRoam.Application.Protection
     GitRoam.Application.Status
     GitRoam.Application.Undeploy
+    GitRoam.Application.Validation
     GitRoam.Application.Worktree
     GitRoam.Cli
     GitRoam.Diagnostic
@@ -368,6 +369,28 @@ test-suite end-to-end-tests
     , directory
     , filepath
     , git-roam
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded -Werror
+
+test-suite validation-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Validation.hs
+  other-modules:
+    BatchFixture
+    TestSupport
+    WorktreeFixture
+
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , base        >=4.16 && <5
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , git-roam
+    , unix
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded -Werror

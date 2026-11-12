@@ -22,6 +22,7 @@ import qualified GitRoam.Application.Delete as Deletion
 import GitRoam.Application.Inspect
 import GitRoam.Application.Protection (ProtectionState (..))
 import qualified GitRoam.Application.Status as Status
+import GitRoam.Application.Validation (ValidationError (..))
 import GitRoam.Diagnostic (Evidence (..))
 import qualified GitRoam.Diagnostic as Diagnostic
 import qualified GitRoam.Git.Commit as Commit
@@ -150,7 +151,7 @@ stateDiagnostic issue = case issue of
     UnknownNodeTip node tip -> "history-unavailable: " <> nodeText node <> " points to unknown " <> oidText tip
     RefIdentityMismatch node actual tip -> "identity-mismatch: branch " <> nodeText node <> " points to Node " <> nodeText actual <> " at " <> oidText tip
 
-inspectionDiagnostic :: InspectionError -> Text
+inspectionDiagnostic :: ValidationError -> Text
 inspectionDiagnostic problem = case problem of
     HistoryFailure (ObjectUnavailable oid (WrongObjectType kind)) -> "object-type-mismatch: " <> oidText oid <> " has type " <> Text.pack (show kind)
     ReferencesChanged -> "observation-changed: Node refs changed during inspection; run the command again."
@@ -316,7 +317,7 @@ inspectionValue report = Object [("valid", Boolean (null (reportProblems report)
   where
     view node = Object [("node", nodeValue (viewNode node)), ("tip", oidValue (viewTip node)), ("kind", String (case viewKind node of Root -> "root"; Content _ -> "content"; Checkpoint _ _ -> "checkpoint")), ("latest_checkpoint", maybe Null oidValue (viewLatestCheckpoint node)), ("contexts", Array (map oidValue (viewContextParents node))), ("checkpoint_count", Number (fromIntegral (viewCheckpointCount node))), ("content_tail", Boolean (case viewKind node of Content _ -> True; _ -> False)), ("worktrees", Array [Object [("path", Bytes (worktreePath tree)), ("main", Boolean (worktreeIsMain tree))] | tree <- reportWorktrees report, worktreeNode tree == Just (viewNode node)])]
 
-inspectionCode :: InspectionError -> Text
+inspectionCode :: ValidationError -> Text
 inspectionCode problem = case problem of
     RepositoryDiscoveryFailure _ -> "repository_discovery_failed"
     InspectionGitFailure _ _ -> "git_read_failed"
@@ -330,7 +331,7 @@ inspectionCode problem = case problem of
     ReferencesChanged -> "observation_changed"
     CandidateStateInvalid _ -> "candidate_state_invalid"
 
-inspectionHasReport :: InspectionError -> Bool
+inspectionHasReport :: ValidationError -> Bool
 inspectionHasReport problem = case problem of
     RepositoryDiscoveryFailure _ -> False
     InspectionGitFailure _ _ -> False

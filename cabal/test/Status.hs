@@ -193,7 +193,7 @@ nativeQueries format git _ repo parent = do
     bs <- rows broken
     assertEqual (Available (either error id (parseObjectId format invalid))) (statusTip (bs !! 1))
     validation <- Inspect.inspectState git repo [] Nothing
-    case validation of Left _ -> pure (); Right value -> expectLeft (Inspect.reportManagedState value)
+    case validation of Left _ -> pure (); Right value -> assertTrue "Invalid state reported valid" (not (null (Inspect.reportProblems value)))
     -- Increasing the Node set must not add per-Node upstream subprocesses.
     aTip <- BSC.init <$> ok git repo ["rev-parse", BSC.unpack (nodeIdBytes nodeA)] ""
     let candidate prefix node = "refs/remotes/" <> prefix <> "/" <> nodeIdBytes node
