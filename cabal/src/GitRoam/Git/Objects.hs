@@ -140,7 +140,7 @@ checkStoredConnectivity git directory environment source tips = runExceptT $ do
         else do
             let oids = Set.toList blobs
             result <- batchMetadata git directory environment oids
-            foldM checkBlob [] (zip oids result)
+            reverse <$> foldM checkBlob [] (zip oids result)
   where
     load loader oid = ExceptT (fmap (either (Left . (,) oid) Right) (loader oid))
     commits seen trees [] = pure (seen, trees)
@@ -158,7 +158,7 @@ checkStoredConnectivity git directory environment source tips = runExceptT $ do
                 payloads = [entryObject e | e <- entries, entryMode e `elem` [RegularFile, ExecutableFile, SymbolicLink]]
             treeObjects (Set.insert oid seen) (Set.union blobs (Set.fromList payloads)) (children ++ rest)
     checkBlob missing (oid, kind) = case kind of
-        Nothing -> pure (missing ++ [oid])
+        Nothing -> pure (oid : missing)
         Just "blob" -> pure missing
         Just other -> throwE (oid, WrongObjectType other)
 

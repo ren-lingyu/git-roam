@@ -14,6 +14,7 @@
 - Add top-level =--format text|json|cbor= for all result commands, shared lossless path encoding, structured reports and JSON Lines diagnostics in noninteractive machine mode.
 
 ** Fixed
+- Index upstream configuration failures once per Status query instead of scanning all problems for every selected Node; accumulate missing-object evidence without repeated list copying, preserving diagnostic order and strict validation.
 - Check concrete ref-name occupancy before Create/Deploy installation, including unresolved symbolic refs, and prevent transaction creation from dereferencing a concurrently introduced symref.
 - Resolve relative linked-worktree administration backlinks against their administration directories when verifying worktree status, preserving identity checks and lossless path handling.
 - Preserve verified commit metadata after a later batch request failure or nonzero process exit, with separate session diagnostics and incomplete-query exit status. Continue rejecting metadata from sessions with unexpected trailing stdout or uncertain cleanup; protocol validation requires a completely successful session.
@@ -24,12 +25,11 @@
 
 ** Changed
 - *Breaking:* Check always verifies the local managed state exposed by native Git enumeration; remove =--node= and worktree-based inference. Return true/false/null verification conclusions with exits 0/1/3, replacing old history/worktree display fields with =valid=, optional =refs= and =diagnostics=.
-- Unify static Validation for actual and candidate states, classify reliable malformed objects separately from observation failure, and remove the old Inspection presentation. Document the native enumeration limit for silently omitted dangling symbolic refs.
-- Separate complete protocol validation and candidate-state loading from CLI inspection reports. Migrate management operations to direct validated state while retaining explicit worktree preflight; use the shared complete ref reader in the protection Hook. Keep the storage protocol unchanged.
+- Share strict history/connectivity/identity Validation across actual and candidate states, independent of Status and Check reports. Retain explicit management worktree preflight and the protection Hook's complete ref reading and transition validation. Classify reliable malformed objects separately from observation failure. Document native enumeration's silently omitted dangling symbolic refs; keep the storage protocol unchanged.
 - *Breaking:* Require =status --type/-t repo|node=. Node queries default to all local Nodes with exactly selected =tip=, =worktrees= and =remote= properties; replace the old inferred-Node history display and Status JSON/CBOR schema. Repeat =--node/-n= and =--property/-p= for set selection.
-- Return complete partial Status reports with contextual diagnostics and nonzero exit for unavailable observations; preserve reliable ref rows while strict inspection/management callers require completeness. Read upstream information in batch.
+- Return complete partial Status reports with contextual diagnostics and nonzero exit for unavailable observations; preserve reliable ref rows while strict validation/management callers require completeness. Read upstream information in batch.
 - *Breaking:* Remove =node create --format=. Move the option before the command, for example =git roam --format json node create --path /path/to/nodes=.
-- Share batch Node ref observations and remote-candidate recognition across inspection, deployment and worktree planning, preserving symbolic-ref evidence and existing operation safety checks.
+- Share batch Node ref observations and remote-candidate recognition across observation, validation, deployment and worktree planning, preserving symbolic-ref evidence and existing operation safety checks.
 
 * DONE v0.2.0
 CLOSED: [2026-11-10 Tue 15:29]

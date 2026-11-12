@@ -318,13 +318,17 @@ test-suite output-tests
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Output.hs
-  other-modules:    TestSupport
+  other-modules:
+    TestSupport
+    WireAssertions
+
   build-depends:
     , aeson
     , base               >=4.16 && <5
     , base64-bytestring
     , bytestring
     , cborg
+    , containers
     , directory
     , filepath
     , git-roam
@@ -381,19 +385,23 @@ test-suite end-to-end-tests
   hs-source-dirs:     test
   main-is:            EndToEnd.hs
   other-modules:
+    IntegrationAcceptance
     TestSupport
+    WireAssertions
     WorktreeFixture
 
   build-tool-depends: git-roam:git-roam
   build-depends:
     , aeson
-    , base        >=4.16 && <5
+    , base               >=4.16 && <5
+    , base64-bytestring
     , bytestring
     , cborg
     , containers
     , directory
     , filepath
     , git-roam
+    , text
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded -Werror

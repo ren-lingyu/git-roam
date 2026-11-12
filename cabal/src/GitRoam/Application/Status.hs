@@ -127,6 +127,7 @@ queryStatus git directory request = do
                 pure (node, Worktrees.treePath tree, result)
             _ -> pure []
         configs <- if wants RemoteProperty then Just <$> Refs.readUpstreamConfig safeGit directory environment else pure Nothing
+        let configProblemIndex = fmap indexConfigProblems configs
         (after, upstreamAfterErrors) <- observeRefs format scope
         let commits = Commit.observedCommits commitObservation
             commitSessions = [issue "commit_session_incomplete" Nothing (Just CommitProperty) ("Raw commit metadata session did not finish successfully: " ++ show (Commit.commitSessionProblems commitObservation)) | not (null (Commit.commitSessionProblems commitObservation))]
@@ -143,7 +144,7 @@ queryStatus git directory request = do
                  in if not (null refs) || (Refs.observationComplete before && Set.notMember node symbolicNodes) then Just refs else Nothing
             build node =
                 let found = Map.lookup node localRefs
-                    (upstream, upstreamIssues) = upstreamFor node found configs
+                    (upstream, upstreamIssues) = upstreamFor node found configs configProblemIndex
                     row =
                         NodeStatus
                             node
@@ -189,10 +190,10 @@ queryStatus git directory request = do
     processFailure (Refs.RefTransportFailure _) = True
     processFailure (Refs.RefCommandFailure result) = gitExitCode result /= ExitSuccess
     processFailure _ = False
-    upstreamFor node found configs = case configs of
+    upstreamFor node found configs problemIndex = case configs of
         Nothing -> (Unavailable, [])
         Just observed
-            | any (\problem -> maybe True (== node) (Refs.configProblemNode problem)) (Refs.configProblems observed) -> (Unavailable, [])
+            | maybe False (\(global, affected) -> global || Set.member node affected) problemIndex -> (Unavailable, [])
             | otherwise -> case Map.lookup node (Refs.observedConfigs observed) of
                 Nothing -> (Available Nothing, [])
                 Just config | null (Refs.upstreamSources config) -> (Available Nothing, [])
@@ -205,6 +206,14 @@ queryStatus git directory request = do
                             [issue "upstream_ambiguous" (Just node) (Just RemoteProperty) "Multiple merge entries cannot be represented as a single upstream" | multiple]
                                 ++ [issue "upstream_unresolved" (Just node) (Just RemoteProperty) "Configured upstream cannot be resolved to a single local ref" | not multiple && (source == Nothing || remote == Nothing || resolved == Nothing)]
                      in (Available (Just (UpstreamObservation remote source resolved)), issues)
+    -- Build once per observation; each selected Node now performs one Set lookup,
+    -- rather than scanning every configuration problem. Diagnostics remain intact.
+    indexConfigProblems observed =
+        ( any ((== Nothing) . Refs.configProblemNode) problems
+        , Set.fromList [node | problem <- problems, Just node <- [Refs.configProblemNode problem]]
+        )
+      where
+        problems = Refs.configProblems observed
     effective values = case reverse values of
         value : _ | not (BS.null value) -> Just value
         _ -> Nothing

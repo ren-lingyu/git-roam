@@ -5,7 +5,8 @@ module Main (main) where
 import Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import Data.List (isPrefixOf)
+import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
+import Data.List (isPrefixOf, sort)
 import qualified Data.Map.Strict as Map
 import GitRoam.Application.Deploy
 import GitRoam.Application.Protection (ownHookBypass)
@@ -93,7 +94,12 @@ batch git executable repo parent = do
     upstream <- source git repo parent
     fetch git repo "origin" upstream
     enable git executable repo
-    report <- deploy executable git repo (parent </> "deployed") Nothing >>= expectRight
+    probes <- newIORef []
+    let measured = observeGit (\invocation -> if take 2 (gitArguments invocation) == ["refs", "exists"] then modifyIORef' probes (gitArguments invocation :) else pure ()) git
+    report <- deploy executable measured repo (parent </> "deployed") Nothing >>= expectRight
+    -- Current cost, retained for Stage A: preparation plus application per import.
+    readIORef probes >>= assertEqual (sort (concatMap (\node -> replicate 2 ["refs", "exists", "refs/heads/" ++ BSC.unpack (nodeIdBytes node)]) [nodeA, nodeB])) . sort
+    writeIORef probes []
     assertEqual 2 (length (deployedWorktrees report))
     assertEqual 2 (length (trackingSources report))
     forM_ [nodeA, nodeB] $ \node -> do
@@ -102,7 +108,8 @@ batch git executable repo parent = do
         expected <- tip git upstream node
         tip git repo node >>= assertEqual expected
     first <- snapshot git repo
-    again <- deploy executable git repo (parent </> "another") Nothing >>= expectRight
+    again <- deploy executable measured repo (parent </> "another") Nothing >>= expectRight
+    readIORef probes >>= assertEqual []
     assertEqual (deployedWorktrees report) (deployedWorktrees again)
     snapshot git repo >>= assertEqual first
     doesDirectoryExist (parent </> "another") >>= assertEqual False

@@ -20,6 +20,7 @@ import GitRoam.Protocol.History (contextParents, reachableHistory)
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Repository
 import GitRoam.Worktree.Paths (decodePath, shortName)
+import IntegrationAcceptance (acceptanceTests)
 import System.Directory (createDirectory, doesDirectoryExist, doesPathExist, findExecutable, getPermissions, makeAbsolute, setOwnerExecutable, setPermissions)
 import System.Environment (getEnvironment, lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..))
@@ -30,7 +31,8 @@ import WorktreeFixture
 main :: IO ()
 main =
     runTests $
-        [("structured command lifecycle " ++ backend ++ " " ++ show format, fixture backend format structuredLifecycle) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+        acceptanceTests
+            ++ [("structured command lifecycle " ++ backend ++ " " ++ show format, fixture backend format structuredLifecycle) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("public CLI lifecycle and native synchronization " ++ backend ++ " " ++ show format, fixture backend format (lifecycle backend format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("global deployment wrapper and independent Hook " ++ backend ++ " " ++ show format, fixture backend format (globalDeploymentPath format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("native ref maintenance preserves Node deletion protection " ++ backend ++ " " ++ show format, fixture backend format (refMaintenance backend)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
