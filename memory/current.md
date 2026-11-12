@@ -1,6 +1,21 @@
 # Git Roam current state
 
-## Current handoff: B5 validation migration complete and verified
+## Active objective: B4 relative-worktree backlink fix
+
+The user committed B5 at a9ffa8689d6919809ab3207718b4800e177ee526; all 65
+committed blobs equal the final B5 verification manifest, worktree/index clean at
+entry. New request fixes only relative admin/gitdir backlinks in Git.Status,
+with native four-combination regressions and README/CHANGELOG TODO v0.3.0.
+Resolve relative backlink bytes from the verified admin directory, keep all
+identity checks, use native discovery for .git/commondir. Test both --relative-paths
+and worktree.useRelativePaths, main/linked queries, clean/dirty, actual relative
+files and corrupted-backlink refusal. No CLI/schema/protocol or B6 implementation.
+Working-directory Nix checks remain authorized; no project staging/commit/push.
+Prepare a separate full-diff fix(GitRoam.Git.Status) message and completion
+checkpoint. Source/test/doc implementation written; validation is next. Do not
+claim native discovery behavior verified until tests run.
+
+## Historical B5 completion evidence
 
 B5 is complete in 23 uncommitted project paths, including new
 Application/Validation.hs and test/Validation.hs. The user committed B4 at
