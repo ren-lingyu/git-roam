@@ -21,6 +21,7 @@ import GitRoam.Application.Worktree
 import GitRoam.Diagnostic (Diagnostic (..), Evidence (..), Severity (..), emptyEvidence)
 import GitRoam.Git
 import GitRoam.Git.Objects (readOnlyEnvironment)
+import qualified GitRoam.Git.Refs as Refs
 import GitRoam.Git.Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
@@ -102,6 +103,7 @@ createNodeWith generate executable git directory path = do
                 applied <- runExceptT $ do
                     current <- ExceptT (loadOperationState git common)
                     unless (managedRefs current == Map.delete node (managedRefs state)) (throwE "Node refs changed before creation")
+                    ExceptT (requireFreeName git common node)
                     -- Recheck paths before committing a new managed identity.
                     _ <- ExceptT (planDeploymentCandidateFor git common (managedRefs current) state (Set.singleton node) (deploymentRoot plan))
                     _ <- ExceptT (changeRef git common (managedRefs current) node rootOid False)
@@ -132,6 +134,9 @@ createNodeWith generate executable git directory path = do
             isExtreme = uuid == "00000000-0000-0000-0000-000000000000" || uuid == "ffffffff-ffff-ffff-ffff-ffffffffffff"
         unless (isV4 || isExtreme) (throwE "New Node identity must be UUIDv4, Nil UUID or Max UUID")
         when (Map.member node (managedRefs before)) (throwE "Node UUID already exists locally")
+        ExceptT (requireFreeName git common node)
+        tagExists <- ExceptT (fmap (either (Left . show) Right) (Refs.refExists git common environment ("refs/tags/" <> uuid)))
+        when tagExists (throwE "Node UUID conflicts with an existing tag")
         records <- ExceptT (listWorktrees git common (repositoryObjectFormat repository))
         when (any ((== Just node) . worktreeNode) records) (throwE "Node UUID is already checked out, including an unborn branch")
         refs <- ExceptT (query git common ["for-each-ref", "--format=%(refname)", "refs/remotes/", "refs/tags/"] "")
@@ -194,7 +199,7 @@ createNodeWith generate executable git directory path = do
         pure $ either (\problem -> ["Compensation stopped; inspect residual state: " ++ problem]) id outcome
 
 changeRef :: Git IO -> FilePath -> Map.Map NodeId ObjectId -> NodeId -> ObjectId -> Bool -> IO (Either String BS.ByteString)
-changeRef git directory stable node rootOid deleting = query git directory (ownHookBypass ++ ["update-ref", "--stdin"]) input
+changeRef git directory stable node rootOid deleting = query git directory (ownHookBypass ++ ["update-ref", "--no-deref", "--stdin"]) input
   where
     ref n = "refs/heads/" <> nodeIdBytes n
     input =
@@ -203,3 +208,11 @@ changeRef git directory stable node rootOid deleting = query git directory (ownH
                 ++ ["verify " <> ref n <> " " <> objectIdBytes oid | (n, oid) <- Map.toList stable, n /= node]
                 ++ [(if deleting then "delete " else "create ") <> ref node <> " " <> objectIdBytes rootOid, "prepare", "commit"]
             )
+
+requireFreeName :: Git IO -> FilePath -> NodeId -> IO (Either String ())
+requireFreeName git directory node = do
+    result <- Refs.refExists git directory environment ("refs/heads/" <> nodeIdBytes node)
+    pure $ case result of
+        Left problem -> Left (show problem)
+        Right True -> Left "Node ref name is already occupied"
+        Right False -> Right ()

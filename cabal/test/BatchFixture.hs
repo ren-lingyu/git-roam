@@ -70,7 +70,7 @@ fake = do
                 then do
                     when (scenario `elem` ["trailing", "commit-trailing"]) (BS.hPut stdout "unexpected")
                     when (scenario == "shutdown") foreverWait
-                    when (scenario == "commit-nonzero") (exitWith (ExitFailure 7))
+                    when (scenario `elem` ["commit-nonzero", "commit-malformed-nonzero"]) (exitWith (ExitFailure 7))
                 else do
                     value <- BSC.getLine
                     maybe (pure ()) (\path -> BS.appendFile path (value <> "\n")) requests
@@ -94,6 +94,7 @@ fake = do
                             exitWith (ExitFailure 7)
                         "nonzero" -> BS.hPut stdout (frame value (payload value)) >> hFlush stdout >> exitWith (ExitFailure 7)
                         "later-body-eof" | n == 2 -> BS.hPut stdout (value <> " blob 100\nshort") >> exitWith ExitSuccess
+                        "commit-malformed-nonzero" | n == 1 -> BS.hPut stdout (value <> " commit 3\nbad\n")
                         "commit-truncated" | n == 2 -> BS.hPut stdout (value <> " commit 100\nshort") >> exitWith ExitSuccess
                         "commit-bad-oid" | n == 2 -> BS.hPut stdout (BS.replicate (BS.length value) 97 <> " commit 0\n\n")
                         "commit-bad-size" | n == 2 -> BS.hPut stdout (value <> " commit invalid\n")

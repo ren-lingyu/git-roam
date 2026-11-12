@@ -10,7 +10,6 @@ import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text.Encoding as Encoding
 import qualified GitRoam.Application.Checkpoint as Checkpoints
-import qualified GitRoam.Application.Inspect as Inspection
 import GitRoam.Application.Protection (ownHookBypass)
 import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Cli (CheckpointMessage (..), Command (..), parseCommand)
@@ -18,6 +17,7 @@ import GitRoam.Diagnostic (Evidence (..))
 import GitRoam.Git
 import GitRoam.Git.Objects (nativeHistorySource)
 import GitRoam.ObjectId
+import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
 import GitRoam.Protocol.Objects (CommitObject (..), loadCommit)
 import GitRoam.Protocol.Repository
@@ -162,13 +162,10 @@ structure format git executable directory _ = do
     assertEqual (commitTree firstRaw) (commitTree secondRaw)
     state <- inspect git directory
     assertEqual (Just (Checkpoints.checkpointOid second)) (Map.lookup nodeA (managedRefs state))
-    view <- Inspection.inspectState git directory [] (Just nodeA) >>= expectRight
-    case Inspection.reportNodes view of
-        [node] -> do
-            assertEqual (Just (Checkpoints.checkpointOid second)) (Inspection.viewLatestCheckpoint node)
-            assertEqual [b] (Inspection.viewContextParents node)
-            assertEqual 2 (Inspection.viewCheckpointCount node)
-        _ -> fail "Expected exactly one Node view"
+    let history = managedHistory state
+    assertEqual (Right [b]) (contextParents history (Checkpoints.checkpointOid second))
+    chain <- expectRight (firstParentHistory history (Checkpoints.checkpointOid second))
+    assertEqual 2 (length [oid | oid <- chain, Just value <- [lookupCommit history oid], Checkpoint _ _ <- [validatedKind value]])
 
     -- The historical B Content stays reachable from A's first Checkpoint even
     -- when B's own branch moves backwards or is removed.
@@ -298,9 +295,8 @@ inferNodeCli git executable directory parent = do
     assertEqual ExitSuccess (gitExitCode result)
     assertTrue "Inferred Node UUID missing from output" (nodeIdBytes nodeA `BS.isInfixOf` gitStdout result)
     assertTrue "Unexpected warning for a single external Node context" (BS.null (gitStderr result))
-    report <- Inspection.inspectState git directory [] Nothing >>= expectRight
-    assertEqual [] (Inspection.reportProblems report)
-    assertEqual 2 (length (Inspection.reportNodes report))
+    state <- Validation.loadManagedState git directory >>= expectRight
+    assertEqual 2 (Map.size (managedRefs state))
 
 dirtyState :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 dirtyState = dirtyStateAt False
@@ -407,9 +403,8 @@ mainWorktreeInference git executable directory _ = do
         "Inferred Node UUID missing from output"
         (nodeIdBytes nodeA `BS.isInfixOf` gitStdout result)
     assertTrue "Unexpected warning for a single external Node context" (BS.null (gitStderr result))
-    report <- Inspection.inspectState git directory [] Nothing >>= expectRight
-    assertEqual [] (Inspection.reportProblems report)
-    assertEqual 2 (length (Inspection.reportNodes report))
+    state <- Validation.loadManagedState git directory >>= expectRight
+    assertEqual 2 (Map.size (managedRefs state))
 
 repeatedNodeWarning :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 repeatedNodeWarning git executable directory _ = do

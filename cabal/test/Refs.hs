@@ -6,8 +6,8 @@ import Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Data.IORef (modifyIORef', newIORef, readIORef)
+import qualified Data.Map.Strict as Map
 import qualified GitRoam.Application.Deploy as Deploy
-import qualified GitRoam.Application.Inspect as Inspect
 import GitRoam.Application.Protection (ownHookBypass)
 import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Application.Worktree (planDeployment)
@@ -16,6 +16,7 @@ import GitRoam.Git.Refs
 import GitRoam.Git.Worktrees (listWorktrees, treePath, worktreeNode)
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
+import GitRoam.Protocol.Repository (managedRefs)
 import System.Directory (doesDirectoryExist)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
@@ -31,7 +32,7 @@ main =
         , ("one ref enumeration preserves invocation and failure evidence", adapter)
         ]
             ++ [("native batch refs and worktree observations " ++ backend ++ " " ++ show format, fixture backend format (nativeObservations format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
-            ++ [("Inspect, Deploy and Worktree retain symbolic-ref policies " ++ backend ++ " " ++ show format, fixture backend format (strictPolicies format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ [("Validation, Deploy and Worktree retain symbolic-ref policies " ++ backend ++ " " ++ show format, fixture backend format (strictPolicies format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
 
 strictDecode :: ObjectFormat -> NodeRefScope -> BS.ByteString -> Either RefReadError [NodeRefObservation]
 strictDecode format scope = requireCompleteRefs . decodeNodeRefs format scope
@@ -148,8 +149,8 @@ strictPolicies format git executable repo parent = do
     -- though its map of Node identities and tips would match the trusted state.
     facts <- strictRead git repo [] format LocalNodes >>= expectRight
     assertEqual ["", "refs/heads/ordinary"] (map observedSymbolic facts)
-    Inspect.inspectState git repo [] Nothing >>= assertEqual (Left (Validation.SymbolicNodeBranch nodeB "refs/heads/ordinary"))
-    _ <- Inspect.inspectState git repo [] (Just nodeA) >>= expectRight
+    Validation.loadManagedState git repo >>= assertEqual (Left (Validation.SymbolicNodeBranch nodeB "refs/heads/ordinary"))
+    _ <- Validation.validateCandidate git repo (Map.singleton nodeA (managedRefs state Map.! nodeA)) >>= expectRight
     let target = parent </> "refused"
     planDeployment git repo state target >>= expectLeft
     Deploy.deploy executable git repo target Nothing >>= expectLeft

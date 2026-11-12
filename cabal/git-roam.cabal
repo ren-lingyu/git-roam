@@ -8,11 +8,11 @@ build-type:    Simple
 library
   hs-source-dirs:   src
   exposed-modules:
+    GitRoam.Application.Check
     GitRoam.Application.Checkpoint
     GitRoam.Application.Create
     GitRoam.Application.Delete
     GitRoam.Application.Deploy
-    GitRoam.Application.Inspect
     GitRoam.Application.Protection
     GitRoam.Application.Status
     GitRoam.Application.Undeploy
@@ -169,6 +169,7 @@ test-suite refs-tests
   build-depends:
     , base        >=4.16 && <5
     , bytestring
+    , containers
     , directory
     , filepath
     , git-roam
@@ -232,10 +233,34 @@ test-suite undeployment-tests
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded -Werror
 
-test-suite inspection-tests
+test-suite check-tests
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
-  main-is:            Inspection.hs
+  main-is:            Check.hs
+  other-modules:
+    BatchFixture
+    TestSupport
+    WorktreeFixture
+
+  build-tool-depends: git-roam:git-roam
+  build-depends:
+    , aeson
+    , base        >=4.16 && <5
+    , bytestring
+    , cborg
+    , containers
+    , directory
+    , filepath
+    , git-roam
+    , unix
+
+  default-language:   Haskell2010
+  ghc-options:        -Wall -threaded -Werror
+
+test-suite history-validation-tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            HistoryValidation.hs
   other-modules:      TestSupport
   build-tool-depends: git-roam:git-roam
   build-depends:

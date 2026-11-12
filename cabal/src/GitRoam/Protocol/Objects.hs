@@ -31,6 +31,7 @@ data ObjectProblem
     | WrongObjectType BS.ByteString
     | IncompleteHistory BS.ByteString
     | ObjectReadFailure BS.ByteString
+    | MalformedObject BS.ByteString
     deriving (Eq, Show)
 
 -- Providers must preserve stored parents (including shallow/replace boundaries).

@@ -14,9 +14,9 @@ import qualified Data.ByteString.Lazy as BL
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List (isPrefixOf)
 import qualified Data.Set as Set
-import qualified GitRoam.Application.Inspect as Inspect
 import GitRoam.Application.Protection (ProtectionState (..), observeProtection)
 import GitRoam.Application.Status
+import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Application.Worktree (planDeployment)
 import GitRoam.Cli
 import GitRoam.Git
@@ -192,8 +192,8 @@ nativeQueries format git _ repo parent = do
     assertEqual [] (reportDiagnostics broken)
     bs <- rows broken
     assertEqual (Available (either error id (parseObjectId format invalid))) (statusTip (bs !! 1))
-    validation <- Inspect.inspectState git repo [] Nothing
-    case validation of Left _ -> pure (); Right value -> assertTrue "Invalid state reported valid" (not (null (Inspect.reportProblems value)))
+    validation <- Validation.loadManagedState git repo
+    expectLeft validation
     -- Increasing the Node set must not add per-Node upstream subprocesses.
     aTip <- BSC.init <$> ok git repo ["rev-parse", BSC.unpack (nodeIdBytes nodeA)] ""
     let candidate prefix node = "refs/remotes/" <> prefix <> "/" <> nodeIdBytes node
@@ -234,7 +234,7 @@ partialQueries format git _ repo parent = do
     assertEqual [nodeA] (map statusNode values)
     assertEqual (Available (either error id (parseObjectId format tip))) (statusTip (first values))
     assertTrue "Partial query lost diagnostics" (not (null (reportDiagnostics report)))
-    Inspect.inspectState faulty repo [] Nothing >>= expectLeft
+    Validation.loadManagedState faulty repo >>= expectLeft
     planDeployment faulty repo trusted (parent </> "refused") >>= expectLeft
     let noTrees = Git $ \invocation ->
             if "worktree" `elem` gitArguments invocation

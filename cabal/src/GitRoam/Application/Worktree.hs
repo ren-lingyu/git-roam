@@ -63,10 +63,10 @@ data ProtectedSession = ProtectedSession (Git IO) FilePath (IORef (Set.Set BS.By
 -- ref-change check and the strict raw-session completion boundary.
 loadOperationState :: Git IO -> FilePath -> IO (Either String ManagedState)
 loadOperationState git directory = do
-    outcome <- Validation.withValidationEvidence git directory [] Nothing $ \evidence -> runExceptT $ do
+    outcome <- Validation.withValidationEvidence git directory [] $ \evidence -> runExceptT $ do
         bytes <- ExceptT (Validation.validationQuery git directory [] ["worktree", "list", "--porcelain", "-z"])
         _ <- either (const (throwE (Validation.InvalidGitOutput ["worktree", "list"] bytes))) pure (decodeWorktrees (repositoryObjectFormat (Validation.validationRepository evidence)) bytes)
-        either throwE pure (Validation.validateEvidence evidence)
+        pure ()
     pure $ case outcome of
         Left (Validation.CandidateStateInvalid problems) -> Left (show problems)
         Left problem -> Left (show problem)

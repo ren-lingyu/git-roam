@@ -10,11 +10,11 @@ import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
-import GitRoam.Application.Inspect
 import GitRoam.Application.Protection (ownHookBypass)
 import GitRoam.Application.Validation
 import GitRoam.Git
 import GitRoam.Git.Objects
+import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
@@ -116,13 +116,8 @@ initialized environment backend format action = withTempDirectory $ \directory -
     formatName Sha1 = "sha1"
     formatName Sha256 = "sha256"
 
-inspect :: [(String, Maybe String)] -> FilePath -> Maybe NodeId -> IO InspectionReport
-inspect environment directory selected = inspectState native directory environment selected >>= expectRight
-
-valid :: InspectionReport -> IO ()
-valid report = do
-    assertEqual [] (reportProblems report)
-    pure ()
+inspect :: [(String, Maybe String)] -> FilePath -> IO ManagedState
+inspect environment directory = loadManagedState (withGitEnvironment environment native) directory >>= expectRight
 
 invokeCli :: [(String, Maybe String)] -> FilePath -> [String] -> IO GitResult
 invokeCli environment directory arguments = do
@@ -136,7 +131,7 @@ main = do
         [ ("decode stored commit headers and binary tree entries", decoderTest)
         , ("canonical branch names must match history identity", identityTest environment)
         , ("same UUID conflicts across local and context histories", rootConflictTest environment)
-        , ("Node scope excludes unrelated invalid histories", scopeTest environment)
+        , ("whole managed state includes unrelated invalid histories", scopeTest environment)
         , ("same-Node context and changed Checkpoint trees are rejected", invalidCheckpointTest environment)
         , ("missing reachable blob is not accepted", missingBlobTest environment)
         , ("missing commit is not silently omitted", missingCommitTest environment)
@@ -150,7 +145,7 @@ main = do
         , ("symbolic Node branches are diagnosed", symbolicRefTest environment)
         , ("changed refs override a transient inspection failure", changingRefsTest environment)
         , ("ordinary transitions preserve Node identity but may rewrite history", transitionTest environment)
-        , ("CLI check/status and Node inference", cliTest environment)
+        , ("CLI whole-state check/status and removed Node selection", cliTest environment)
         , ("protection lifecycle accepts invalid history and detects conflicts", lifecycleTest environment)
         , ("disable refuses manually deployed Node worktrees", disableWorktreeTest environment)
         , ("own Hook bypass retains other named Hooks", hookCoexistenceTest environment)
@@ -254,9 +249,8 @@ protectionTest environment backend format = initialized environment backend form
     next <- makeCheckpoint environment directory at ak [bk]
     accepted <- invoke environment directory ["update-ref", refA, BSC.unpack next, BSC.unpack ak] BS.empty
     assertEqual ExitSuccess (gitExitCode accepted)
-    report <- inspect environment directory Nothing
-    valid report
-    assertEqual [objectId format next] [viewTip node | node <- reportNodes report, viewNode node == nodeId uuidA]
+    report <- inspect environment directory
+    assertEqual (Just (objectId format next)) (Map.lookup (nodeId uuidA) (managedRefs report))
     -- Symbolic HEAD/no-op records coexist with ordinary Content commits.
     _ <- ok environment directory ["switch", "-q", BSC.unpack uuidA] BS.empty
     _ <- ok environment directory ["commit", "-q", "--allow-empty", "-m", "native editing"] BS.empty
@@ -279,25 +273,21 @@ decoderTest = forM_ [Sha1, Sha256] $ \format -> do
 
 matrixTest :: [(String, Maybe String)] -> String -> ObjectFormat -> IO ()
 matrixTest environment backend format = initialized environment backend format $ \directory -> do
-    empty <- inspect environment directory Nothing
-    valid empty
-    assertEqual [] (reportNodes empty)
+    empty <- inspect environment directory
+    assertEqual Map.empty (managedRefs empty)
     (a, at, _) <- makeRoot environment directory uuidA "A Root"
     (b, bt, _) <- makeRoot environment directory uuidB "B Root"
     bk <- makeCheckpoint environment directory bt b [a]
     setRef environment directory uuidB bk
     ak <- makeCheckpoint environment directory at a [bk]
     setRef environment directory uuidA ak
-    report <- inspect environment directory Nothing
-    valid report
-    assertEqual 2 (length (reportNodes report))
-    let nodes = Map.fromList [(viewNode n, n) | n <- reportNodes report]
-    aView <- maybe (fail "Missing Node A") pure (Map.lookup (nodeId uuidA) nodes)
-    assertEqual (Just (objectId format ak)) (viewLatestCheckpoint aView)
-    assertEqual [objectId format bk] (viewContextParents aView)
+    report <- inspect environment directory
+    assertEqual 2 (Map.size (managedRefs report))
+    assertEqual (Just (objectId format ak)) (Map.lookup (nodeId uuidA) (managedRefs report))
+    assertEqual (Right [objectId format bk]) (contextParents (managedHistory report) (objectId format ak))
     -- A noncanonical ordinary ref is unrelated even if it points to Node history.
     _ <- ok environment directory ["update-ref", "refs/heads/notes", BSC.unpack a] BS.empty
-    inspect environment directory Nothing >>= valid
+    inspect environment directory >> pure ()
 
 contextsTest :: [(String, Maybe String)] -> String -> ObjectFormat -> IO ()
 contextsTest environment backend format = initialized environment backend format $ \directory -> do
@@ -308,33 +298,24 @@ contextsTest environment backend format = initialized environment backend format
     setRef environment directory uuidC cContent
     checkpoint <- makeCommit environment directory at [a, b, cContent] "A selects two external contexts"
     setRef environment directory uuidA checkpoint
-    report <- inspect environment directory Nothing
-    valid report
-    case [node | node <- reportNodes report, viewNode node == nodeId uuidA] of
-        [node] -> do
-            assertEqual (Checkpoint (objectId format a) [objectId format b, objectId format cContent]) (viewKind node)
-            assertEqual (Just (objectId format checkpoint)) (viewLatestCheckpoint node)
-            assertEqual [objectId format b, objectId format cContent] (viewContextParents node)
-            assertEqual 1 (viewCheckpointCount node)
-        _ -> fail "Expected exactly one Node A view"
+    report <- inspect environment directory
+    let history = managedHistory report
+    current <- maybe (fail "Missing checkpoint") pure (lookupCommit history (objectId format checkpoint))
+    assertEqual (Checkpoint (objectId format a) [objectId format b, objectId format cContent]) (validatedKind current)
+    assertEqual (Right [objectId format b, objectId format cContent]) (contextParents history (objectId format checkpoint))
     content <- makeCommit environment directory at [checkpoint] "A continues after Checkpoint"
     setRef environment directory uuidA content
-    later <- inspect environment directory Nothing
-    valid later
-    case [node | node <- reportNodes later, viewNode node == nodeId uuidA] of
-        [node] -> do
-            assertEqual (Content (objectId format checkpoint)) (viewKind node)
-            assertEqual (Just (objectId format checkpoint)) (viewLatestCheckpoint node)
-            assertEqual [objectId format b, objectId format cContent] (viewContextParents node)
-        _ -> fail "Expected exactly one Node A view after Content"
+    later <- inspect environment directory
+    laterCommit <- maybe (fail "Missing Content") pure (lookupCommit (managedHistory later) (objectId format content))
+    assertEqual (Content (objectId format checkpoint)) (validatedKind laterCommit)
+    assertEqual (Right [objectId format b, objectId format cContent]) (contextParents (managedHistory later) (objectId format checkpoint))
     -- The B branch may move backwards or disappear; A's recorded context
     -- remains valid because its commits are reachable from A's history.
     setRef environment directory uuidB b
-    inspect environment directory Nothing >>= valid
+    inspect environment directory >> pure ()
     _ <- ok environment directory ["update-ref", "-d", BSC.unpack ("refs/heads/" <> uuidB)] BS.empty
-    afterDelete <- inspect environment directory Nothing
-    valid afterDelete
-    assertEqual [nodeId uuidA, nodeId uuidC] (map viewNode (reportNodes afterDelete))
+    afterDelete <- inspect environment directory
+    assertEqual [nodeId uuidA, nodeId uuidC] (Map.keys (managedRefs afterDelete))
 
 invalidCheckpointTest :: [(String, Maybe String)] -> IO ()
 invalidCheckpointTest environment = initialized environment "files" Sha1 $ \directory -> do
@@ -343,7 +324,7 @@ invalidCheckpointTest environment = initialized environment "files" Sha1 $ \dire
     aContent <- makeCommit environment directory at [a] "A Content"
     overlap <- makeCommit environment directory at [a, aContent] "Same-Node context"
     setRef environment directory uuidA overlap
-    sameNode <- inspectState native directory environment Nothing
+    sameNode <- loadManagedState (withGitEnvironment environment native) directory
     case sameNode of
         Left (HistoryFailure (OverlappingContextTree _ _)) -> pure ()
         other -> fail ("Same-Node context was accepted: " ++ show other)
@@ -353,7 +334,7 @@ invalidCheckpointTest environment = initialized environment "files" Sha1 $ \dire
     modified <- line <$> ok environment directory ["mktree"] ("040000 tree " <> inner <> "\t" <> uuidA <> "\n")
     bad <- makeCommit environment directory modified [a, b] "Checkpoint changes its first-parent tree"
     setRef environment directory uuidA bad
-    changedTree <- inspectState native directory environment Nothing
+    changedTree <- loadManagedState (withGitEnvironment environment native) directory
     case changedTree of
         Left (HistoryFailure (CheckpointTreeMismatch _ _)) -> pure ()
         other -> fail ("Changed Checkpoint tree was accepted: " ++ show other)
@@ -362,8 +343,8 @@ identityTest :: [(String, Maybe String)] -> IO ()
 identityTest environment = initialized environment "files" Sha1 $ \directory -> do
     (a, _, _) <- makeRoot environment directory uuidA "A"
     setRef environment directory uuidB a
-    report <- inspect environment directory Nothing
-    assertEqual [RefIdentityMismatch (nodeId uuidB) (nodeId uuidA) (objectId Sha1 a)] (reportProblems report)
+    result <- loadManagedState (withGitEnvironment environment native) directory
+    assertEqual (Left (CandidateStateInvalid [RefIdentityMismatch (nodeId uuidB) (nodeId uuidA) (objectId Sha1 a)])) result
 
 rootConflictTest :: [(String, Maybe String)] -> IO ()
 rootConflictTest environment = initialized environment "files" Sha1 $ \directory -> do
@@ -374,21 +355,21 @@ rootConflictTest environment = initialized environment "files" Sha1 $ \directory
     ck <- makeCheckpoint environment directory ct c [otherK]
     setRef environment directory uuidC ck
     setRef environment directory uuidA a
-    outcome <- inspectState native directory environment Nothing
+    outcome <- loadManagedState (withGitEnvironment environment native) directory
     case outcome of
         Left (HistoryFailure (ConflictingRoots _ _ _)) -> pure ()
         otherResult -> fail ("Lost Root conflict: " ++ show otherResult)
 
 scopeTest :: [(String, Maybe String)] -> IO ()
 scopeTest environment = initialized environment "files" Sha1 $ \directory -> do
-    _ <- makeRoot environment directory uuidA "A"
+    (a, _, _) <- makeRoot environment directory uuidA "A"
     blob <- line <$> ok environment directory ["hash-object", "-w", "--stdin"] "not a commit"
     -- Git rejects blob branch tips, so use an ordinary Git commit with an empty tree.
     empty <- line <$> ok environment directory ["mktree"] BS.empty
     invalid <- makeCommit environment directory empty [] (BSC.unpack blob)
     setRef environment directory uuidC invalid
-    inspect environment directory (Just (nodeId uuidA)) >>= valid
-    outcome <- inspectState native directory environment Nothing
+    _ <- validateCandidate (withGitEnvironment environment native) directory (Map.singleton (nodeId uuidA) (objectId Sha1 a)) >>= expectRight
+    outcome <- loadManagedState (withGitEnvironment environment native) directory
     case outcome of
         Left (HistoryFailure (InvalidNodeTree _ _)) -> pure ()
         other -> fail ("Unrelated malformed Node was hidden: " ++ show other)
@@ -405,16 +386,16 @@ missingBlobTest :: [(String, Maybe String)] -> IO ()
 missingBlobTest environment = initialized environment "files" Sha1 $ \directory -> do
     (_, _, marker) <- makeRoot environment directory uuidA "A"
     removeLoose directory marker
-    outcome <- inspectState native directory environment Nothing
+    outcome <- loadManagedState (withGitEnvironment environment native) directory
     case outcome of
-        Left (MissingReachableObjects missing) -> assertEqual [marker] missing
+        Left (MissingReachableObjects missing) -> assertEqual [objectId Sha1 marker] missing
         other -> fail ("Missing blob was accepted: " ++ show other)
 
 missingCommitTest :: [(String, Maybe String)] -> IO ()
 missingCommitTest environment = initialized environment "files" Sha1 $ \directory -> do
     (a, _, _) <- makeRoot environment directory uuidA "A"
     removeLoose directory a
-    outcome <- inspectState native directory environment Nothing
+    outcome <- loadManagedState (withGitEnvironment environment native) directory
     expectLeft outcome
 
 replaceTest :: [(String, Maybe String)] -> IO ()
@@ -422,7 +403,7 @@ replaceTest environment = initialized environment "files" Sha1 $ \directory -> d
     (a, _, _) <- makeRoot environment directory uuidA "A"
     (b, _, _) <- makeRoot environment directory uuidB "B"
     _ <- ok environment directory ["replace", BSC.unpack a, BSC.unpack b] BS.empty
-    inspect environment directory Nothing >>= valid
+    inspect environment directory >> pure ()
 
 graftTest :: [(String, Maybe String)] -> IO ()
 graftTest environment = initialized environment "files" Sha1 $ \directory -> do
@@ -436,18 +417,18 @@ graftTest environment = initialized environment "files" Sha1 $ \directory -> do
     _ <- invokeCli environment directory ["enable"] >>= \result -> assertEqual ExitSuccess (gitExitCode result)
     BS.writeFile (directory </> ".git/info/grafts") (w <> "\n")
     removeLoose directory oldMarker
-    outcome <- inspectState native directory environment Nothing
+    outcome <- loadManagedState (withGitEnvironment environment native) directory
     case outcome of
-        Left (MissingReachableObjects missing) -> assertEqual [oldMarker] missing
+        Left (MissingReachableObjects missing) -> assertEqual [objectId Sha1 oldMarker] missing
         other -> fail ("Graft hid incomplete stored history: " ++ show other)
     candidate <- validateCandidate native directory (Map.singleton (nodeId uuidA) (objectId Sha1 w))
     case candidate of
-        Left (MissingReachableObjects missing) -> assertEqual [oldMarker] missing
+        Left (MissingReachableObjects missing) -> assertEqual [objectId Sha1 oldMarker] missing
         other -> fail ("Candidate traversal followed grafts: " ++ show other)
     rejected <- invoke environment directory ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack next, BSC.unpack w] BS.empty
     assertTrue "Hook allowed grafts to hide missing old payload" (gitExitCode rejected /= ExitSuccess)
     _ <- ok environment directory ["hash-object", "-w", "--stdin"] "historical marker is not empty\n"
-    inspect environment directory Nothing >>= valid
+    inspect environment directory >> pure ()
     _ <- ok environment directory ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack next, BSC.unpack w] BS.empty
     pure ()
 
@@ -461,16 +442,16 @@ nestedObjectsTest environment = initialized environment "files" Sha1 $ \director
     top <- line <$> ok environment directory ["mktree"] ("040000 tree " <> contents <> "\t" <> uuidA <> "\n")
     w <- makeCommit environment directory top [a] "Content with nested objects"
     setRef environment directory uuidA w
-    inspect environment directory Nothing >>= valid
+    inspect environment directory >> pure ()
     removeLoose directory payload
-    outcome <- inspectState native directory environment Nothing
-    assertEqual (Left (MissingReachableObjects [payload])) outcome
+    outcome <- loadManagedState (withGitEnvironment environment native) directory
+    assertEqual (Left (MissingReachableObjects [objectId Sha1 payload])) outcome
     _ <- ok environment directory ["hash-object", "-w", "--stdin"] "nested payload\n"
     removeLoose directory link
-    inspectState native directory environment Nothing >>= assertEqual (Left (MissingReachableObjects [link]))
+    loadManagedState (withGitEnvironment environment native) directory >>= assertEqual (Left (MissingReachableObjects [objectId Sha1 link]))
     _ <- ok environment directory ["hash-object", "-w", "--stdin"] "assets/note\n"
     removeLoose directory assets
-    expectLeft =<< inspectState native directory environment Nothing
+    expectLeft =<< loadManagedState (withGitEnvironment environment native) directory
 
 -- Write raw tree bytes deliberately: mktree would reject or normalize some
 -- malformed names before they could reach the production reader/validator.
@@ -500,10 +481,11 @@ nestedMalformedTest environment backend format = initialized environment backend
         assertEqual a observed
         -- Install only in this fixture to exercise read-only inspection/CLI.
         _ <- ok environment directory (ownHookBypass ++ ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack candidate]) BS.empty
-        inspectState native directory environment Nothing >>= assertEqual (Left (HistoryFailure expected))
+        loadManagedState (withGitEnvironment environment native) directory >>= assertEqual (Left (HistoryFailure expected))
         checked <- invokeCli environment directory ["check"]
         assertEqual (ExitFailure 1) (gitExitCode checked)
-        assertTrue "Nested tree diagnostic was lost" ("history-invalid:" `BS.isInfixOf` gitStderr checked)
+        assertTrue "Nested tree diagnostic was lost" ("node_tree_invalid" `BS.isInfixOf` gitStdout checked)
+        assertEqual BS.empty (gitStderr checked)
         _ <- ok environment directory (ownHookBypass ++ ["update-ref", BSC.unpack ("refs/heads/" <> uuidA), BSC.unpack a]) BS.empty
         pure ()
 
@@ -514,13 +496,13 @@ shallowTest environment = initialized environment "files" Sha1 $ \directory -> w
     setRef environment directory uuidA w
     let clone = destination </> "shallow"
     _ <- ok environment directory ["clone", "-q", "--no-local", "--depth=1", "-b", BSC.unpack uuidA, directory, clone] BS.empty
-    result <- inspectState native clone environment Nothing
+    result <- loadManagedState (withGitEnvironment environment native) clone
     assertEqual (Left ShallowRepository) result
     candidate <- validateCandidate native clone (Map.singleton (nodeId uuidA) (objectId Sha1 w))
     assertEqual (Left ShallowRepository) candidate
     incomplete <- invokeCli environment clone ["check"]
     assertEqual (ExitFailure 3) (gitExitCode incomplete)
-    assertTrue "Incomplete history diagnostic lost" ("history-incomplete:" `BS.isInfixOf` gitStderr incomplete)
+    assertTrue "Incomplete history diagnostic lost" ("history_incomplete" `BS.isInfixOf` gitStdout incomplete)
 
 readOnlyTest :: [(String, Maybe String)] -> IO ()
 readOnlyTest environment = initialized environment "files" Sha1 $ \directory -> do
@@ -535,9 +517,8 @@ readOnlyTest environment = initialized environment "files" Sha1 $ \directory -> 
     writeFile (directory </> "untracked") "user data\n"
     indexBefore <- BS.readFile (directory </> ".git/index")
     refsBefore <- ok environment directory ["show-ref"] BS.empty
-    report <- inspect environment directory Nothing
-    valid report
-    assertEqual [True] [case viewKind n of Content _ -> True; _ -> False | n <- reportNodes report]
+    report <- inspect environment directory
+    assertEqual [True] [case validatedKind n of Content _ -> True; _ -> False | oid <- Map.elems (managedRefs report), Just n <- [lookupCommit (managedHistory report) oid]]
     BS.readFile (directory </> ".git/index") >>= assertEqual indexBefore
     BS.readFile note >>= assertEqual "unstaged\n"
     BS.readFile (directory </> "untracked") >>= assertEqual "user data\n"
@@ -554,27 +535,26 @@ worktreeTest environment = initialized environment "files" Sha1 $ \directory -> 
     _ <- ok environment directory ["worktree", "add", "-q", original, BSC.unpack uuidB] BS.empty
     _ <- ok environment directory ["worktree", "move", original, moved] BS.empty
     _ <- ok environment directory ["worktree", "add", "-q", "--detach", detached, BSC.unpack a] BS.empty
-    report <- inspect environment directory Nothing
-    valid report
-    assertEqual 3 (length (reportWorktrees report))
-    let movedPaths = [worktreePath w | w <- reportWorktrees report, worktreeNode w == Just (nodeId uuidB)]
-    assertEqual [Encoding.encodeUtf8 (Text.pack moved)] movedPaths
-    assertEqual [True] [worktreeIsMain w | w <- reportWorktrees report, worktreeNode w == Just (nodeId uuidA)]
-    assertEqual 1 (length [w | w <- reportWorktrees report, worktreeNode w == Nothing])
+    _ <- inspect environment directory
+    records <- Worktrees.listWorktrees (withGitEnvironment environment native) directory Sha1 >>= expectRight
+    assertEqual 3 (length records)
+    assertEqual [Encoding.encodeUtf8 (Text.pack moved)] [Worktrees.treePath w | w <- records, Worktrees.worktreeNode w == Just (nodeId uuidB)]
+    assertEqual [True] [Worktrees.treeMain w | w <- records, Worktrees.worktreeNode w == Just (nodeId uuidA)]
+    assertEqual 1 (length [w | w <- records, Worktrees.worktreeNode w == Nothing])
 
 bareTest :: [(String, Maybe String)] -> IO ()
 bareTest environment = initialized environment "files" Sha1 $ \directory -> withTempDirectory $ \outside -> do
     _ <- makeRoot environment directory uuidA "A"
     let bare = outside </> "bare.git"
     _ <- ok environment directory ["clone", "-q", "--bare", directory, bare] BS.empty
-    inspect environment bare Nothing >>= valid
+    inspect environment bare >> pure ()
 
 symbolicRefTest :: [(String, Maybe String)] -> IO ()
 symbolicRefTest environment = initialized environment "files" Sha1 $ \directory -> do
     (a, _, _) <- makeRoot environment directory uuidA "A"
     _ <- ok environment directory ["update-ref", "refs/heads/notes", BSC.unpack a] BS.empty
     _ <- ok environment directory ["symbolic-ref", BSC.unpack ("refs/heads/" <> uuidA), "refs/heads/notes"] BS.empty
-    result <- inspectState native directory environment Nothing
+    result <- loadManagedState (withGitEnvironment environment native) directory
     assertEqual (Left (SymbolicNodeBranch (nodeId uuidA) "refs/heads/notes")) result
 
 changingRefsTest :: [(String, Maybe String)] -> IO ()
@@ -592,7 +572,7 @@ changingRefsTest environment = initialized environment "files" Sha1 $ \directory
                     n <- atomicModifyIORef' counter (\count -> (count + 1, count))
                     pure $ if n == 1 then fmap (\result -> result{gitStdout = gitStdout result <> "refs/heads/" <> uuidC <> "\0" <> a <> "\0\n"}) outcome else outcome
                 else pure outcome
-    result <- inspectState racing directory environment Nothing
+    result <- loadManagedState (withGitEnvironment environment racing) directory
     assertEqual (Left ReferencesChanged) result
 
 transitionTest :: [(String, Maybe String)] -> IO ()
@@ -623,7 +603,7 @@ cliTest environment = initialized environment "files" Sha1 $ \directory -> do
     let cli = invokeCli environment directory
     empty <- cli ["check"]
     assertEqual ExitSuccess (gitExitCode empty)
-    assertTrue "Missing empty repository summary" ("OK: 0 Nodes" `BS.isPrefixOf` gitStdout empty)
+    assertTrue "Missing empty repository summary" ("valid\n" == gitStdout empty)
     (a, at, _) <- makeRoot environment directory uuidA "A"
     (b, _, _) <- makeRoot environment directory uuidB "B"
     k <- makeCheckpoint environment directory at a [b]
@@ -635,7 +615,7 @@ cliTest environment = initialized environment "files" Sha1 $ \directory -> do
     assertTrue "Tip missing from status" (w `BS.isInfixOf` gitStdout status)
     assertTrue "Status did not query every local Node" (uuidA `BS.isInfixOf` gitStdout status && uuidB `BS.isInfixOf` gitStdout status)
     assertTrue "Worktree registration missing" ("worktree" `BS.isInfixOf` gitStdout status)
-    checked <- cli ["check", "--node", BSC.unpack uuidA]
+    checked <- cli ["check", "--show-refs"]
     assertEqual ExitSuccess (gitExitCode checked)
     bad <- cli ["check", "--node", "bad"]
     assertEqual (ExitFailure 2) (gitExitCode bad)

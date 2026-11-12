@@ -152,6 +152,7 @@ deploy executable git directory path remote = do
                 known <- ExceptT (query git common ["remote"] "")
                 unless (name `elem` BSC.lines known) (throwE "Unknown remote selected for deployment")
         sources <- either throwE pure (selectSources remoteBytes before)
+        forM_ (Map.keys sources) (ExceptT . requireFreeName git common)
         let target = Map.union locals (Map.map (\(Source _ _ oid) -> oid) sources)
         state <- ExceptT (fmap (either (Left . show) Right) (validateCandidate git common target))
         plan <- ExceptT (planDeploymentCandidate git common locals state (if isAbsolute path then path else directory </> path))
@@ -166,6 +167,7 @@ deploy executable git directory path remote = do
         now <- ExceptT (readSnapshot git common format)
         unless (now == before) (throwE "Node refs changed before deployment execution")
         unless (Map.null sources) $ do
+            forM_ (Map.keys sources) (ExceptT . requireFreeName git common)
             let writes = [("create", node, oid) | (node, Source _ _ oid) <- Map.toList sources]
                 checks = [(ref, oid) | Source _ ref oid <- Map.elems sources]
             _ <- ExceptT (transaction git common locals writes checks)
@@ -192,7 +194,7 @@ configSection git directory node = do
         other -> throwE ("Cannot inspect branch configuration: " ++ show other)
 
 transaction :: Git IO -> FilePath -> Map.Map NodeId ObjectId -> [(BS.ByteString, NodeId, ObjectId)] -> [(BS.ByteString, ObjectId)] -> IO (Either String BS.ByteString)
-transaction git directory stable writes sources = query git directory (ownHookBypass ++ ["update-ref", "--stdin"]) payload
+transaction git directory stable writes sources = query git directory (ownHookBypass ++ ["update-ref", "--no-deref", "--stdin"]) payload
   where
     oid = objectIdBytes
     ref node = "refs/heads/" <> nodeIdBytes node
@@ -204,6 +206,14 @@ transaction git directory stable writes sources = query git directory (ownHookBy
                 ++ ["verify " <> name <> " " <> oid value | (name, value) <- sources]
                 ++ ["prepare", "commit"]
             )
+
+requireFreeName :: Git IO -> FilePath -> NodeId -> IO (Either String ())
+requireFreeName git directory node = do
+    result <- Refs.refExists git directory environment ("refs/heads/" <> nodeIdBytes node)
+    pure $ case result of
+        Left problem -> Left (show problem)
+        Right True -> Left "Node ref name is already occupied"
+        Right False -> Right ()
 
 -- Compensation never rewrites history. A changed/checked-out new branch stays.
 -- Unknown observations cause conservative refusal rather than guessed rollback.

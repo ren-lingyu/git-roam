@@ -3,7 +3,7 @@
 {- | Render CLI results and diagnostics through shared text, JSON and CBOR output.
 Preserve filesystem path bytes independently of the selected presentation format.
 -}
-module GitRoam.Output (OutputFormat (..), Value (..), encodeValue, diagnostic, renderDiagnostic, evidenceValue, renderCreation, renderDelete, decimal, nodeText, oidText, stateDiagnostic, inspectionDiagnostic, renderStatus, statusValue, statusDiagnosticValue, nodeValue, oidValue, worktreePairs, deleteValue, deleteFields, inspectionValue, inspectionCode, inspectionHasReport) where
+module GitRoam.Output (OutputFormat (..), Value (..), encodeValue, diagnostic, renderDiagnostic, evidenceValue, renderCreation, renderDelete, decimal, nodeText, oidText, checkValue, renderCheck, renderStatus, statusValue, statusDiagnosticValue, nodeValue, oidValue, worktreePairs, deleteValue, deleteFields) where
 
 import qualified Codec.CBOR.Encoding as CBOR
 import qualified Codec.CBOR.Write as CBOR
@@ -13,26 +13,23 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+import qualified GitRoam.Application.Check as Check
 import GitRoam.Application.Create (CreationResult (..), createdBundlePath)
 import qualified GitRoam.Application.Delete as Deletion
-import GitRoam.Application.Inspect
 import GitRoam.Application.Protection (ProtectionState (..))
 import qualified GitRoam.Application.Status as Status
-import GitRoam.Application.Validation (ValidationError (..))
 import GitRoam.Diagnostic (Evidence (..))
 import qualified GitRoam.Diagnostic as Diagnostic
 import qualified GitRoam.Git.Commit as Commit
 import qualified GitRoam.Git.Status as Working
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId (ObjectId, objectIdBytes)
-import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity (NodeId, nodeIdBytes)
-import GitRoam.Protocol.Objects (ObjectProblem (..))
-import GitRoam.Protocol.Repository
 import GitRoam.Worktree.Paths (encodePath)
 
 data OutputFormat = TextFormat | JsonFormat | CborFormat
@@ -145,23 +142,6 @@ nodeText = Text.pack . BSC.unpack . nodeIdBytes
 
 oidText :: ObjectId -> Text
 oidText = Text.pack . BSC.unpack . objectIdBytes
-
-stateDiagnostic :: StateProblem -> Text
-stateDiagnostic issue = case issue of
-    UnknownNodeTip node tip -> "history-unavailable: " <> nodeText node <> " points to unknown " <> oidText tip
-    RefIdentityMismatch node actual tip -> "identity-mismatch: branch " <> nodeText node <> " points to Node " <> nodeText actual <> " at " <> oidText tip
-
-inspectionDiagnostic :: ValidationError -> Text
-inspectionDiagnostic problem = case problem of
-    HistoryFailure (ObjectUnavailable oid (WrongObjectType kind)) -> "object-type-mismatch: " <> oidText oid <> " has type " <> Text.pack (show kind)
-    ReferencesChanged -> "observation-changed: Node refs changed during inspection; run the command again."
-    ShallowRepository -> "history-incomplete: shallow repositories cannot establish complete Node history."
-    MissingReachableObjects objects -> "objects-missing: " <> Text.intercalate ", " (map (Text.pack . BSC.unpack) objects)
-    NodeNotManaged node -> "node-not-managed: no local branch for " <> nodeText node
-    SymbolicNodeBranch node target -> "symbolic-node-branch: " <> nodeText node <> " points to " <> Text.pack (show target)
-    HistoryFailure (ObjectUnavailable oid reason) -> "history-unavailable: " <> oidText oid <> " " <> Text.pack (show reason)
-    HistoryFailure reason -> "history-invalid: " <> Text.pack (show reason)
-    _ -> "git-read-failure: " <> Text.pack (show problem)
 
 statusDiagnosticValue :: Status.StatusDiagnostic -> Value
 statusDiagnosticValue value =
@@ -312,29 +292,29 @@ deleteFields :: Deletion.DeletePreview -> [(Text, Value)]
 deleteFields report =
     [("node", nodeValue (Deletion.deleteNode report)), ("old_tip", oidValue (Deletion.deleteOldTip report)), ("root", oidValue (Deletion.deleteRoot report)), ("exclusive_commits", Array (map oidValue (Set.toList (Deletion.deleteExclusiveCommits report)))), ("worktrees", Array [Object [("path", Bytes (Worktrees.treePath tree)), ("main", Boolean (Worktrees.treeMain tree))] | tree <- Deletion.deleteWorktrees report]), ("config_keys", Array (map Bytes (Deletion.deleteConfigKeys report))), ("plan_id", maybe Null (String . Encoding.decodeUtf8) (Deletion.deletePlanId report)), ("diagnostics", Array [diagnostic "node_checked_out" "error" (Text.pack problem) | problem <- Deletion.deleteProblems report])]
 
-inspectionValue :: InspectionReport -> Value
-inspectionValue report = Object [("valid", Boolean (null (reportProblems report))), ("nodes", Array (map view (reportNodes report))), ("diagnostics", Array [diagnostic (case problem of UnknownNodeTip _ _ -> "history_unavailable"; RefIdentityMismatch _ _ _ -> "identity_mismatch") "error" (stateDiagnostic problem) | problem <- reportProblems report])]
+checkValue :: Bool -> Check.CheckReport -> Value
+checkValue showRefs report =
+    Object $
+        [("valid", case Check.checkConclusion report of Check.Valid -> Boolean True; Check.Invalid -> Boolean False; Check.Inconclusive -> Null)]
+            ++ [("refs", maybe Null (Object . map (\(node, oid) -> ("refs/heads/" <> nodeText node, oidValue oid)) . Map.toAscList) (Check.checkRefs report)) | showRefs]
+            ++ [("diagnostics", Array (map checkDiagnosticValue (Check.checkDiagnostics report)))]
+
+checkDiagnosticValue :: Check.CheckDiagnostic -> Value
+checkDiagnosticValue value =
+    Object $
+        [("code", String (Check.checkCode value)), ("severity", String "error"), ("message", String (Check.checkMessage value))]
+            ++ [("context", Object context) | not (null context)]
   where
-    view node = Object [("node", nodeValue (viewNode node)), ("tip", oidValue (viewTip node)), ("kind", String (case viewKind node of Root -> "root"; Content _ -> "content"; Checkpoint _ _ -> "checkpoint")), ("latest_checkpoint", maybe Null oidValue (viewLatestCheckpoint node)), ("contexts", Array (map oidValue (viewContextParents node))), ("checkpoint_count", Number (fromIntegral (viewCheckpointCount node))), ("content_tail", Boolean (case viewKind node of Content _ -> True; _ -> False)), ("worktrees", Array [Object [("path", Bytes (worktreePath tree)), ("main", Boolean (worktreeIsMain tree))] | tree <- reportWorktrees report, worktreeNode tree == Just (viewNode node)])]
+    context =
+        [("node", nodeValue node) | Just node <- [Check.checkNode value]]
+            ++ [("object", oidValue oid) | Just oid <- [Check.checkObject value]]
 
-inspectionCode :: ValidationError -> Text
-inspectionCode problem = case problem of
-    RepositoryDiscoveryFailure _ -> "repository_discovery_failed"
-    InspectionGitFailure _ _ -> "git_read_failed"
-    InspectionTransportFailure _ _ -> "git_transport_failed"
-    InvalidGitOutput _ _ -> "invalid_git_output"
-    SymbolicNodeBranch _ _ -> "symbolic_node_branch"
-    NodeNotManaged _ -> "node_not_managed"
-    ShallowRepository -> "history_incomplete"
-    HistoryFailure _ -> "history_invalid"
-    MissingReachableObjects _ -> "objects_missing"
-    ReferencesChanged -> "observation_changed"
-    CandidateStateInvalid _ -> "candidate_state_invalid"
-
-inspectionHasReport :: ValidationError -> Bool
-inspectionHasReport problem = case problem of
-    RepositoryDiscoveryFailure _ -> False
-    InspectionGitFailure _ _ -> False
-    InspectionTransportFailure _ _ -> False
-    InvalidGitOutput _ _ -> False
-    _ -> True
+renderCheck :: Bool -> Check.CheckReport -> Text
+renderCheck showRefs report =
+    Text.unlines $
+        [case Check.checkConclusion report of Check.Valid -> "valid"; Check.Invalid -> "invalid"; Check.Inconclusive -> "inconclusive"]
+            ++ (if showRefs then maybe ["refs unavailable"] refs (Check.checkRefs report) else [])
+            ++ [Check.checkCode issue <> ": " <> Check.checkMessage issue | issue <- Check.checkDiagnostics report]
+  where
+    refs values | Map.null values = ["refs (empty)"]
+    refs values = ["ref refs/heads/" <> nodeText node <> " " <> oidText oid | (node, oid) <- Map.toAscList values]

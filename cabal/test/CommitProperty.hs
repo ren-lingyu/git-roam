@@ -15,7 +15,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
-import qualified GitRoam.Application.Inspect as Inspect
 import GitRoam.Application.Status
 import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Cli (CliResponse (..), statusResponse)
@@ -239,10 +238,8 @@ partialMetadata format git executable repo _ = do
         result <- queryStatus traced repo request >>= expectRight
         assertEqual [] (reportDiagnostics result)
         readIORef calls >>= \args -> assertEqual [] [call | call <- args, any (`elem` call) ["cat-file", "rev-list", "fsck", "status"]]
-    strict <- Inspect.inspectState git repo [] Nothing
-    case strict of
-        Left _ -> pure ()
-        Right complete -> assertTrue "Invalid state reported valid" (not (null (Inspect.reportProblems complete)))
+    strict <- Validation.loadManagedState git repo
+    expectLeft strict
     -- Scoped native batching and one-shot adapters must make the same tip requests.
     inputs <- newIORef []
     let adapter = Git $ \invocation -> do
@@ -338,7 +335,7 @@ sessionObservations format git _ repo parent = do
         modifyIORef' reached (const True)
     readIORef reached >>= assertEqual True
     expectLeft history
-    Inspect.inspectState faulty repo [] Nothing >>= expectLeft
+    Validation.loadManagedState faulty repo >>= expectLeft
     Validation.validateCandidate faulty repo (Map.fromList [(nodeA, a), (nodeB, b)]) >>= expectLeft
 
 sessionStatus :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()

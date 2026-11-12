@@ -8,6 +8,7 @@ module GitRoam.Cli (
     parseCommand,
     runCli,
     statusResponse,
+    checkResponse,
 ) where
 
 import Control.Exception (IOException, try)
@@ -17,23 +18,20 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+import qualified GitRoam.Application.Check as Check
 import qualified GitRoam.Application.Checkpoint as Checkpoints
 import qualified GitRoam.Application.Create as Creation
 import qualified GitRoam.Application.Delete as Deletion
 import qualified GitRoam.Application.Deploy as Deployment
-import GitRoam.Application.Inspect
 import qualified GitRoam.Application.Protection as Protection
 import qualified GitRoam.Application.Status as Status
 import qualified GitRoam.Application.Undeploy as Undeployment
-import GitRoam.Application.Validation (ValidationError (..), inferNode)
 import GitRoam.BuildInfo (packageVersion)
 import qualified GitRoam.Diagnostic as Diagnostic
 import GitRoam.Git
-import GitRoam.Output (decimal, deleteFields, deleteValue, inspectionCode, inspectionDiagnostic, inspectionHasReport, inspectionValue, nodeText, nodeValue, oidText, oidValue, renderDelete, renderStatus, stateDiagnostic, worktreePairs)
+import GitRoam.Output (decimal, deleteFields, deleteValue, nodeText, nodeValue, oidText, oidValue, renderDelete, renderStatus, worktreePairs)
 import qualified GitRoam.Output as Output
-import GitRoam.Protocol.History
 import GitRoam.Protocol.Identity
-import GitRoam.Protocol.Objects (ObjectProblem (..))
 import GitRoam.Worktree.Paths (encodePath)
 import System.Directory (getCurrentDirectory)
 import System.Environment (getExecutablePath)
@@ -46,7 +44,7 @@ data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp |
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = Formatted Output.OutputFormat Command | ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | QueryStatus Status.StatusQuery | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
+data Command = Formatted Output.OutputFormat Command | ShowHelp HelpTopic | ShowVersion | CheckManagedState Bool | QueryStatus Status.StatusQuery | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -148,9 +146,9 @@ parseSubcommand deployment arguments = case arguments of
     ["check", "-h"] -> help CheckHelp
     ["status", "--help"] -> help StatusHelp
     ["status", "-h"] -> help StatusHelp
-    ["check"] -> Right (CheckNode Nothing)
-    ["check", "--node", node] -> CheckNode . Just <$> uuid node
-    "check" : _ -> Left "Usage: git roam check [--node <uuid>]"
+    ["check"] -> Right (CheckManagedState False)
+    ["check", "--show-refs"] -> Right (CheckManagedState True)
+    "check" : _ -> Left "Usage: git roam check [--show-refs]"
     "status" : args -> statusArgs Nothing [] [] args
     ["help", topic] -> Left ("Unknown help topic: " <> quoted topic)
     "version" : _ -> Left "The version command takes no arguments."
@@ -241,7 +239,7 @@ renderHelp topic = case topic of
             ]
     HelpHelp -> Text.unlines ["usage: git roam help [command]", "", "Show general help or help for an available command."]
     VersionHelp -> Text.unlines ["usage: git roam version", "       git roam --version", "", "Print the package version."]
-    CheckHelp -> inspectionHelp "check" "Validate the complete protocol history reachable from the selected managed Node refs."
+    CheckHelp -> Text.unlines ["usage: git roam check [--show-refs]", "", "Validate the complete local managed state exposed by native Git ref enumeration.", "Always checks all enumerated local Node branches and reachable stored history/objects.", "--show-refs adds the initial full refname/OID map without changing validation.", "valid exits 0, invalid exits 1, inconclusive exits 3; argument errors exit 2.", "No worktree, protection configuration or transition checks. Read-only, no network.", "Native enumeration can silently omit dangling symbolic refs; this is a known detection limit."]
     StatusHelp -> Text.unlines ["usage: git roam status -t repo", "       git roam status -t node [-n <uuid>]... [-p tip|commit|worktrees|status|remote]...", "", "--type/-t is required exactly once. Repo rejects --node/-n and --property/-p.", "Node queries default to all canonical local Node branches and tip, worktrees, remote.", "Repeat --node/-n or --property/-p for set selection; properties are exact, not additive.", "Global --format belongs before status. No history validation or network query. Only -p status scans worktree files.", "Remote observations use local refs and upstream configuration. Partial reads have diagnostics and nonzero exit.", "Commit metadata reads only selected tips as raw bytes, without mailmap or encoding conversion. Status verifies worktree identity and reports clean, dirty or unavailable per path. Clean does not establish removal safety."]
     EnableHelp -> Text.unlines ["usage: git roam enable", "", "Install or validate the repository-local reference-transaction Hook.", "The Hook runs git-roam --reference-transaction from Git's PATH, not a pinned executable path.", "An existing canonical Hook is unchanged; recognized old absolute-path Git-roam Hooks are migrated.", "Incomplete, inherited or divergent configuration is refused; Node history is not changed."]
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
@@ -251,16 +249,6 @@ renderHelp topic = case topic of
     NodeDeleteHelp -> Text.unlines ["usage: git roam node delete --node <uuid> [--dry-run | --confirm <plan-id>]", "", "Preview removal of the explicit local UUID branch and its reviewed local branch configuration.", "Deletion does not cascade into other Nodes whose history records contexts from this Node.", "The preview lists commits that become unreachable from the remaining managed refs; Git objects are not erased.", "Any main or linked worktree checking out this branch blocks deletion; no implicit undeploy.", "--dry-run is read-only. Execution requires enabled protection and the complete plan ID.", "Without --confirm, terminal input/stderr are required to review and type the plan ID.", "No cascade, force, object erasure or recovery guarantee; remote refs and other Nodes are retained.", "A later deploy may recreate the Node from fetched remote candidates."]
     NodeCreateHelp -> Text.unlines ["usage: git roam node create --path <path> [--id <uuid>]", "       git roam --deploy-path <absolute-path> node create [--id <uuid>]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Create an identity, empty-marker Root, persistent local branch and linked worktree.", "--id accepts UUIDv4, Nil UUID or Max UUID; without it, a fresh UUIDv4 is generated.", "Top-level --format text (default) preserves the existing output; json and cbor provide structured machine output.", "JSON paths contain UTF-8 text when valid plus a lossless Base64 byte representation; CBOR paths are byte strings.", "Requires enabled matching protection and valid managed history. Uses native Git author/committer configuration.", "Reports UUID, Root OID, actual worktree path and UUID bundle path; existing Nodes are not deployed or advanced.", "Failures compensate only proven new unchanged state; user changes and uncertain results are retained."]
     CheckpointHelp -> Text.unlines ["usage: git roam checkpoint [--node <uuid>] (-m <text> | -F <file>)", "       --context <revision> [--context <revision> ...]", "", "Select an explicit Node or infer it from the current Node worktree. A Checkpoint may directly follow Root.", "Messages must be nonempty UTF-8 text without NUL. -F - reads stdin; no editor is started.", "Each --context selects one external commit parent; argument order determines parent order.", "Contexts accept Git refs and unambiguous commit OIDs, including abbreviations; no revision expressions.", "A context may be a Root, Content or Checkpoint and need not be retained by its Node's current branch.", "Duplicate context OIDs and contexts belonging to the target Node are refused.", "Multiple distinct contexts from one external Node are accepted with a compatibility warning.", "Uses the current committed tree, preserving uncommitted index/worktree data."]
-  where
-    inspectionHelp command description =
-        Text.unlines
-            [ "usage: git roam " <> command <> " [--node <uuid>]"
-            , ""
-            , description
-            , "Select an explicit Node, infer the current Node worktree, or inspect the repository."
-            , "A selected Node is validated through its complete Git parent ancestry; other local Node branches are not required."
-            , "Read-only; repository protection need not be enabled."
-            ]
 
 interactiveDelete :: FilePath -> NodeId -> IO (Either String BS.ByteString)
 interactiveDelete directory node = do
@@ -323,7 +311,12 @@ runFormatted format parsed = case parsed of
     Left message -> pure (failure 2 (message <> "\nTry 'git roam --help' for usage."))
     Right (ShowVersion) -> pure (resultResponse [("version", Output.String (Text.pack packageVersion))] ("git-roam " <> Text.pack packageVersion <> "\n"))
     Right (ShowHelp topic) -> pure (success (renderHelp topic))
-    Right (CheckNode node) -> inspect node
+    Right (CheckManagedState showRefs) -> do
+        directory <- getCurrentDirectory
+        outcome <- Check.checkManagedState (nativeGit defaultGitExecutable) directory
+        pure $ case outcome of
+            Left problem -> diagnosticFailure 3 "repository_discovery_failed" (Text.pack (show problem))
+            Right report -> checkResponse format showRefs report
     Right (QueryStatus request) -> do
         directory <- getCurrentDirectory
         outcome <- Status.queryStatus (nativeGit defaultGitExecutable) directory request
@@ -441,22 +434,6 @@ runFormatted format parsed = case parsed of
         directory <- getCurrentDirectory
         result <- operation directory
         pure $ either (failureAs "protection_failed" . Text.pack) (const (resultResponse [("enabled", Output.Boolean (message == "Repository protection enabled.\n"))] message)) result
-    inspect requested = do
-        directory <- getCurrentDirectory
-        let git = nativeGit defaultGitExecutable
-        selected <- case requested of
-            Just node -> pure (Right (Just node))
-            Nothing -> inferNode git directory
-        outcome <- case selected of
-            Left problem -> pure (Left problem)
-            Right node -> inspectState git directory [] node
-        pure $ case outcome of
-            Left problem -> if format == Output.TextFormat then failure (inspectionExit problem) (inspectionDiagnostic problem) else if not (inspectionHasReport problem) then diagnosticFailure (inspectionExit problem) (inspectionCode problem) (inspectionDiagnostic problem) else CliResponse (ExitFailure (inspectionExit problem)) (Output.encodeValue format (Output.Object [("valid", Output.Boolean False), ("nodes", Output.Array []), ("diagnostics", Output.Array [Output.diagnostic (inspectionCode problem) "error" (inspectionDiagnostic problem)])])) ""
-            Right report ->
-                let issues = reportProblems report
-                    output = if null issues then "OK: " <> decimal (length (reportNodes report)) <> " Nodes; histories and recorded contexts are valid.\n" else ""
-                    errors = Text.concat ["git-roam: " <> stateDiagnostic issue <> "\n" | issue <- issues]
-                 in CliResponse (if null issues then ExitSuccess else ExitFailure 1) (if format == Output.TextFormat then Encoding.encodeUtf8 output else Output.encodeValue format (inspectionValue report)) (if format == Output.TextFormat then errors else "")
     resultResponse fields text = if format == Output.TextFormat then success text else CliResponse ExitSuccess (Output.encodeValue format (Output.Object fields)) ""
     success output = CliResponse ExitSuccess (Encoding.encodeUtf8 output) ""
     failure code message =
@@ -473,11 +450,9 @@ statusResponse format report =
             (if format == Output.TextFormat then Encoding.encodeUtf8 (renderStatus report) else Output.encodeValue format (Output.statusValue report))
             (if format == Output.TextFormat then Text.unlines ["git-roam: " <> Status.statusMessage issue | issue <- issues] else "")
 
-inspectionExit :: ValidationError -> Int
-inspectionExit problem = case problem of
-    HistoryFailure (ObjectUnavailable _ (WrongObjectType _)) -> 1
-    HistoryFailure (ObjectUnavailable _ _) -> 3
-    HistoryFailure _ -> 1
-    SymbolicNodeBranch _ _ -> 1
-    NodeNotManaged _ -> 1
-    _ -> 3
+checkResponse :: Output.OutputFormat -> Bool -> Check.CheckReport -> CliResponse
+checkResponse format showRefs report =
+    CliResponse
+        (case Check.checkConclusion report of Check.Valid -> ExitSuccess; Check.Invalid -> ExitFailure 1; Check.Inconclusive -> ExitFailure 3)
+        (if format == Output.TextFormat then Encoding.encodeUtf8 (Output.renderCheck showRefs report) else Output.encodeValue format (Output.checkValue showRefs report))
+        ""

@@ -11,7 +11,6 @@ import qualified GitRoam.Application.Checkpoint as Checkpoint
 import qualified GitRoam.Application.Create as Create
 import qualified GitRoam.Application.Delete as Delete
 import qualified GitRoam.Application.Deploy as Deploy
-import qualified GitRoam.Application.Inspect as Inspect
 import qualified GitRoam.Application.Protection as Protection
 import qualified GitRoam.Application.Undeploy as Undeploy
 import GitRoam.Application.Validation
@@ -57,7 +56,6 @@ independent git _ repo _ = do
     state <- loadManagedState (withoutWorktrees git) repo >>= expectRight
     _ <- validateCandidate (withoutWorktrees git) repo (managedRefs state) >>= expectRight
     loadOperationState (withoutWorktrees git) repo >>= expectLeft
-    Inspect.inspectState (withoutWorktrees git) repo [] Nothing >>= expectLeft
     calls <- newIORef []
     let observed = Git $ \invocation -> do
             modifyIORef' calls (gitArguments invocation :)
@@ -79,8 +77,6 @@ identity git _ repo _ = do
     case outcome of
         Left (CandidateStateInvalid problems) -> assertTrue "identity evidence retained" (not (null problems))
         _ -> fail (show outcome)
-    report <- Inspect.inspectState git repo [] Nothing >>= expectRight
-    assertTrue "legacy check still reports invalid identity" (not (null (Inspect.reportProblems report)))
 
 incomplete :: Scenario
 incomplete git _ repo _ = do
@@ -137,15 +133,14 @@ session git _ repo parent = do
     state <- loadManagedState git repo >>= expectRight
     failing <- fixtureGit "commit-nonzero" parent
     projected <- newIORef False
-    outcome <- withValidationEvidence failing repo [] Nothing $ \evidence -> do
+    outcome <- withValidationEvidence failing repo [] $ \_ -> do
         writeIORef projected True
-        pure (validateEvidence evidence)
+        pure (Right ())
     assertEqual True =<< readIORef projected
     expectLeft outcome
     loadManagedState failing repo >>= expectLeft
     loadOperationState failing repo >>= expectLeft
     validateCandidate failing repo (managedRefs state) >>= expectLeft
-    Inspect.inspectState failing repo [] Nothing >>= expectLeft
     let oid = objectIdBytes (managedRefs state Map.! nodeA)
     Protection.evaluateTransaction
         failing

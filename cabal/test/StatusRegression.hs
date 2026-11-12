@@ -14,8 +14,8 @@ import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified GitRoam.Application.Deploy as Deploy
-import qualified GitRoam.Application.Inspect as Inspect
 import GitRoam.Application.Status
+import qualified GitRoam.Application.Validation as Validation
 import GitRoam.Application.Worktree (planDeployment)
 import GitRoam.Git
 import qualified GitRoam.Git.Refs as Refs
@@ -274,7 +274,7 @@ adapterFailures format git _ repo parent = do
     let noRefs = Git $ \invocation -> if "for-each-ref" `elem` gitArguments invocation then pure (Right failed) else runGit git invocation
     unavailable <- report noRefs repo defaultQuery
     nodeRows unavailable >>= assertEqual []
-    Inspect.inspectState noRefs repo [] Nothing >>= expectLeft
+    Validation.loadManagedState noRefs repo >>= expectLeft
     planDeployment noRefs repo trusted (parent </> "refused") >>= expectLeft
     strict <- Refs.readNodeRefs noRefs repo [] format Refs.LocalNodes
     assertEqual [] (Refs.observationRefs strict)

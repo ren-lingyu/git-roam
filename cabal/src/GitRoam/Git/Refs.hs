@@ -17,6 +17,7 @@ module GitRoam.Git.Refs (
     nodeRefArguments,
     decodeNodeRefs,
     readNodeRefs,
+    refExists,
 ) where
 
 import qualified Data.ByteString as BS
@@ -68,6 +69,8 @@ remoteNodeCandidate ref = do
 
 -- Successful rows and complete enumeration are separate facts. Strict callers
 -- must explicitly require completeness; Status can retain reliable successes.
+-- This describes Git's observable enumeration, not an exhaustive backend audit:
+-- Git can silently omit dangling symrefs. Use refExists for exact-name occupancy.
 data RefObservation = RefObservation
     { observationRefs :: [NodeRefObservation]
     , observationErrors :: [RefReadError]
@@ -81,6 +84,17 @@ requireCompleteRefs :: RefObservation -> Either RefReadError [NodeRefObservation
 requireCompleteRefs result = case observationErrors result of
     [] -> Right (observationRefs result)
     problem : _ -> Left problem
+
+-- Exact-name occupancy is distinct from successful OID resolution. In
+-- particular, native enumeration may omit a dangling symbolic reference.
+refExists :: Git IO -> FilePath -> [(String, Maybe String)] -> BS.ByteString -> IO (Either RefReadError Bool)
+refExists git directory environment ref = do
+    result <- runGit git (GitInvocation directory ["refs", "exists", BSC.unpack ref] BS.empty environment)
+    pure $ case result of
+        Left problem -> Left (RefTransportFailure problem)
+        Right value | gitExitCode value == ExitSuccess && BS.null (gitStdout value) && BS.null (gitStderr value) -> Right True
+        Right value | gitExitCode value == ExitFailure 2 && BS.null (gitStdout value) -> Right False
+        Right value -> Left (RefCommandFailure value)
 
 nodeRefArguments :: NodeRefScope -> [String]
 nodeRefArguments scope =

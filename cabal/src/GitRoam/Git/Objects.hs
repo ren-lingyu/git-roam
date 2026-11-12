@@ -97,7 +97,7 @@ nativeHistorySource git directory format environment =
         pure $ do
             (kind, body) <- outcome
             if kind /= expected then Left (WrongObjectType kind) else pure ()
-            either (Left . ObjectReadFailure . BSC.pack) Right (decoder body)
+            either (Left . MalformedObject . BSC.pack) Right (decoder body)
 
 -- Raw object transport shared by protocol decoding and optional metadata reads.
 -- Keep decoding policies independent; neither reader walks history here.
@@ -107,17 +107,17 @@ readStoredObject git directory environment oid = do
     pure $ case outcome of
         Left problem -> Left (ObjectReadFailure (BSC.pack (show problem)))
         Right result
-            | gitExitCode result /= ExitSuccess -> Left (ObjectReadFailure (gitStderr result))
+            | gitExitCode result /= ExitSuccess || not (BS.null (gitStderr result)) -> Left (ObjectReadFailure (gitStderr result))
             | otherwise -> envelope oid (gitStdout result)
 
 envelope :: ObjectId -> BS.ByteString -> Either ObjectProblem (BS.ByteString, BS.ByteString)
 envelope oid bytes =
     let (header, afterHeader) = BSC.break (== '\n') bytes
-     in if header == objectIdBytes oid <> " missing"
+     in if bytes == objectIdBytes oid <> " missing\n"
             then Left MissingObject
             else case BSC.words header of
                 [actual, kind, size]
-                    | actual == objectIdBytes oid && not (BS.null afterHeader) ->
+                    | actual == objectIdBytes oid && kind `elem` ["commit", "tree", "blob", "tag"] && not (BS.null afterHeader) ->
                         case BSC.readInteger size of
                             Just (count, leftover)
                                 | BS.null leftover && count >= 0
@@ -168,14 +168,14 @@ batchMetadata git directory environment oids@(first : _) = do
     outcome <- lift (runGit git (GitInvocation directory ["--no-replace-objects", "cat-file", "--batch-check=%(objectname) %(objecttype)"] (BSC.unlines (map objectIdBytes oids)) (environment ++ readOnlyEnvironment)))
     bytes <- case outcome of
         Left problem -> throwE (first, ObjectReadFailure (BSC.pack (show problem)))
-        Right result | gitExitCode result == ExitSuccess -> pure (gitStdout result)
+        Right result | gitExitCode result == ExitSuccess && BS.null (gitStderr result) -> pure (gitStdout result)
         Right result -> throwE (first, ObjectReadFailure (gitStderr result))
     let rows = BSC.lines bytes
-    if length rows /= length oids then throwE (first, ObjectReadFailure "Invalid batch metadata count") else pure ()
+    if length rows /= length oids || not ("\n" `BS.isSuffixOf` bytes) then throwE (first, ObjectReadFailure "Invalid batch metadata count or terminator") else pure ()
     mapM decode (zip oids rows)
   where
-    decode (oid, row) = case BSC.words row of
-        [actual, kind] | actual == objectIdBytes oid -> pure (if kind == "missing" then Nothing else Just kind)
+    decode (oid, row) = case BSC.split ' ' row of
+        [actual, kind] | actual == objectIdBytes oid && kind `elem` ["commit", "tree", "blob", "tag", "missing"] -> pure (if kind == "missing" then Nothing else Just kind)
         _ -> throwE (oid, ObjectReadFailure "Invalid batch metadata response")
 
 -- Annotated tags are peeled from their stored object headers, without invoking
