@@ -117,10 +117,12 @@ manifest and the project worktree/index are clean. The committed-source handoff
 associates that exact project state without rerunning unchanged tests. Recoverable source/tests and durable results
 suffice; routine failed/successful build logs need no new archive.
 
-## Completed B2: independent Status and partial observations
+## Initial B2 implementation and verification (before review corrections)
 
-B2 is implemented and verified, not yet committed. The baseline is the user's
-B1 commit. Changed project paths: Application/{Status,Protection,Inspect,Deploy,
+The user committed the initial B2 implementation as a2018485275e476c9cb9645cb2dc67c27b40b482.
+All 57 committed blobs matched the original checked snapshot. This section
+retains pre-review implementation evidence; corrections are recorded below.
+Its implementation baseline was the user's B1 commit. Changed project paths: Application/{Status,Protection,Inspect,Deploy,
 Worktree}.hs, Git/Refs.hs, Cli.hs, Output.hs, git-roam.cabal; tests Status/Refs/
 Unit/Output/Inspection/EndToEnd; README.org and CHANGELOG.org (17 paths total,
 including two new files). Package/release metadata and Protocol modules are
@@ -196,9 +198,97 @@ No new raw archive or guessed project parent for uncommitted code is needed.
 
 The entire phase diff, including new files, is reviewed as one coherent B2
 change. Draft tmp/commit.md uses full module scope GitRoam.Application.Status
-and a BREAKING-CHANGE footer. Await user review/commit or explicit B3 instruction;
-if committed, verify its blobs against the manifest before claiming exact
-committed-source equivalence. Do not repeat unchanged tests solely for a parent.
+and a BREAKING-CHANGE footer. The subsequent user commit was verified by blob
+equivalence without rerunning unchanged tests. The later B2 review, corrections
+and current next action supersede the original handoff.
+
+## B2 review corrections: implemented, verified, staged by the user
+
+The user supplied a review of committed initial B2, identifying three groups:
+upstream config semantics, failure coupling/partial config loss, and remote
+candidate scope/empty-result semantics. Static code inspection confirmed them.
+The report's independent Git 2.47.3 experiments were attributed source evidence,
+not our test results. Native regressions now confirm the relevant behavior on
+this project's pinned Git 2.56.0. This is one B2 repair, not B3/B4/B5/B6 work.
+
+Changed paths (seven): Application/Status.hs, Git/Refs.hs, test/Status.hs, new
+test/StatusRegression.hs, git-roam.cabal, README.org and CHANGELOG.org. Public
+parameters, default properties, output fields, protocol, check scope and strict
+readNodeRefs/requireCompleteRefs guarantees remain the same. No refspec engine,
+new Status public fields or compatibility wrapper was added.
+
+Upstream semantics now distinguish known absent merge configuration from an
+unresolved configured upstream. Remote-only config is a successful upstream:null
+observation, including default status -t node. Native upstream:remotename
+supplies Git's effective remote when resolved; config records retain read order
+for last-value scalar evidence if native resolution is unavailable. Repeated/
+inherited remote entries are not treated as ambiguity. merge remains multi-valued;
+multiple entries retain known remote information and diagnose the single-upstream
+representation limit. Missing remote/mapping retains known merge evidence and
+an unresolved diagnosis. Official references consulted:
+https://git-scm.com/docs/git-config and https://git-scm.com/docs/git-for-each-ref.
+
+UpstreamConfigObservation replaces all-or-nothing config parsing. Native
+NUL-terminated key-only entries (no LF/value) produce Node-local problems;
+other Nodes' successful config remains available. Unknown record framing,
+transport or nonzero command failures remain global/unavailable. Config semantic
+problems are filtered to selected Nodes; global read failures are not hidden.
+
+Normal Status paths still combine ref/upstream atoms. On upstream command or
+transport failure, Status explicitly falls back to LocalAndRemoteNodes batch
+observation, keeps independent base facts and preserves the original upstream
+failure diagnostic/nonzero exit. Failed stdout is still discarded by readNodeRefs;
+strict consumers still require complete base evidence. Both before/after passes
+apply this policy. Base fingerprints always compare refs/OIDs/symbolic targets;
+metadata fingerprints are compared only when observations are comparable.
+There is no atomic multi-batch snapshot claim or per-Node subprocess fallback.
+
+Symbolic remote semantic diagnostics now apply only to chosen local Node IDs.
+Unselected local and remote-only symbolic candidates do not cause semantic
+failure. Global ref errors/warnings still invalidate completeness. refs:null
+means selected candidates existed but no ordinary candidates can be reliably
+reported; refs:[] means genuinely none. Mixed candidates retain ordinary refs
+plus the selected Node diagnostic. Deploy's strict rejection is unchanged.
+
+Added 14 regression groups (Status now 30 groups). Native four-combination
+fixtures test no config, remote-only default success, normal/local upstream,
+repeated remotes, global/local precedence, multiple merges, unresolved merge,
+valueless config/fallback, independent tip/worktree/tracking data, retained A
+config despite B's bad entry, complete JSON/CBOR partial reports/exit 3,
+selected/unselected/remote-only symbolic cases, nullable refs, global warnings
+and Deploy refusal. Explicit default JSON and CBOR CLI assertions cover
+remote-only and repeated remote successes; JSON asserts symbolic-only refs:null.
+Adapter tests exercise command failure with unreliable stdout, bounded four-ref
+fallback calls, base-read failure with no fabricated Nodes, strict protocol/
+worktree rejection and races during fallback. Existing normal-path 2/34-Node
+call-count regressions still pass with two ref queries, one batch config read
+and one worktree registration query.
+
+Both authorized full nix flake check runs completed successfully within 300s,
+max-jobs=1, cores=1, without timeout. Initial successful product derivation:
+/nix/store/j5d1gicqnfnlvsxiynn7jdxxnagi6qry-git-roam-0.2.0.drv.
+After adding explicit final CLI assertions, the final fresh build/check passed
+all 16 suites / 328 groups with -Wall -Werror and treefmt on 56 eligible files,
+zero changes. Final derivation:
+/nix/store/yny4andfmm9x3xn480hcj30rs80x6c0w-git-roam-0.2.0.drv.
+One new test layout parse error was fixed before building; no production compile
+or test failure occurred in the correction runs. Only x86_64-linux was checked;
+other systems, exact minimum Git/Git 2.47.3 and 10^4-Node timings are not proven.
+
+All 58 worktree AND index files match the final snapshot by SHA-256. Temporary
+verification material is tmp/b2-review-check and tmp/b2-review-verification.json;
+do not overwrite the original initial-B2 manifest. The user staged changes
+during execution and then staged the final test assertions; no agent project
+staging was performed. The complete seven-path diff is reviewed as one coherent
+fix. Static diff HEAD --check passed. Draft tmp/commit.md uses
+fix(GitRoam.Application.Status): preserve scoped upstream observations,
+without a Breaking footer. Current project HEAD is still initial B2; fixes are
+staged/uncommitted, so completion memory adds no guessed project parent.
+Source/tests plus durable conclusions suffice; no raw review archive is needed.
+
+Await user review/commit, then freeze B2 before proceeding to B3 under a new
+instruction. If the user commits, compare its blobs with the review manifest
+before claiming exact committed-source test equivalence.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -442,8 +532,9 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-B1 is complete, verified and committed by the user. B2 is complete and verified
-in the uncommitted worktree; await review/commit or a new B3 instruction. Only within this conversation / the
+B1 and initial B2 were committed by the user. B2 review corrections are now
+verified and user-staged, not committed; await review/commit and freeze B2 before
+a new B3 instruction. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;

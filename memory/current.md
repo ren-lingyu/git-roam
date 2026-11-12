@@ -1,85 +1,83 @@
 # Git Roam current state
 
-## Active objective: repair B2 review findings before B3
+## Current handoff: B2 review corrections verified and user-staged
 
-The user committed B2 as a2018485275e476c9cb9645cb2dc67c27b40b482; all 57
-committed files match the B2 verification manifest, and the worktree/index were
-clean at resumption. The user then supplied a B2 review requiring corrections
-before B3. Treat initial B2 completion/test evidence below as the pre-fix state. No agent
-project staging, commit, branch or push was performed. Development TODO stays
-v0.3.0; package/release metadata remains 0.2.0 and release history is untouched.
+The user committed initial B2 at a2018485275e476c9cb9645cb2dc67c27b40b482.
+All 57 blobs matched its original verification manifest; that exact committed
+state is grounded in the previous GAW checkpoint. The user then supplied a B2
+review. Its three issue groups are now repaired and verified in the project
+worktree/index; the user staged the seven changed paths, including the final
+additional CLI assertions. No unstaged changes remain. The agent did not stage
+or commit ordinary project files. The fix is still uncommitted on initial B2.
 
-The foundation now returns RefObservation with reliable records and typed
-errors, with observationComplete/requireCompleteRefs for strict consumers.
-Malformed/truncated records do not erase independent successes; all duplicates
-are quarantined. Successful Git warnings retain reliable rows but mark the set
-incomplete; failed transports/nonzero processes are not salvaged as success.
-Inspect/Deploy/Worktree explicitly require completeness. Status uses this model
-directly, not a wrapper around the former strict-only readNodeRefs result.
+Corrected remote-only config (no merge => known no upstream), scalar remote
+precedence (native upstream:remotename, with last-read config as evidence), and
+multiple-merge diagnostics. UpstreamConfigObservation retains successful Node
+config and typed Node-local problems, including native key-NUL records without
+LF/value. Failed commands or unreliable record boundaries stay conservative.
+Optional upstream atom failures trigger a plain batched ref fallback; reliable
+UUIDs/tips/worktree registration/tracking refs survive, and original upstream
+failure diagnostics/nonzero exit remain. Failed stdout is never salvaged as
+trusted refs. Snapshot comparison still detects base-ref changes; metadata is
+compared only across comparable successful observations, without atomic claims.
 
-Application.Status provides typed queries/reports and three B2 Node properties:
-tip, worktrees and remote. CLI requires one -t repo|node, supports repeatable
--n/-p sets and exact properties, defaults to all local UUID branches and those
-three properties. Repo observes only protection config. Upstream uses batch
-ref atoms plus one batch branch-config read, retaining local '.', missing and
-ambiguous configuration evidence. Model/outputs distinguish unrequested,
-empty/absent, unavailable and known partial data. Machine partial reports are
-complete values with contextual diagnostics and exit 3; arguments exit 2.
-Check's existing scope/output/validation is preserved. Commit/status properties
-remain B3/B4 work; no history validation or file scanning in B2 Status.
+Semantic symbolic-remote diagnostics are now limited to selected local Nodes;
+global read errors/omission warnings still affect completeness. Selected Nodes
+with only excluded symbolic candidates have refs:null, genuinely absent
+candidates refs:[], and mixed candidates retain reliable ordinary refs. The
+public CLI/schema/default properties, check, storage protocol and strict base
+read requirements are unchanged. Deploy still rejects symbolic candidates.
+B3–B6 were not implemented as part of this correction. README and CHANGELOG
+have scoped fixes, and StatusRegression is registered in the Status test suite.
 
-Final source passed a fresh authorized 300s one-job/one-core nix flake check:
-16 suites / 314 groups, including 16 new Status groups and native SHA-1/SHA-256
-x files/reftable coverage. All components compile under -Wall -Werror.
-Successful product derivation:
-/nix/store/0r192cnaqkms3rpx13lmf1sj5j9g5wix-git-roam-0.2.0.drv.
-A final CHANGELOG-only wording correction removed the obsolete B1 no-CLI-change
-claim; the final flake check reused the identical product and freshly passed
-treefmt on 55 eligible files with zero changes. All 57 current source/document
-files match the final isolated snapshot by SHA-256. Temporary verification
-manifest: tmp/b2-check-manifest.json. Only x86_64-linux was checked; other
-platforms/minimum Git/10^4-Node timing were not established. No timeout occurred.
-Initial compile stopped at new list head under -Werror; it was replaced with
-byte-boundary parsing and patterns. The subsequent full checks passed; a
-formatter root-option conflict was also corrected before any formatting write.
+Final authorized nix flake check passed with exit 0: fresh -Wall -Werror build,
+all 16 suites / 328 groups (30 Status groups, 14 added), treefmt 56 eligible
+files with zero changes. Native regression groups cover SHA-1/SHA-256 x
+files/reftable; they reproduce the actual valueless-config/upstream failure on
+pinned Git 2.56.0, retain A's known config despite B's invalid entry, and check
+default JSON/CBOR success for remote-only/repeated remote, partial-report exit 3,
+selected-symbolic refs:null, remote-only exclusion, global warnings and Deploy
+refusal. Adapter tests prove four bounded fallback ref calls, no fabricated
+Nodes when base reads fail, strict rejection and ref-race detection. Existing
+2-to-34-Node normal-path call counts remain unchanged. Only x86_64-linux was
+checked; other platforms, Git 2.47.3 and 10^4-Node timing were not verified.
+Successful final product derivation:
+/nix/store/yny4andfmm9x3xn480hcj30rs80x6c0w-git-roam-0.2.0.drv.
+Both full check runs passed; the first preceded extra CLI assertions. A new
+test's initial layout parse error was corrected before either build; no timeout
+or production compilation/test failure occurred in this correction task.
 
-Tests prove default queries use the same Git call count for 2 and 34 Nodes
-(two ref snapshots, one batch upstream config, one worktree registration), no
-cat-file/status/fetch calls, independent tip costs, partial-result/strict-view
-behavior, duplicate quarantine, unknown upstream vs absence, config states,
-ref races, remote-only exclusion and complete JSON/CBOR partial reports. README,
-CHANGELOG and CLI help describe the implemented B2 contract and breaking change.
-The complete 17-path diff, including both new files, was reviewed as one coherent
-phase. A commit draft is ready in validated tmp/commit.md:
-feat(GitRoam.Application.Status): add repository and Node queries,
-with a BREAKING-CHANGE footer. No staged diff was substituted for the full
-phase diff. No new raw archive is needed for routine source/check logs.
+All 58 final working/index files match the successfully tested isolated snapshot
+by SHA-256. New verification material: tmp/b2-review-check and
+tmp/b2-review-verification.json; original B2 verification material is preserved.
+Full seven-path diff (staged plus initially unstaged additions) was reviewed;
+static diff HEAD --check passed. One fix commit draft is ready in validated
+tmp/commit.md: fix(GitRoam.Application.Status): preserve scoped upstream observations.
+No Breaking footer because this repairs the intended contract without changing
+CLI/schema. Split assessment: not necessary, medium complexity, one B2 fix.
+No raw transcript/review archive is needed; maintained regressions and these
+conclusions retain the necessary evidence. This completion checkpoint adds no
+project parent for staged, uncommitted fixes.
 
-See [status-stage-b.md](status-stage-b.md) for the full adopted B1–B7 contract,
-B1/B2 evidence and remaining phases. B5 must still migrate Protection Hook's
-private ref enumeration and remove management InspectionReport/ManagedState
-coupling atomically. Keep worktrees/status independent properties linked by raw
-path. Status partial results never become trusted ManagedState. This new stage
-B is distinct from the completed v0.2.0 protocol-cutover phases below.
+See [status-stage-b.md](status-stage-b.md) for the full B1–B7 direction and review
+correction details. B5 must still migrate Hook ref enumeration and remove
+management InspectionReport/ManagedState coupling. Keep worktrees/status as
+independent properties. Partial observations never establish trusted state.
+Development TODO remains v0.3.0, package/release metadata 0.2.0.
 
-Only during this conversation / current Status redesign B1–B7, automatically
-draft a commit message from the COMPLETE stage diff at each phase completion,
-even before user staging; use the principal full Haskell module name as scope,
-preserving capitalization. Save only the message in validated tmp/commit.md.
-This temporary convention ends with the redesign, not a global task preference.
-It does not authorize project staging/commits. User authorized on-demand
-working-directory Nix eval/build/check and outside-workspace read-only commands;
-B2 also had explicit scoped Haskell/Cabal formatting authorization (120s).
+Only during this conversation / current Status redesign B1–B7, draft a commit
+message from the COMPLETE stage diff at each completion; use the principal full
+Haskell module name as scope and save only the message in validated tmp/commit.md.
+This convention does not apply to unrelated tasks or authorize project Git writes.
+On-demand working-directory Nix eval/build/check and outside-workspace read-only
+commands are authorized; B2 scoped Haskell/Cabal formatting uses a 120s bound,
+checks 300s and one job/core. Respect actual user staging and preserve their index.
 
-Current work: correct remote-only and effective scalar remote semantics, isolate
-upstream atom failures from base ref facts with bounded batch fallback, retain
-Node-local config successes/errors including native valueless records, and scope
-symbolic remote diagnostics/unknown-empty distinctions to selected local Nodes.
-Preserve CLI/default/schema/protocol/check/strict-base-observation boundaries.
-Add native four-combination and adapter regressions, sync README/CHANGELOG, run
-authorized checks and draft one full-diff fix commit message. Initial tests do
-not verify these fixes. Do not freeze B2 or begin B3 until correction acceptance.
-No project staging/commits/pushes are authorized.
+Next: await user review/commit of this B2 fix before treating B2 as frozen or
+starting B3. If committed, compare its blobs to the review verification manifest
+before grounding that exact commit; do not rerun unchanged tests just to obtain
+a parent. No agent project commits/pushes, lifecycle changes or release action.
+Earlier handoff sections below describe historical states, not next actions.
 
 ## Completed follow-ups: creation format cleanup and output documentation
 
