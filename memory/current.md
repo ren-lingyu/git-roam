@@ -47,6 +47,14 @@ Keep B1–B7, migrate all management callers together in B5, and keep worktrees/
 status independent exact-select properties linked by raw path. Status may be
 partial; mutators still require complete trusted ManagedState and fresh preflight.
 
+Post-B1 user requirements refine the pending phases: B2 must retain reliable
+partial ref observations AND expose completeness for strict callers, and gather
+upstream information in batch rather than query each Node. B5 must migrate
+Protection Hook's remaining private ref enumeration to the shared reader and
+remove all management InspectionReport-to-ManagedState dependencies. Strict
+callers/Hook must reject incomplete evidence. The detailed requirements and
+acceptance checks are in status-stage-b.md; these are planned, not implemented.
+
 Only for this conversation / the current Status-query redesign (B1–B7), the
 user requires a commit-message draft immediately at each subsequent stage
 completion, based on the COMPLETE stage diff, without waiting for a

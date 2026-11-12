@@ -116,6 +116,59 @@ manifest and the project worktree/index are clean. The committed-source handoff
 associates that exact project state without rerunning unchanged tests. Recoverable source/tests and durable results
 suffice; routine failed/successful build logs need no new archive.
 
+## Post-B1 requirements adopted for B2 and B5
+
+The user refined the plan after inspecting actual B1. These are required phase
+outcomes, not completed implementation. Keep B1–B7 as seven nodes.
+
+B2 must evolve the shared ref observation to retain independently reliable
+partial results and diagnostics, while exposing an explicit completeness
+judgment usable by strict callers. Status may report those reliable successes;
+Inspect and management callers must still require complete acceptable evidence
+before constructing or using trusted state. A collection of successful rows
+alone is not proof of a complete ref set. Do not salvage ambiguous/conflicting
+rows by guessing, or treat arbitrary stdout from a failed command as reliable
+without evidence. The exact observation/result types remain an implementation
+choice; no permanent compatibility wrapper is required.
+
+B2 must also extend batch ref observation to obtain upstream information rather
+than launch one Git query per Node. Use bounded batch ref/config observations as
+needed to retain missing/ambiguous upstream configuration semantics; the exact
+Git fields/commands need implementation verification. Cover absent upstream,
+local remote='.', configured-but-missing resolved refs and ambiguous config
+without inventing remote names. Adapter tracing must demonstrate that upstream
+observation subprocess count does not grow linearly with Node count.
+
+B2 acceptance must cover reliable successes retained alongside observation
+failures/diagnostics, unavailable or ambiguous evidence not claimed successful,
+and strict consumers rejecting incomplete observations even when usable rows
+exist. Preserve existing protocol/preflight safety tests while changing the
+reader's result model. Batch upstream tests must exercise multiple Nodes and
+relevant object-format/ref-backend integration coverage.
+
+B5 must migrate Protection Hook's ref enumeration to the shared reader, in
+addition to migrating its candidate-validation dependency. Source inspection
+at the committed B1 state confirms evaluateTransaction still has its own
+for-each-ref and decodeRef path. Remove this duplicate enumeration/parser once
+migrated; Hook transaction-input parsing and packed-ref pruning evidence remain
+separate responsibilities. Require complete ref observations before candidate
+validation; preserve duplicate/symbolic rejection, expected-old evidence,
+Content fast-path versus whole-state validation, Root conflict checks and the
+existing pack-refs/native deletion protections.
+
+B5 must remove every management operation's dependency on InspectionReport for
+ManagedState, including reportManagedState access. This reinforces the original
+atomic caller migration: direct complete-state/candidate validators for Create,
+Deploy, Undeploy, Delete, Checkpoint and Protection, with explicit worktree safety
+preconditions where necessary. No conversion of partial Status into trusted
+state and no permanent report adapter. Acceptance includes searches confirming
+no management reportManagedState/InspectionReport dependency or duplicate Hook
+ref enumeration remains, plus strict incomplete-observation and installed-Hook
+transaction/safety regressions.
+
+This addition updates planning/memory only; no B2/B5 code or new test run is
+claimed. The already verified B1 snapshot remains the implementation baseline.
+
 ## Public Status decisions
 
 Keep global prefix-only --format text|json|cbor, no -f/subcommand --format.
@@ -237,7 +290,10 @@ with worktrees/files. No daemon/watcher/cache or speculative complex concurrency
    Bare status becomes invalid here; Check remains unchanged. Test parser
    repetitions/mixed options/rejections, missing Nodes, all-Nodes default,
    config states, multiple/undeployed Nodes/worktrees, upstream/remote refs,
-   bytes and protocol-invalid history still observable.
+   bytes and protocol-invalid history still observable. Extend shared ref
+   observation for reliable partial successes plus explicit completeness for
+   strict callers, and obtain upstream via batch reads rather than per-Node
+   subprocesses. Test incomplete-result rejection and upstream process counts.
 3. B3: standalone tip metadata reader with type checks and property diagnostics.
    Test root/single/multiple parents, distinct identities, timestamp boundaries/
    offsets, empty/nonstandard/multipart messages, non-UTF-8/encoding and header
@@ -248,7 +304,10 @@ with worktrees/files. No daemon/watcher/cache or speculative complex concurrency
    untracked/unmerged, special/non-UTF-8 paths, locked/prunable/missing paths,
    no associated worktree, selected Nodes and no index/ref/user-data changes.
 5. B5: migrate ALL reportManagedState consumers AND candidate validators in one
-   coherent node. Audit implicit worktree preconditions. Preserve Create,
+   coherent node; remove all management InspectionReport/ManagedState coupling.
+   Migrate Protection Hook ref enumeration/parser to the shared reader with
+   strict completeness enforcement. Audit implicit worktree preconditions.
+   Preserve Create,
    Deploy, Undeploy, Delete, Checkpoint and Protection Hook safety. Invalid/
    missing history, races, invalid config, dirty/ignored/untracked user data,
    compensation/residual evidence and multi-Node contexts remain protected.
