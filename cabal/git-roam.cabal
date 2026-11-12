@@ -132,6 +132,7 @@ test-suite status-tests
   hs-source-dirs:     test
   main-is:            Status.hs
   other-modules:
+    BatchFixture
     CommitProperty
     StatusRegression
     TestSupport
@@ -148,6 +149,7 @@ test-suite status-tests
     , filepath
     , git-roam
     , text
+    , unix
 
   default-language:   Haskell2010
   ghc-options:        -Wall -threaded -Werror
@@ -373,6 +375,7 @@ test-suite batch-tests
   hs-source-dirs:     test
   main-is:            Batch.hs
   other-modules:
+    BatchFixture
     TestSupport
     WorktreeFixture
 

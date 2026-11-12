@@ -105,14 +105,16 @@ queryStatus git directory request = do
         (before, upstreamBeforeErrors) <- observeRefs format scope
         let localRefs = Map.fromList [(Refs.observedNode ref, ref) | ref <- Refs.observationRefs before, Refs.observedRemotePrefix ref == Nothing]
             chosen = case selection of AllNodes -> Map.keys localRefs; SelectedNodes values -> Set.toAscList values
-        commits <-
+        commitObservation <-
             if wants CommitProperty
                 then Commit.readCommitMetadata safeGit directory format environment [Refs.observedTip ref | node <- chosen, Just ref <- [Map.lookup node localRefs], BS.null (Refs.observedSymbolic ref)]
-                else pure Map.empty
+                else pure (Commit.CommitObservation Map.empty [])
         trees <- if wants WorktreesProperty then Just <$> Worktrees.listWorktrees safeGit directory format else pure Nothing
         configs <- if wants RemoteProperty then Just <$> Refs.readUpstreamConfig safeGit directory environment else pure Nothing
         (after, upstreamAfterErrors) <- observeRefs format scope
-        let chosenSet = Set.fromList chosen
+        let commits = Commit.observedCommits commitObservation
+            commitSessions = [issue "commit_session_incomplete" Nothing (Just CommitProperty) ("Raw commit metadata session did not finish successfully: " ++ show (Commit.commitSessionProblems commitObservation)) | not (null (Commit.commitSessionProblems commitObservation))]
+            chosenSet = Set.fromList chosen
             registered = case trees of
                 Just (Right records) -> Just (Map.map reverse (Map.fromListWith (++) [(node, [tree]) | tree <- records, Just node <- [Worktrees.worktreeNode tree]]))
                 _ -> Nothing
@@ -134,7 +136,7 @@ queryStatus git directory request = do
                             (if not (wants RemoteProperty) then NotRequested else Available (RemoteObservation upstream (remoteTips node)))
                     missing = case found of
                         Nothing -> [issue (if Refs.observationComplete before then "node_not_found" else "node_unavailable") (Just node) Nothing "No reliable local Node ref was observed"]
-                        Just ref | not (BS.null (Refs.observedSymbolic ref)) -> [issue "symbolic_node_branch" (Just node) (Just TipProperty) "The Node branch is symbolic"]
+                        Just ref | not (BS.null (Refs.observedSymbolic ref)) -> [issue "symbolic_node_branch" (Just node) Nothing "The Node branch is symbolic"]
                         _ -> []
                     commitIssues = [issue "commit_unavailable" (Just node) (Just CommitProperty) (show problem) | wants CommitProperty, Just ref <- [found], BS.null (Refs.observedSymbolic ref), Just (Left problem) <- [Map.lookup (Refs.observedTip ref) commits]]
                  in (row, missing ++ commitIssues ++ [value | wants RemoteProperty, value <- upstreamIssues])
@@ -154,7 +156,7 @@ queryStatus git directory request = do
                     ]
             upstreamReadIssues = [issue "upstream_unavailable" Nothing (Just RemoteProperty) (Text.unpack (statusMessage (refIssue problem))) | problem <- upstreamBeforeErrors ++ upstreamAfterErrors]
             symbolicRemote = [issue "symbolic_remote_ref" (Just (Refs.observedNode ref)) (Just RemoteProperty) "A remote Node candidate is symbolic" | ref <- remoteCandidates, Set.member (Refs.observedNode ref) chosenSet, not (BS.null (Refs.observedSymbolic ref))]
-        pure (NodesReport (map fst rows) (deduplicate (refIssues ++ treeIssues ++ configIssues ++ upstreamReadIssues ++ symbolicRemote ++ concatMap snd rows ++ changed)))
+        pure (NodesReport (map fst rows) (deduplicate (refIssues ++ treeIssues ++ configIssues ++ upstreamReadIssues ++ symbolicRemote ++ concatMap snd rows ++ commitSessions ++ changed)))
     -- The optional atom can fail on branch configuration even when plain refs
     -- remain readable. Keep its failure separate, and never trust failed stdout.
     observeRefs format scope = do

@@ -2,6 +2,7 @@
 
 module CommitProperty (commitTests) where
 
+import BatchFixture (fixtureGit)
 import qualified Codec.CBOR.Read as CBOR
 import qualified Codec.CBOR.Term as CBOR
 import Control.Monad (forM_, unless)
@@ -12,16 +13,19 @@ import qualified Data.ByteString.Lazy as BL
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import qualified GitRoam.Application.Inspect as Inspect
 import GitRoam.Application.Status
+import GitRoam.Cli (CliResponse (..), statusResponse)
 import GitRoam.Git
 import GitRoam.Git.Commit
 import qualified GitRoam.Git.Objects as Objects
 import GitRoam.ObjectId
 import GitRoam.Output
-import GitRoam.Protocol.Identity (nodeIdBytes)
+import GitRoam.Protocol.Identity (NodeId, nodeIdBytes)
 import GitRoam.Protocol.Objects (ObjectProblem (..))
+import qualified GitRoam.Protocol.Objects as Protocol
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import TestSupport
@@ -38,6 +42,8 @@ commitTests =
     ]
         ++ [("commit property native tips and CLI " ++ backend ++ " " ++ show format, fixture backend format (nativeMetadata format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
         ++ [("commit partial results, cost isolation and races " ++ backend ++ " " ++ show format, fixture backend format (partialMetadata format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+        ++ [("native commit session observations and strict history " ++ backend ++ " " ++ show format, fixture backend format (sessionObservations format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+        ++ [("Status session failures preserve independent properties " ++ backend ++ " " ++ show format, fixture backend format (sessionStatus format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
 
 query :: [NodeProperty] -> StatusQuery
 query properties = NodeStatusQuery AllNodes (SelectedProperties (Set.fromList properties))
@@ -98,7 +104,7 @@ readerFailures = do
     oid <- expectRight (parseObjectId Sha1 (oidBytes Sha1 '1'))
     let object = objectIdBytes oid
         fake result = Git (const (pure result))
-        readOne git = readCommitMetadata git "/fixture" Sha1 [] [oid] >>= maybe (fail "Missing requested result") pure . Map.lookup oid
+        readOne git = readCommitMetadata git "/fixture" Sha1 [] [oid] >>= maybe (fail "Missing requested result") pure . Map.lookup oid . observedCommits
     missing <- readOne (fake (Right (GitResult ExitSuccess (object <> " missing\n") "")))
     assertEqual (Left MissingObject) missing
     wrong <- readOne (fake (Right (GitResult ExitSuccess (object <> " blob 1\nx\n") "")))
@@ -107,7 +113,7 @@ readerFailures = do
     calls <- newIORef (0 :: Int)
     let none = Git (\_ -> modifyIORef' calls (+ 1) >> fail "Unexpected empty metadata read")
     empty <- readCommitMetadata none "/fixture" Sha1 [] []
-    assertEqual Map.empty empty
+    assertEqual (CommitObservation Map.empty []) empty
     readIORef calls >>= assertEqual 0
 
 wireDates :: IO ()
@@ -269,8 +275,129 @@ partialMetadata format git executable repo _ = do
     case symbolic of
         NodesReport [_, b] issues -> do
             assertEqual Unavailable (statusCommit b)
-            assertTrue "Missing symbolic identity diagnostic" (any ((== "symbolic_node_branch") . statusCode) issues)
+            let symbolicIssues = [item | item <- issues, statusCode item == "symbolic_node_branch"]
+            assertEqual [Nothing] (map diagnosticProperty symbolicIssues)
+            assertEqual [Just nodeB] (map diagnosticNode symbolicIssues)
         _ -> fail (show symbolic)
+
+sessionObservations :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+sessionObservations format git _ repo parent = do
+    root git repo nodeA
+    root git repo nodeB
+    a <- nodeTip git repo nodeA
+    b <- nodeTip git repo nodeB
+    bytes <- ok git repo ["cat-file", "commit", BSC.unpack (objectIdBytes a)] ""
+    metadata <- expectRight (decodeCommitMetadata format bytes)
+    extra <- BSC.init <$> ok git repo ["commit-tree", BSC.unpack (objectIdBytes (metadataTree metadata)), "-p", BSC.unpack (objectIdBytes a), "-m", "additional stored tip"] ""
+    c <- expectRight (parseObjectId format extra)
+    let requested = Set.fromList [a, b, c]
+        order = Set.toAscList requested
+    forM_ ["commit-echo", "commit-missing", "commit-truncated", "commit-first-exit", "commit-bad-oid", "commit-bad-size", "commit-bad-terminator", "commit-nonzero", "commit-trailing"] $ \scenario -> do
+        faulty <- fixtureGit scenario parent
+        observed <- readCommitMetadata faulty repo format [] [a, b, c, a]
+        assertEqual requested (Map.keysSet (observedCommits observed))
+        let values = Map.elems (observedCommits observed)
+            available = length [() | Right _ <- values]
+            problems = commitSessionProblems observed
+        case scenario of
+            "commit-echo" -> do
+                assertEqual 3 available
+                assertEqual [] problems
+            "commit-missing" -> do
+                assertEqual 2 available
+                case order of
+                    [_, middle, _] -> assertEqual (Just (Left MissingObject)) (Map.lookup middle (observedCommits observed))
+                    _ -> fail "Expected three unique fixture tips"
+                assertEqual [] problems
+            "commit-nonzero" -> do
+                assertEqual 3 available
+                case problems of [BatchProcessExited _] -> pure (); _ -> fail (show problems)
+            "commit-trailing" -> do
+                assertEqual 0 available
+                case problems of [BatchCompletionUncertain _] -> pure (); _ -> fail (show problems)
+            _ -> do
+                assertEqual 1 available
+                case values of Right _ : _ -> pure (); _ -> fail "Verified first response was discarded"
+                case problems of BatchRequestFailed _ : _ -> pure (); _ -> fail (show problems)
+        starts <- lines <$> readFile (parent </> "requests.starts")
+        assertEqual ["start"] starts
+        requests <- BSC.lines <$> BS.readFile (parent </> "requests")
+        let count = case scenario of "commit-first-exit" -> 1; "commit-truncated" -> 2; "commit-bad-oid" -> 2; "commit-bad-size" -> 2; "commit-bad-terminator" -> 2; _ -> 3
+        assertEqual (map objectIdBytes (take count order)) requests
+    startup <- readCommitMetadata (nativeGit (parent </> "absent-executable")) repo format [] [a, b, a]
+    assertEqual (Set.fromList [a, b]) (Map.keysSet (observedCommits startup))
+    assertEqual 0 (length [() | Right _ <- Map.elems (observedCommits startup)])
+    assertEqual 1 (length (commitSessionProblems startup))
+    -- No callback result may cross the strict history boundary after exit 7.
+    faulty <- fixtureGit "commit-nonzero" parent
+    reached <- newIORef False
+    history <- Objects.withHistorySource faulty repo format [] $ \source -> do
+        objects <- mapM (Protocol.loadCommit source) [a, b]
+        mapM_ expectRight objects
+        modifyIORef' reached (const True)
+    readIORef reached >>= assertEqual True
+    expectLeft history
+    Inspect.inspectState faulty repo [] Nothing >>= expectLeft
+    Inspect.validateCandidate faulty repo (Map.fromList [(nodeA, a), (nodeB, b)]) >>= expectLeft
+
+sessionStatus :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+sessionStatus _ git _ repo parent = do
+    root git repo nodeA
+    root git repo nodeB
+    a <- nodeTip git repo nodeA
+    manual git repo (parent </> "deployed") nodeA
+    _ <- ok git repo ["update-ref", BSC.unpack ("refs/remotes/origin/" <> nodeIdBytes nodeA), BSC.unpack (objectIdBytes a)] ""
+    let request = query [TipProperty, CommitProperty, WorktreesProperty, RemoteProperty]
+    forM_ [("commit-nonzero", 2), ("commit-truncated", 1), ("commit-trailing", 0)] $ \(scenario, available) -> do
+        faulty <- fixtureGit scenario parent
+        report <- queryStatus faulty repo request >>= expectRight
+        values <- case report of NodesReport rows _ -> pure rows; _ -> fail (show report)
+        assertEqual 2 (length values)
+        assertEqual available (length [() | row <- values, Available _ <- [statusCommit row]])
+        forM_ values $ \row -> do
+            case statusTip row of Available _ -> pure (); _ -> fail "Commit session lost independent tip"
+            case statusWorktrees row of Available _ -> pure (); _ -> fail "Commit session lost worktree registration"
+            case statusRemote row of Available _ -> pure (); _ -> fail "Commit session lost remote observation"
+        case values of
+            first : _ -> do
+                case statusWorktrees first of Available [_] -> pure (); _ -> fail "Lost registered worktree"
+                case statusRemote first of Available remote -> assertEqual (Just [("refs/remotes/origin/" <> nodeIdBytes nodeA, a)]) (remoteRefs remote); _ -> fail "Lost remote tracking ref"
+            _ -> fail "Missing Node records"
+        let issues = reportDiagnostics report
+            sessionIssues = [item | item <- issues, statusCode item == "commit_session_incomplete"]
+            objectIssues = [item | item <- issues, statusCode item == "commit_unavailable"]
+        assertEqual [Nothing] (map diagnosticNode sessionIssues)
+        assertEqual [Just CommitProperty] (map diagnosticProperty sessionIssues)
+        assertEqual (2 - available) (length objectIssues)
+        forM_ objectIssues $ \item -> do
+            assertTrue "Object diagnostic lacks Node" (diagnosticNode item /= Nothing)
+            assertEqual (Just CommitProperty) (diagnosticProperty item)
+        forM_ [JsonFormat, CborFormat] $ \wire -> do
+            let response = statusResponse wire report
+            assertEqual (ExitFailure 3) (responseExitCode response)
+            assertEqual Text.empty (responseStderr response)
+            assertEqual (encodeValue wire (statusValue report)) (responseStdout response)
+            if wire == JsonFormat
+                then do
+                    _ <- expectRight (Aeson.eitherDecodeStrict' (responseStdout response) :: Either String Aeson.Value)
+                    assertTrue "Missing structured session diagnostic" ("commit_session_incomplete" `BS.isInfixOf` responseStdout response)
+                else do
+                    (rest, _) <- expectRight (CBOR.deserialiseFromBytes CBOR.decodeTerm (BL.fromStrict (responseStdout response)))
+                    assertEqual BL.empty rest
+        let text = statusResponse TextFormat report
+        assertEqual (ExitFailure 3) (responseExitCode text)
+        assertTrue "Text omitted session error" ("Raw commit metadata session did not finish successfully" `Text.isInfixOf` responseStderr text)
+    -- The fixture would corrupt a batch, but the default never launches one.
+    faulty <- fixtureGit "commit-trailing" parent
+    defaults <- queryStatus faulty repo (NodeStatusQuery AllNodes DefaultProperties) >>= expectRight
+    assertEqual [] (reportDiagnostics defaults)
+    BS.readFile (parent </> "requests.starts") >>= assertEqual BS.empty
+
+nodeTip :: Git IO -> FilePath -> NodeId -> IO ObjectId
+nodeTip git repo node = do
+    bytes <- BSC.init <$> ok git repo ["rev-parse", BSC.unpack ("refs/heads/" <> nodeIdBytes node)] ""
+    format <- if BS.length bytes == 40 then pure Sha1 else pure Sha256
+    expectRight (parseObjectId format bytes)
 
 writeCommit :: Git IO -> FilePath -> BS.ByteString -> BS.ByteString -> IO BS.ByteString
 writeCommit git repo ref bytes = do

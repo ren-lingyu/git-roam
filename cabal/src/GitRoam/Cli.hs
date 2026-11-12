@@ -7,6 +7,7 @@ module GitRoam.Cli (
     CheckpointMessage (..),
     parseCommand,
     runCli,
+    statusResponse,
 ) where
 
 import Control.Exception (IOException, try)
@@ -326,12 +327,7 @@ runFormatted format parsed = case parsed of
         outcome <- Status.queryStatus (nativeGit defaultGitExecutable) directory request
         pure $ case outcome of
             Left problem -> if format == Output.TextFormat then failure 3 (Text.pack (show problem)) else diagnosticFailure 3 "repository_discovery_failed" (Text.pack (show problem))
-            Right report ->
-                let issues = Status.reportDiagnostics report
-                 in CliResponse
-                        (if null issues then ExitSuccess else ExitFailure 3)
-                        (if format == Output.TextFormat then Encoding.encodeUtf8 (renderStatus report) else Output.encodeValue format (Output.statusValue report))
-                        (if format == Output.TextFormat then Text.unlines ["git-roam: " <> Status.statusMessage issue | issue <- issues] else "")
+            Right report -> statusResponse format report
     Right EnableProtection -> lifecycle Protection.enableProtection "Repository protection enabled.\n"
     Right DisableProtection -> lifecycle Protection.disableProtection "Repository protection disabled.\n"
     Right (PreviewDelete node) -> do
@@ -466,6 +462,14 @@ runFormatted format parsed = case parsed of
             if format == Output.TextFormat
                 then "git-roam: " <> message <> "\n"
                 else Encoding.decodeUtf8 (Output.encodeValue Output.JsonFormat (Output.diagnostic (if code == 2 then "invalid_arguments" else "operation_failed") "error" message))
+
+statusResponse :: Output.OutputFormat -> Status.StatusReport -> CliResponse
+statusResponse format report =
+    let issues = Status.reportDiagnostics report
+     in CliResponse
+            (if null issues then ExitSuccess else ExitFailure 3)
+            (if format == Output.TextFormat then Encoding.encodeUtf8 (renderStatus report) else Output.encodeValue format (Output.statusValue report))
+            (if format == Output.TextFormat then Text.unlines ["git-roam: " <> Status.statusMessage issue | issue <- issues] else "")
 
 inspectionExit :: InspectionError -> Int
 inspectionExit problem = case problem of

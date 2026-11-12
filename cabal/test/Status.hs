@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import BatchFixture (runBatchFixture)
 import qualified Codec.CBOR.Read as CBOR
 import qualified Codec.CBOR.Term as CBOR
 import CommitProperty (commitTests)
@@ -33,17 +34,18 @@ import WorktreeFixture
 
 main :: IO ()
 main =
-    runTests $
-        [ ("Status required type and exact set selection", parser)
-        , ("ref observations retain reliable rows but strict views reject incompleteness", partialRefs)
-        , ("protection local/effective configuration classification", protection)
-        , ("Status JSON/CBOR preserve selected properties and arbitrary bytes", encodings)
-        ]
-            ++ [("Status lightweight observations and batch upstream " ++ backend ++ " " ++ show format, fixture backend format (nativeQueries format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
-            ++ [("Status partial reads and strict callers " ++ backend ++ " " ++ show format, fixture backend format (partialQueries format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
-            ++ [("Status CLI reports and argument errors " ++ backend ++ " " ++ show format, fixture backend format cliQueries) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
-            ++ regressionTests
-            ++ commitTests
+    runBatchFixture $
+        runTests $
+            [ ("Status required type and exact set selection", parser)
+            , ("ref observations retain reliable rows but strict views reject incompleteness", partialRefs)
+            , ("protection local/effective configuration classification", protection)
+            , ("Status JSON/CBOR preserve selected properties and arbitrary bytes", encodings)
+            ]
+                ++ [("Status lightweight observations and batch upstream " ++ backend ++ " " ++ show format, fixture backend format (nativeQueries format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+                ++ [("Status partial reads and strict callers " ++ backend ++ " " ++ show format, fixture backend format (partialQueries format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+                ++ [("Status CLI reports and argument errors " ++ backend ++ " " ++ show format, fixture backend format cliQueries) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+                ++ regressionTests
+                ++ commitTests
 
 first :: [a] -> a
 first (value : _) = value

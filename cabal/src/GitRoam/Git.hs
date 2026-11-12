@@ -8,6 +8,10 @@ module GitRoam.Git (
     defaultGitExecutable,
     nativeGit,
     withGitBatch,
+    withGitBatchObservation,
+    BatchOutcome (..),
+    BatchSessionProblem (..),
+    sessionProblemError,
     withGitEnvironment,
     observeGit,
 ) where
@@ -16,6 +20,7 @@ import Control.Concurrent.Async (concurrently)
 import Control.Exception (IOException, displayException, finally, try)
 import qualified Data.ByteString as BS
 import GitRoam.BuildInfo (defaultGitExecutable)
+import GitRoam.Git.Batch (BatchOutcome (..), BatchSessionProblem (..), sessionProblemError)
 import qualified GitRoam.Git.Batch as Batch
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
@@ -54,7 +59,7 @@ data Git m
         }
     | ManagedGit
         { runGit :: GitInvocation -> m (Either GitError GitResult)
-        , scopedBatch :: forall a. GitInvocation -> ((BS.ByteString -> IO (Either GitError GitResult)) -> IO a) -> IO (Either GitError a)
+        , scopedBatch :: forall a. GitInvocation -> ((BS.ByteString -> IO (Either GitError GitResult)) -> IO a) -> IO (BatchOutcome GitError a)
         }
 
 -- These decorators preserve the native streaming capability. A bare Git
@@ -77,11 +82,21 @@ decorate transform observer git = case git of
 -- matching raw requests within this scope use the shared child. Other commands
 -- retain their adapter, environment, observations and one-shot behavior.
 withGitBatch :: Git IO -> GitInvocation -> (Git IO -> IO a) -> IO (Either GitError a)
-withGitBatch _ invocation _
+withGitBatch git invocation action = do
+    outcome <- withGitBatchObservation git invocation action
+    pure $ case outcome of
+        BatchNotStarted problem -> Left problem
+        BatchCompleted value [] -> Right value
+        BatchCompleted _ (problem : _) -> Left (sessionProblemError problem)
+
+-- Observation retains callback evidence; acceptance belongs to the caller.
+-- Exceptions still propagate, and uncertain completion does not certify data.
+withGitBatchObservation :: Git IO -> GitInvocation -> (Git IO -> IO a) -> IO (BatchOutcome GitError a)
+withGitBatchObservation _ invocation _
     | gitArguments invocation /= ["--no-replace-objects", "cat-file", "--batch"] || not (BS.null (gitInput invocation)) =
-        pure (Left (InvalidGitInvocation "Raw session startup requires cat-file --batch with empty input"))
-withGitBatch git invocation action = case git of
-    Git _ -> Right <$> action git
+        pure (BatchNotStarted (InvalidGitInvocation "Raw session startup requires cat-file --batch with empty input"))
+withGitBatchObservation git invocation action = case git of
+    Git _ -> (`BatchCompleted` []) <$> action git
     ManagedGit{} -> scopedBatch git invocation $ \reader -> action $ Git $ \request ->
         if gitDirectory request == gitDirectory invocation
             && gitArguments request == gitArguments invocation
@@ -94,18 +109,24 @@ nativeGit :: FilePath -> Git IO
 nativeGit executable = ManagedGit invokeOnce batch
   where
     batch invocation action = case validate executable invocation of
-        Left problem -> pure (Left (InvalidGitInvocation problem))
+        Left problem -> pure (BatchNotStarted (InvalidGitInvocation problem))
         Right () -> do
             prepared <- captureIO (overriddenEnvironment (gitEnvironment invocation))
             case prepared of
-                Left problem -> pure (Left (GitTransportError (displayException problem)))
+                Left problem -> pure (BatchNotStarted (GitTransportError (displayException problem)))
                 Right environment -> do
                     let command = (proc executable (gitArguments invocation)){cwd = Just (gitDirectory invocation), env = environment}
                         convert (Batch.BatchFailure message diagnostic) = GitTransportError (message ++ if BS.null diagnostic then "" else ": " ++ show diagnostic)
                     outcome <- Batch.withBatchProcess command $ \reader -> action $ \input -> do
                         result <- reader input
                         pure (either (Left . convert) (Right . (\bytes -> GitResult ExitSuccess bytes BS.empty)) result)
-                    pure (either (Left . convert) Right outcome)
+                    pure $ case outcome of
+                        BatchNotStarted problem -> BatchNotStarted (convert problem)
+                        BatchCompleted value problems -> BatchCompleted value (map (convertProblem convert) problems)
+    convertProblem convert problem = case problem of
+        BatchRequestFailed value -> BatchRequestFailed (convert value)
+        BatchProcessExited value -> BatchProcessExited (convert value)
+        BatchCompletionUncertain value -> BatchCompletionUncertain (convert value)
     invokeOnce invocation =
         case validate executable invocation of
             Left problem -> pure (Left (InvalidGitInvocation problem))

@@ -12,6 +12,7 @@
 - Add top-level =--format text|json|cbor= for all result commands, shared lossless path encoding, structured reports and JSON Lines diagnostics in noninteractive machine mode.
 
 ** Fixed
+- Preserve verified commit metadata after a later batch request failure or nonzero process exit, with separate session diagnostics and incomplete-query exit status. Continue rejecting metadata from sessions with unexpected trailing stdout or uncertain cleanup; protocol validation requires a completely successful session.
 - Treat remote-only branch configuration as no upstream, and use Git's effective remote value across repeated or inherited settings. Keep multiple merge values explicitly diagnosed.
 - Preserve readable Node properties and other Nodes' upstream configuration after upstream query or Node-local configuration failures. Restrict symbolic remote diagnostics to selected local Nodes and distinguish excluded candidates from an empty ref set.
 - Allow =undeploy= when only a residual =REBASE_HEAD= remains after a rebase. Rebase state directories (=rebase-merge= and =rebase-apply=) and all other removal safety checks still prevent unsafe removal.

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module GitRoam.Git.Commit (CommitMetadata (..), CommitIdentity (..), CommitDate (..), decodeCommitMetadata, readCommitMetadata) where
+module GitRoam.Git.Commit (CommitMetadata (..), CommitIdentity (..), CommitDate (..), CommitObservation (..), decodeCommitMetadata, readCommitMetadata) where
 
 import Control.Monad (foldM, (>=>))
 import qualified Data.ByteString as BS
@@ -31,23 +31,32 @@ data CommitMetadata = CommitMetadata
     , metadataMessage :: BS.ByteString
     }
     deriving (Eq, Show)
+data CommitObservation = CommitObservation
+    { observedCommits :: Map.Map ObjectId (Either ObjectProblem CommitMetadata)
+    , commitSessionProblems :: [BatchSessionProblem GitError]
+    }
+    deriving (Eq, Show)
 
 -- Only tips are requested, deduplicated by OID, in a single scoped batch process.
 -- Raw bytes are not transcoded, even when an encoding header is present.
-readCommitMetadata :: Git IO -> FilePath -> ObjectFormat -> [(String, Maybe String)] -> [ObjectId] -> IO (Map.Map ObjectId (Either ObjectProblem CommitMetadata))
-readCommitMetadata _ _ _ _ [] = pure Map.empty
+readCommitMetadata :: Git IO -> FilePath -> ObjectFormat -> [(String, Maybe String)] -> [ObjectId] -> IO CommitObservation
+readCommitMetadata _ _ _ _ [] = pure (CommitObservation Map.empty [])
 readCommitMetadata git directory format environment tips = do
     let unique = Map.keys (Map.fromList [(oid, ()) | oid <- tips])
-    outcome <- withGitBatch git (GitInvocation directory ["--no-replace-objects", "cat-file", "--batch"] BS.empty (environment ++ readOnlyEnvironment)) $ \scoped ->
+    outcome <- withGitBatchObservation git (GitInvocation directory ["--no-replace-objects", "cat-file", "--batch"] BS.empty (environment ++ readOnlyEnvironment)) $ \scoped ->
         mapM
             ( \oid -> do
                 result <- readStoredObject scoped directory environment oid
                 pure (oid, result >>= decode)
             )
             unique
+    let failed problem = Map.fromList [(oid, Left (ObjectReadFailure (BSC.pack (show problem)))) | oid <- unique]
     pure $ case outcome of
-        Left problem -> Map.fromList [(oid, Left (ObjectReadFailure (BSC.pack (show problem)))) | oid <- unique]
-        Right values -> Map.fromList values
+        BatchNotStarted problem -> CommitObservation (failed problem) [BatchCompletionUncertain problem]
+        BatchCompleted values problems ->
+            let uncertain = [problem | BatchCompletionUncertain problem <- problems]
+                results = case uncertain of problem : _ -> failed problem; [] -> Map.fromList values
+             in CommitObservation results problems
   where
     decode (kind, body)
         | kind /= "commit" = Left (WrongObjectType kind)

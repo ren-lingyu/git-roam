@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- Raw transport only. Object decoding and knowledge interpretation live above it.
-module GitRoam.Git.Batch (BatchFailure (..), withBatchProcess) where
+module GitRoam.Git.Batch (BatchFailure (..), BatchOutcome (..), BatchSessionProblem (..), sessionProblemError, withBatchProcess) where
 
 import Control.Concurrent (ThreadId, myThreadId, throwTo)
 import Control.Concurrent.Async (Async, async, cancel, waitCatch)
@@ -19,6 +19,18 @@ import System.Process
 import System.Timeout (timeout)
 
 data BatchFailure = BatchFailure String BS.ByteString deriving (Eq, Show)
+
+-- A callback result is evidence, independently of the child's final lifecycle.
+-- Only the first two problem classes preserve previously verified responses.
+data BatchSessionProblem e = BatchRequestFailed e | BatchProcessExited e | BatchCompletionUncertain e deriving (Eq, Show)
+data BatchOutcome e a = BatchNotStarted e | BatchCompleted a [BatchSessionProblem e] deriving (Eq, Show)
+
+sessionProblemError :: BatchSessionProblem e -> e
+sessionProblemError problem = case problem of
+    BatchRequestFailed value -> value
+    BatchProcessExited value -> value
+    BatchCompletionUncertain value -> value
+
 data CleanupException = CleanupException String BatchFailure deriving (Show)
 instance Exception CleanupException
 
@@ -30,6 +42,7 @@ data Session = Session
     , gate :: MVar ()
     , closed :: IORef Bool
     , poisoned :: IORef Bool
+    , requestFailure :: IORef (Maybe BatchFailure)
     , buffered :: IORef BS.ByteString
     , diagnostics :: IORef BS.ByteString
     , truncated :: IORef Bool
@@ -45,11 +58,11 @@ tryAny = try
 
 -- Acquisition is masked; callbacks and requests remain interruptible. Escaping
 -- callbacks are unsupported, but escaped readers fail closed after the scope.
-withBatchProcess :: CreateProcess -> ((BS.ByteString -> IO (Either BatchFailure BS.ByteString)) -> IO a) -> IO (Either BatchFailure a)
+withBatchProcess :: CreateProcess -> ((BS.ByteString -> IO (Either BatchFailure BS.ByteString)) -> IO a) -> IO (BatchOutcome BatchFailure a)
 withBatchProcess command action = mask $ \restore -> do
     acquired <- tryIO (acquire command)
     case acquired of
-        Left problem -> pure (Left (BatchFailure ("Cannot start raw Git session: " ++ displayException problem) ""))
+        Left problem -> pure (BatchNotStarted (BatchFailure ("Cannot start raw Git session: " ++ displayException problem) ""))
         Right session -> do
             outcome <- tryAny (restore (action (request session)))
             worker <- async (finishSafely session (either (const True) (const False) outcome))
@@ -58,14 +71,16 @@ withBatchProcess command action = mask $ \restore -> do
             finished <- uninterruptibleMask_ (waitCatch worker)
             cleanup <- case finished of
                 Right value -> pure value
-                Left problem -> pure (Left (BatchFailure ("Raw Git cleanup worker failed: " ++ displayException problem) ""))
+                Left problem -> pure (Left (BatchCompletionUncertain (BatchFailure ("Raw Git cleanup worker failed: " ++ displayException problem) "")))
             case outcome of
                 Left problem -> case cleanup of
                     Right () -> throwIO problem
-                    Left failure -> throwIO (CleanupException (displayException problem) failure)
-                Right value -> pure (value <$ cleanup)
+                    Left failure -> throwIO (CleanupException (displayException problem) (sessionProblemError failure))
+                Right value -> do
+                    failed <- readIORef (requestFailure session)
+                    pure (BatchCompleted value (maybe [] (pure . BatchRequestFailed) failed ++ either pure (const []) cleanup))
 
-finishSafely :: Session -> Bool -> IO (Either BatchFailure ())
+finishSafely :: Session -> Bool -> IO (Either (BatchSessionProblem BatchFailure) ())
 finishSafely session interrupted = do
     result <- tryAny (finish session interrupted)
     case result of
@@ -80,7 +95,7 @@ finishSafely session interrupted = do
             _ <- tryAny (cancel (drainer session))
             _ <- mapM (tryIO . hClose) [input session, output session, errors session]
             _ <- tryPutMVar (gate session) ()
-            pure (Left (BatchFailure ("Raw Git cleanup failed: " ++ displayException problem) ""))
+            pure (Left (BatchCompletionUncertain (BatchFailure ("Raw Git cleanup failed: " ++ displayException problem) "")))
 
 acquire :: CreateProcess -> IO Session
 acquire command = do
@@ -98,12 +113,13 @@ acquire command = do
                 lock <- newMVar ()
                 isClosed <- newIORef False
                 isPoisoned <- newIORef False
+                failure <- newIORef Nothing
                 pending <- newIORef ""
                 diagnostic <- newIORef ""
                 wasTruncated <- newIORef False
                 activeThread <- newIORef Nothing
                 worker <- async (drain errHandle diagnostic wasTruncated)
-                pure (Session inHandle outHandle errHandle child lock isClosed isPoisoned pending diagnostic wasTruncated worker activeThread)
+                pure (Session inHandle outHandle errHandle child lock isClosed isPoisoned failure pending diagnostic wasTruncated worker activeThread)
             _ -> ioError (userError "Raw Git session pipes were not created")
     setup `onException` abortAcquisition handles
 
@@ -140,11 +156,12 @@ request session bytes = case requestOid bytes of
                     Right frame -> pure (Right frame)
                     Left problem -> do
                         writeIORef (poisoned session) True
+                        diagnostic <- savedDiagnostics session
+                        let failure = BatchFailure (displayException problem) diagnostic
+                        writeIORef (requestFailure session) (Just failure)
                         case fromException problem :: Maybe IOException of
                             Nothing -> throwIO problem
-                            Just failure -> do
-                                diagnostic <- savedDiagnostics session
-                                pure (Left (BatchFailure (displayException failure) diagnostic))
+                            Just _ -> pure (Left failure)
 
 requestOid :: BS.ByteString -> Either String BS.ByteString
 requestOid bytes = do
@@ -238,7 +255,7 @@ stop child = do
                     reaped <- timeout 2000000 (waitForProcess child)
                     pure (["Cannot kill raw Git process group" | either (const True) (const False) killed] ++ ["Cannot reap raw Git child" | reaped == Nothing])
 
-finish :: Session -> Bool -> IO (Either BatchFailure ())
+finish :: Session -> Bool -> IO (Either (BatchSessionProblem BatchFailure) ())
 finish session interrupted = do
     writeIORef (closed session) True
     idle <- tryTakeMVar (gate session)
@@ -280,9 +297,8 @@ finish session interrupted = do
                 ++ ["Raw Git handle close failed: " ++ displayException problem | Left problem <- handles]
         completion = case outcome of
             Nothing -> ["Raw Git shutdown timed out"]
-            Just (code, err, out) ->
-                ["Raw Git exited unsuccessfully: " ++ show code | code /= ExitSuccess && not abnormal]
-                    ++ ["Raw Git stderr drain failed: " ++ displayException problem | Left problem <- [err]]
+            Just (_, err, out) ->
+                ["Raw Git stderr drain failed: " ++ displayException problem | Left problem <- [err]]
                     ++ ["Raw Git stdout drain failed: " ++ displayException problem | Left problem <- [out]]
         problems =
             killed
@@ -291,5 +307,11 @@ finish session interrupted = do
                 ++ completion
                 ++ ["Raw Git request outlived its session scope" | idle == Nothing]
                 ++ ["Unexpected trailing raw Git stdout" | not abnormal && not (BS.null pending && BS.null tailData)]
+        exited = case outcome of
+            Just (code, _, _) | code /= ExitSuccess && not abnormal -> ["Raw Git exited unsuccessfully: " ++ show code]
+            _ -> []
     when (idle /= Nothing) (putMVar (gate session) ())
-    pure $ if null problems then Right () else Left (BatchFailure (unlines problems) diagnostic)
+    pure $ case (problems, exited) of
+        ([], []) -> Right ()
+        ([], failures) -> Left (BatchProcessExited (BatchFailure (unlines failures) diagnostic))
+        _ -> Left (BatchCompletionUncertain (BatchFailure (unlines (problems ++ exited)) diagnostic))
