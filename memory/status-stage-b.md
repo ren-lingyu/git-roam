@@ -290,7 +290,7 @@ The user committed these corrections at 693f478fca5a680de8aa188ae66280772a0d738c
 all 58 committed blobs match the reviewed verification manifest and the project
 worktree/index are clean. B2 is frozen; the user explicitly requested B3.
 
-## Completed B3: independent tip commit metadata
+## Initial B3 implementation and verification (before session correction)
 
 Baseline is the user's committed B2 correction, verified by 58-file equivalence
 before B3. B3 is implemented and verified but uncommitted; the project index is
@@ -355,6 +355,19 @@ scope GitRoam.Application.Status and no Breaking footer for the additive propert
 No new raw archive is warranted, and no uncommitted code is used as an additional
 project parent. Await user review/commit; verify its blobs before grounding the
 exact committed state. Proceed to B4 only under a new instruction.
+
+## Active B3 correction: separate session completion from object evidence
+
+The user committed initial B3 at fd3a694561dbbf8bc1ab527ba9d1e58b56bbd741;
+60 committed blobs match the successful final B3 snapshot. New review guidance
+identifies callback results discarded by cleanup failure. Implement typed shared
+batch observation plus strict acceptance, preserve only classifiably reliable
+responses, keep all requested OID keys and report session-level diagnostics.
+Preserve old cleanup/cancellation/poisoning and protocol guarantees, add native
+scoped fault/Status/strict-history regressions, make symbolic ref diagnostics
+Node-level and fix stale README Version status. This does not implement B4–B6
+or alter subject/metadata schema/storage protocol. Complete full checks and draft
+one complete-diff fix message before handoff.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -600,7 +613,7 @@ changes. Do not reopen historical experiments/releases as implicit work.
 
 B1 and initial B2 were committed by the user. B2 review corrections are now
 committed and verified by manifest equivalence. B3 is complete and verified
-in the uncommitted worktree; await review/commit and a new B4 instruction. Only within this conversation / the
+in the committed initial B3 snapshot; the B3 session correction above is active. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;

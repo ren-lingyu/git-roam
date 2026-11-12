@@ -1,14 +1,41 @@
 # Git Roam current state
 
-## Current handoff: B3 commit metadata implemented and verified
+## Active objective: repair B3 batch-session partial observations
 
-B3 is complete in the uncommitted project worktree. Baseline is the user's
-B2 correction commit 693f478fca5a680de8aa188ae66280772a0d738c. At entry its 58
-committed blobs matched the successful B2 review snapshot; that committed state
-was grounded at the phase-transition checkpoint without repeating unchanged tests.
-No ordinary project staging, commit or push was performed. The index is empty;
-there are 11 changed paths, including two new Haskell files. User review/commit
-is next; do not begin B4 without a new instruction.
+The user committed B3 at fd3a694561dbbf8bc1ab527ba9d1e58b56bbd741. All 60
+committed blobs match the final B3 verification manifest; the project worktree/
+index were clean at entry. The new B3 correction guidance requires separating reliable
+object responses from raw session completion, without weakening strict history
+validation or changing CLI/normal schema/protocol/subject/B4 scope. Prior B3
+verification below applies to that exact committed snapshot, not these new fixes.
+
+Implement a shared typed batch outcome carrying callback results independently
+of lifecycle problems. Preserve previous verified responses only for classified
+request failures or nonzero process exits; unexpected tail stdout and uncertain
+cleanup remain fail-closed. Keep strict withGitBatch/withHistorySource acceptance,
+masking/cancellation/cleanup/poisoning behavior. Add CommitObservation with all
+requested OID results plus session problems; Status aggregates one session-level
+commit_session_incomplete diagnostic, keeps independent properties and exits 3.
+Make symbolic_node_branch Node-level. Extend native scoped fixtures, not just
+one-shot adapters. Fix README Version status and document accurate failure
+boundaries; update CHANGELOG TODO v0.3.0. Finish full checks, complete-diff commit
+draft and memory checkpoint. B4–B6 remain out of scope.
+No ordinary project staging/commit/push is authorized.
+
+The correction is implemented with BatchOutcome and typed request/process-exit/
+uncertain-completion problems. Strict entry rejects any problem. Request failures
+poison the session while retaining previous verified frames for observation;
+extra trailing stdout/uncertain cleanup revoke all metadata. Original exception,
+masking and independent cleanup-worker structure are preserved. Native fixtures
+are shared by batch/status tests; pure statusResponse centralizes live CLI output
+and allows checking exit/JSON/CBOR/stderr without replacing native batch tests.
+Two initial checks passed formatting but stopped at -Werror (new variable
+shadowing/unused binding, then a new test helper name). These were corrected;
+production code compiled. The third full check has completed the build and
+entered tests; its full outcome remains pending.
+No completion claim yet. Symbolic branch diagnostics are now Node-level.
+
+## Initial B3 completion evidence (before the active correction)
 
 Status now accepts exact -p commit selection. Default remains tip/worktrees/remote.
 CommitMetadata contains full tree OID, ordered direct parents, separate author/
