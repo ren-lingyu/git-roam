@@ -1,13 +1,40 @@
 # Git Roam current state
 
-## Current handoff: B4 working-tree status complete and verified
+## Active objective: B5 independent validation and atomic operation migration
 
-Baseline is the user's B3 correction commit
-b7a0e150547c51a46fed3a01413344f6dadd2e41. All 61 committed blobs matched the
-successful B3 session manifest at entry; the transition checkpoint grounds that
-exact state. B4 is complete in nine uncommitted project paths, including new
-Git/Status.hs and test/WorkingTreeStatus.hs. Index is empty; no agent ordinary
-project staging/commit/push. User review/commit is next; do not start B5 yet.
+The user committed B4 at 1e430e1302f1c1185d7dfc165b07b4902de3306f.
+All 63 committed blobs match the final B4 verification manifest; project
+worktree/index are clean at B5 entry. B5 is explicitly requested; scoped
+Haskell/Cabal formatting is authorized (local treefmt, 120s); existing Nix
+checks remain 300s/one-job/core. Prior B4 evidence below is historical.
+
+Extract Application.Validation, complete ManagedState loader and explicit
+candidate validator, shared strict error/evidence handling and current-Node
+inference. Keep Check's current public report until B6. Remove reportManagedState
+from InspectionReport and migrate all production consumers together, including
+Checkpoint/Create/Delete/Undeploy, Deploy candidates and Protection Hook.
+Audit found old Inspect also gated operations on worktree registration read:
+retain this as explicit Application.Worktree operation preflight, inside the
+same before/after ref and strict object-session boundary. Validation core itself
+must not depend on presentation or worktrees. Hook must use shared RefObservation
+plus completeness judgment and reject symbolic/incomplete evidence. Preserve
+shallow/connectivity/context/identity/race/session checks and operation locks,
+protection, expected-old writes, rollback/user-data safeguards. Do not use Status
+partial observations, implement B6/new check schema, or expand argv-byte work.
+Add native/adaptor regressions, sync docs, full checks, complete-diff draft and
+memory checkpoint. No project staging/commit/push authorized.
+
+B5 implementation now extracted Validation and removed every reportManagedState
+access. Worktree.loadOperationState preserves registration failure and ref/session
+boundaries; the Hook shares complete RefObservation and accepts injected Git for
+native/fault tests. Added validation-tests across four format/backend combinations
+covering core independence/identity, incomplete refs/Hook, ref-race precedence,
+native session-exit rejection and all operation registration guards. Docs updated.
+First full Nix check passed formatting but found a missing Delete import; fixed,
+second full check underway. No test pass is claimed yet. Complete source snapshot
+has 65 files including both new modules. Next: finish tests, review and final draft.
+
+## Historical B4 completion evidence
 
 All five Node properties now work. Opt-in -p status returns per-worktree path,
 clean/dirty/unavailable and four booleans. Unknown summaries use null booleans

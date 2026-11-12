@@ -503,6 +503,20 @@ not necessary, high identity/byte/parser coupling). No new raw archive/uncommitt
 project parent needed. Await user review/commit; verify committed blobs before
 grounding. B5 remains atomic management/Hook migration under a new instruction.
 
+## Active B5: independent validation and complete operation migration
+
+The user committed B4 at 1e430e1302f1c1185d7dfc165b07b4902de3306f;
+63 committed blobs match final B4 manifest and entry worktree/index are clean.
+B5 and scoped formatter are authorized; retain 300s/one-job/core checks.
+Extract validation/evidence/error/inference without CLI/Status/worktree models,
+keep legacy Check presentation until B6, remove reportManagedState and migrate
+all management callers plus Hook candidates atomically. Old Inspect's implicit
+worktree registration failure gate must become explicit operation preflight,
+inside before/after refs and strict session completion. Shared Hook ref reader
+must reject incomplete/warned/symbolic observations. Preserve protocol and
+all operation safety/compensation rules. Add regressions/docs, verify and draft
+one full-diff commit; no project Git writes or broad argv migration.
+
 ## Post-B1 requirements adopted for B2 and B5
 
 The user refined the plan after inspecting actual B1. These requirements were
@@ -749,7 +763,7 @@ B1 and initial B2 were committed by the user. B2 review corrections are now
 committed and verified by manifest equivalence. B3 is complete and verified
 in the committed initial B3 snapshot. Its session correction is now verified in
 the committed B3 correction snapshot. B4 is now verified in the uncommitted
-worktree; await review/commit and a new B5 instruction. Only within this conversation / the
+worktree; B4 is now committed and verified against its manifest. B5 is active; finish its independent validation, atomic migration, regression checks and documentation before B6. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;
