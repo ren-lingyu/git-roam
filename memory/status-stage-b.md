@@ -356,18 +356,74 @@ No new raw archive is warranted, and no uncommitted code is used as an additiona
 project parent. Await user review/commit; verify its blobs before grounding the
 exact committed state. Proceed to B4 only under a new instruction.
 
-## Active B3 correction: separate session completion from object evidence
+## Completed B3 correction: session completion and object evidence
 
-The user committed initial B3 at fd3a694561dbbf8bc1ab527ba9d1e58b56bbd741;
-60 committed blobs match the successful final B3 snapshot. New review guidance
-identifies callback results discarded by cleanup failure. Implement typed shared
-batch observation plus strict acceptance, preserve only classifiably reliable
-responses, keep all requested OID keys and report session-level diagnostics.
-Preserve old cleanup/cancellation/poisoning and protocol guarantees, add native
-scoped fault/Status/strict-history regressions, make symbolic ref diagnostics
-Node-level and fix stale README Version status. This does not implement B4–B6
-or alter subject/metadata schema/storage protocol. Complete full checks and draft
-one complete-diff fix message before handoff.
+Baseline is fd3a694561dbbf8bc1ab527ba9d1e58b56bbd741, whose 60 committed blobs
+match the original successful B3 snapshot. The correction is verified but
+uncommitted in 12 paths: Git.hs, Git/{Batch,Commit}.hs, Application/Status.hs,
+Cli.hs, tests Batch/CommitProperty/Status.hs, new test/BatchFixture.hs,
+git-roam.cabal, README.org and CHANGELOG.org. Project index is empty; no agent
+ordinary project staging/commit/push. B4–B6, protocol, subject/date parsing,
+normal CLI/schema and default properties are unchanged.
+
+Shared BatchOutcome now carries callback evidence independently of typed session
+problems. Request failures and nonzero child exits preserve prior verified
+responses for observation. Uncertain cleanup (including extra trailing stdout,
+drain/handle failures, timeout, escaped outstanding reader or cleanup exception)
+invalidates metadata. No callback value is fabricated for startup failure and
+callback exceptions propagate rather than becoming partial success. A poisoned
+request is recorded even if the callback handles its failure; subsequent reader
+requests fail before touching the process. Existing masking, independent cleanup
+worker, cancellation, process termination and raw OID/size/body/terminator
+validation are retained. Strict withGitBatch rejects any session problem and
+withHistorySource remains strict. Two old ignored-request tests now require Left
+rather than Right; this is a stricter boundary, not weakened expectations.
+
+CommitObservation has a complete requested-OID map plus separate session
+problems. All unique requested OIDs have Right metadata or explicit Left errors.
+Empty input starts no process; equal OIDs share reads; one native scoped child
+serves normal commit queries. Uncertain outcomes revoke all metadata, while
+classified later failures preserve prior responses. Status emits one global
+commit_session_incomplete with property=commit, retains Node-level
+commit_unavailable for object errors, keeps tip/worktrees/remote and ref change
+checks, and exits 3 even when every object property succeeded. No extra top-level
+schema fields. symbolic_node_branch now has Node context without an unrequested
+tip property; symbolic tip/commit remain unavailable. The extracted pure
+statusResponse is used by the live CLI and fault-report encoding tests.
+
+Shared native self-executable BatchFixture preserves old fake child scenarios,
+adds controlled later-request/exit/trailing-output faults and delegates ordinary
+Git reads to the pinned executable. Both test suites declare it; new file is in
+the Nix snapshot. Native commit fixtures exercise three OIDs with a middle missing
+object, truncated/wrong-OID/size/terminator responses, a first-response process
+exit, all-successful objects then exit 7, and extra trailing stdout. They assert
+complete keys, prefix retention/revocation, deduplication and one child. Native
+Status reports retain real worktree registrations/tracking refs/tips, structured
+session versus object contexts, complete JSON/CBOR, empty machine stderr, text
+errors and unchanged default cost. withHistorySource callback success is observed
+before final failure; withHistorySource, Inspect and validateCandidate all reject
+the bad session. These fixtures cover SHA-1/SHA-256 x files/reftable. Additional
+transport tests cover startup, completion, prefix/poisoning for both OID lengths,
+exception propagation, cancellation/reaping and reader scope; old repeated-
+cancellation/outstanding-reader/cleanup/framing tests stay in place.
+
+README now describes implemented B3 in Version status and the exact conservative
+failure policy. CHANGELOG adds the fix under TODO v0.3.0 without release state,
+time, version or lockfile mutations. The final authorized 300s/one-job/core nix
+flake check passes all 16 suites / 358 groups (Status 52, Batch 38, 16 added),
+-Wall -Werror and treefmt on 59 eligible files with zero changes. Derivation:
+/nix/store/y9mlwm097frwhqfmsm5j60lfrffg333s-git-roam-0.2.0.drv.
+Only x86_64-linux checked; other platforms/minimum Git/10^4-Node timings unknown.
+Two initial formatting checks passed but builds stopped at new -Werror warnings;
+fixed shadowing/unused binding/test helper naming. Third check passes all tests;
+no timeout or test failure. All 61 worktree files match the checked isolated
+snapshot by SHA-256: tmp/b3-session-check and tmp/b3-session-verification.json.
+Original B3 manifests are preserved. Full diff reviewed, diff HEAD --check passes.
+
+One coupled fix; split not necessary, high lifecycle/safety coupling. Draft
+full-diff tmp/commit.md uses GitRoam.Git.Batch scope and no Breaking footer. No new
+raw archive or uncommitted project parent needed. Await user review/commit; verify
+its blobs before grounding. B3 correction is complete; B4 awaits a new instruction.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -613,7 +669,8 @@ changes. Do not reopen historical experiments/releases as implicit work.
 
 B1 and initial B2 were committed by the user. B2 review corrections are now
 committed and verified by manifest equivalence. B3 is complete and verified
-in the committed initial B3 snapshot; the B3 session correction above is active. Only within this conversation / the
+in the committed initial B3 snapshot. Its session correction is now verified in
+the uncommitted worktree; await user review/commit and a new B4 instruction. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;

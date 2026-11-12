@@ -1,39 +1,77 @@
 # Git Roam current state
 
-## Active objective: repair B3 batch-session partial observations
+## Current handoff: B3 session correction implemented and verified
 
-The user committed B3 at fd3a694561dbbf8bc1ab527ba9d1e58b56bbd741. All 60
-committed blobs match the final B3 verification manifest; the project worktree/
-index were clean at entry. The new B3 correction guidance requires separating reliable
-object responses from raw session completion, without weakening strict history
-validation or changing CLI/normal schema/protocol/subject/B4 scope. Prior B3
-verification below applies to that exact committed snapshot, not these new fixes.
+The user committed initial B3 at fd3a694561dbbf8bc1ab527ba9d1e58b56bbd741.
+All 60 committed blobs matched the successful B3 snapshot at correction entry;
+the transition checkpoint grounds that exact committed state. The requested B3
+correction is now complete in 12 uncommitted project paths, including new shared
+test/BatchFixture.hs. The project index is empty. The agent did not stage/commit/
+push ordinary project files. Await user review/commit; B4–B6 were not implemented.
 
-Implement a shared typed batch outcome carrying callback results independently
-of lifecycle problems. Preserve previous verified responses only for classified
-request failures or nonzero process exits; unexpected tail stdout and uncertain
-cleanup remain fail-closed. Keep strict withGitBatch/withHistorySource acceptance,
-masking/cancellation/cleanup/poisoning behavior. Add CommitObservation with all
-requested OID results plus session problems; Status aggregates one session-level
-commit_session_incomplete diagnostic, keeps independent properties and exits 3.
-Make symbolic_node_branch Node-level. Extend native scoped fixtures, not just
-one-shot adapters. Fix README Version status and document accurate failure
-boundaries; update CHANGELOG TODO v0.3.0. Finish full checks, complete-diff commit
-draft and memory checkpoint. B4–B6 remain out of scope.
-No ordinary project staging/commit/push is authorized.
+BatchOutcome separates a callback result from completion problems. Typed
+BatchRequestFailed and BatchProcessExited allow retaining prior complete,
+validated responses; BatchCompletionUncertain invalidates all metadata evidence.
+Startup returns BatchNotStarted without a callback value. Unknown cleanup,
+stdout/stderr drain/handle errors, shutdown timeouts, escaped outstanding readers
+and unexpected trailing stdout remain conservative. A poisoned request is
+recorded even if the callback handles its failure; further requests cannot enter
+the stream. Original exchange framing/OID/size/terminator checks, masking,
+callback exception propagation, cancellation, process-group termination,
+independent cleanup worker and reader scope boundaries remain intact.
 
-The correction is implemented with BatchOutcome and typed request/process-exit/
-uncertain-completion problems. Strict entry rejects any problem. Request failures
-poison the session while retaining previous verified frames for observation;
-extra trailing stdout/uncertain cleanup revoke all metadata. Original exception,
-masking and independent cleanup-worker structure are preserved. Native fixtures
-are shared by batch/status tests; pure statusResponse centralizes live CLI output
-and allows checking exit/JSON/CBOR/stderr without replacing native batch tests.
-Two initial checks passed formatting but stopped at -Werror (new variable
-shadowing/unused binding, then a new test helper name). These were corrected;
-production code compiled. The third full check has completed the build and
-entered tests; its full outcome remains pending.
-No completion claim yet. Symbolic branch diagnostics are now Node-level.
+withGitBatchObservation exposes that outcome through existing adapters and
+preserved decorators. withGitBatch is the real strict policy: callback completion
+plus zero session problems, otherwise Left. withHistorySource still uses it;
+no changes to protocol decoder, candidate rules or management architecture.
+CommitObservation contains observedCommits plus commitSessionProblems. Its map
+covers every unique requested OID, including failures. Classified later failures
+preserve verified metadata, while uncertain completion replaces all OID results
+with unavailable errors. Empty requests start no child; OIDs still deduplicate
+and normal native queries share one scoped batch process. No second transport.
+
+Status aggregates one commit_session_incomplete diagnostic per query with
+property=commit and no invented Node; object failures retain commit_unavailable
+with Node/property. All-successful objects plus process exit failure still exit
+3. tip/worktrees/remote and ref change detection remain independent. The symbolic
+Node branch diagnostic is now Node-level (property omitted); symbolic tip/commit
+stay unavailable without reading through that alias. The live CLI uses the
+extracted pure statusResponse mapping; tests verify native query reports use
+complete JSON/CBOR, shared diagnostics, empty machine stderr and text errors.
+No new top-level fields, CLI options, normal schema, metadata/subject semantics,
+protocol or B4 working-tree property. README Version status and failure policy
+are corrected; CHANGELOG remains TODO v0.3.0; package metadata stays 0.2.0.
+
+Final authorized 300s/single-job/core nix flake check passed (exit 0): fresh
+-Wall -Werror build, all 16 suites / 358 groups, treefmt 59 eligible files with
+zero changes. Status has 52 groups and Batch 38: 16 groups added overall. Native
+commit/Status/strict-reader regressions cover SHA-1/SHA-256 x files/reftable.
+Lifecycle tests exercise actual self-executable scoped children, successful
+prefix plus truncated/invalid OID/size/terminator responses, poisoning, nonzero
+exit, unexpected trailing stdout, startup, exceptions/cancellation, reader escape,
+request/process counts, object-map completeness and default no-object costs.
+Native strict tests prove callback reads succeed but withHistorySource, Inspect
+and validateCandidate reject failed final sessions. Two old ignored-request
+expectations were strengthened from Right to Left, never relaxed.
+Final derivation:
+/nix/store/y9mlwm097frwhqfmsm5j60lfrffg333s-git-roam-0.2.0.drv.
+Only x86_64-linux checked; other systems/minimum Git/10^4-Node timing not proven.
+Two initial checks passed formatting but stopped at -Werror (variable shadowing/
+unused binding, then a test helper shadow); these were fixed. The third check
+passed all tests; no test failure or timeout occurred in this correction.
+
+All 61 final worktree files match tmp/b3-session-verification.json and the tested
+isolated tmp/b3-session-check snapshot by SHA-256; original B3 evidence remains.
+The complete 12-path diff, including the new fixture, was reviewed and diff HEAD
+--check passed. One coherent fix: split not necessary, high lifecycle/safety
+coupling. Full-diff tmp/commit.md uses
+fix(GitRoam.Git.Batch): preserve verified commit observations,
+without a Breaking footer. Source/tests and durable findings suffice; no new raw
+archive or additional project parent for this uncommitted fix. If user commits,
+verify blobs against the session manifest before grounding its exact state.
+Do not repeat unchanged tests merely to obtain a parent. B4 is next under a new
+instruction. Standing full-Haskell-scope/full-diff draft convention applies only
+to this conversation/current Status redesign, with no project Git-write authority.
 
 ## Initial B3 completion evidence (before the active correction)
 
