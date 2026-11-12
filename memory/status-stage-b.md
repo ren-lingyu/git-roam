@@ -290,17 +290,71 @@ The user committed these corrections at 693f478fca5a680de8aa188ae66280772a0d738c
 all 58 committed blobs match the reviewed verification manifest and the project
 worktree/index are clean. B2 is frozen; the user explicitly requested B3.
 
-## Active B3 implementation
+## Completed B3: independent tip commit metadata
 
-Implement independent raw tip commit metadata using shared raw object and batch
-transport, without adding metadata parsing to protocol validation. Preserve raw
-name/email/message bytes and encoding headers' message bytes without transcoding.
-Subject uses the first LF-delimited message line with one terminal CR removed;
-message is never normalized. Dates preserve integer seconds and signed HHMM.
-Keep exact property selection/default cost boundaries and partial diagnostics.
-Cover native SHA-1/SHA-256 x files/reftable plus parser, byte and fault/cost tests.
-B3 scoped Haskell/Cabal formatting was explicitly authorized; Nix checks retain
-300s/one-job/one-core limits. Update docs and draft the complete-diff commit.
+Baseline is the user's committed B2 correction, verified by 58-file equivalence
+before B3. B3 is implemented and verified but uncommitted; the project index is
+empty and the agent did not stage or commit ordinary project files. Eleven paths
+changed: new Git/Commit.hs and test/CommitProperty.hs, Application/Status.hs,
+Git/Objects.hs, Cli.hs, Output.hs, git-roam.cabal, test/Status.hs, test/Output.hs,
+README.org and CHANGELOG.org. No B4–B6 implementation, protocol changes, lockfile,
+package version or release-state/time changes are included.
+
+The independent CommitMetadata/CommitIdentity/CommitDate types preserve raw
+name/email/message bytes, ordered parent OIDs, tree OID, Integer Unix seconds
+and raw signed HHMM offset. Subject takes the first LF-delimited message line
+and removes one terminal CR from that line; message is byte-for-byte unchanged.
+No mailmap or declared-encoding transcoding, signing verification or timezone
+inference occurs. Header continuations attach to their preceding header, so
+opaque signature/mergetag continuation rows cannot masquerade as metadata.
+Missing/repeated required headers and malformed identity/date fields fail the
+property. Integer timestamps avoid platform overflow; Output.Number/CBOR now
+support integers directly, with an explicit conversion for old Int counts.
+
+readStoredObject was extracted from the existing raw object loader and reused;
+protocol decodeCommit still reads only tree/parents. Commit metadata type checks
+raw objects and shares one scoped cat-file batch with unique selected tip OIDs.
+Only -p commit starts this reader; exact selection does not leak tip or other
+fields. No parent/tree traversal, protocol validation, file scan or per-Node
+native child process. Missing ancestors are allowed for observation. Partial
+failures yield commit:null with commit_unavailable Node/property diagnostics;
+successful properties/Nodes survive. Symbolic aliases cannot acquire an available
+metadata result merely because another ordinary Node has the same resolved OID.
+Before/after reference change diagnostics remain intact.
+
+CLI parser/help and text/JSON/CBOR mappings are updated; raw fields use the
+existing utf8/base64 versus native bytes contract. README documents metadata,
+subject/date/byte rules, exact selection and costs. CHANGELOG adds the feature
+under TODO v0.3.0. Official Git cat-file/commit-tree documentation was consulted:
+https://git-scm.com/docs/git-cat-file and https://git-scm.com/docs/git-commit-tree.
+
+Added 14 test groups (Status now 44), covering malformed headers/date/envelopes,
+empty/multiple/nonstandard message lines, byte identities/messages, encoding and
+signature headers, signed/large timestamps with lossless JSON/CBOR, empty reads,
+wrong/missing objects, process/transport errors, native Root/Content/multi-parent
+metadata, mailmap independence, text/JSON/CBOR CLI, exact keys, retained partial
+results, no ancestor reads, unchanged default/tip costs, strict history refusal,
+ref races, equal-tip deduplication and symbolic aliases. Native groups run across
+SHA-1/SHA-256 x files/reftable. All production components compile -Wall -Werror.
+
+The first full check passed formatting and 15 suites, but four new strict-refusal
+assertions expected an InspectionReport when missing ancestors instead return
+HistoryFailure directly. Corrected those assertions without altering production
+validation, and added output/dedup/symbolic checks. The final authorized 300s
+single-job/core nix flake check passed all 16 suites / 342 groups, treefmt on 58
+eligible files with zero changes, no timeout. Final derivation:
+/nix/store/lmn59x5nbzmpz5dsqrp86gvhpyylp4mh-git-roam-0.2.0.drv.
+Only x86_64-linux was checked; other systems/minimum Git/10^4-Node performance
+are unverified. All 60 final worktree files match the tested tmp/b3-check snapshot
+and tmp/b3-verification.json by SHA-256; the index is empty. Static diff HEAD
+--check passes. The initial failed snapshot manifest is retained separately.
+
+The complete eleven-path diff, including both new modules, is one reviewed B3
+feature; split not necessary, medium complexity. tmp/commit.md uses full module
+scope GitRoam.Application.Status and no Breaking footer for the additive property.
+No new raw archive is warranted, and no uncommitted code is used as an additional
+project parent. Await user review/commit; verify its blobs before grounding the
+exact committed state. Proceed to B4 only under a new instruction.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -545,8 +599,8 @@ notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
 B1 and initial B2 were committed by the user. B2 review corrections are now
-committed and verified by manifest equivalence. B3 is now explicitly requested
-and active. Only within this conversation / the
+committed and verified by manifest equivalence. B3 is complete and verified
+in the uncommitted worktree; await review/commit and a new B4 instruction. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;

@@ -1,92 +1,86 @@
 # Git Roam current state
 
-## Active objective: implement B3 commit metadata
+## Current handoff: B3 commit metadata implemented and verified
 
-Initial B2 was committed at a2018485275e476c9cb9645cb2dc67c27b40b482.
-The user has now committed the reviewed corrections at
-693f478fca5a680de8aa188ae66280772a0d738c. All 58 committed blobs match the final
-B2 review manifest. The project worktree/index were clean at B3 entry, and the
-user explicitly requested B3. The following B2 test evidence applies to that
-committed state; B3 source changes/tests are in progress and uncommitted.
-No agent ordinary project staging or commit has been performed.
+B3 is complete in the uncommitted project worktree. Baseline is the user's
+B2 correction commit 693f478fca5a680de8aa188ae66280772a0d738c. At entry its 58
+committed blobs matched the successful B2 review snapshot; that committed state
+was grounded at the phase-transition checkpoint without repeating unchanged tests.
+No ordinary project staging, commit or push was performed. The index is empty;
+there are 11 changed paths, including two new Haskell files. User review/commit
+is next; do not begin B4 without a new instruction.
 
-Corrected remote-only config (no merge => known no upstream), scalar remote
-precedence (native upstream:remotename, with last-read config as evidence), and
-multiple-merge diagnostics. UpstreamConfigObservation retains successful Node
-config and typed Node-local problems, including native key-NUL records without
-LF/value. Failed commands or unreliable record boundaries stay conservative.
-Optional upstream atom failures trigger a plain batched ref fallback; reliable
-UUIDs/tips/worktree registration/tracking refs survive, and original upstream
-failure diagnostics/nonzero exit remain. Failed stdout is never salvaged as
-trusted refs. Snapshot comparison still detects base-ref changes; metadata is
-compared only across comparable successful observations, without atomic claims.
+Status now accepts exact -p commit selection. Default remains tip/worktrees/remote.
+CommitMetadata contains full tree OID, ordered direct parents, separate author/
+committer byte names/emails and dates, subject and unchanged message. CommitDate
+uses Integer Unix seconds plus original signed four-digit offset; there is no
+ISO rendering or timezone inference. Name/email/subject/message use Output.Bytes
+(JSON utf8/base64, CBOR bytes). No mailmap or encoding-header conversion occurs.
+Subject is the first LF-delimited message line with one terminal CR removed;
+the original message, including nonstandard newlines/NUL/non-UTF-8, is unchanged.
 
-Semantic symbolic-remote diagnostics are now limited to selected local Nodes;
-global read errors/omission warnings still affect completeness. Selected Nodes
-with only excluded symbolic candidates have refs:null, genuinely absent
-candidates refs:[], and mixed candidates retain reliable ordinary refs. The
-public CLI/schema/default properties, check, storage protocol and strict base
-read requirements are unchanged. Deploy still rejects symbolic candidates.
-B3–B6 were not implemented as part of this correction. README and CHANGELOG
-have scoped fixes, and StatusRegression is registered in the Status test suite.
+GitRoam.Git.Commit is an independent metadata decoder/reader. It groups multiline
+headers correctly, ignores opaque extension/signature data, rejects malformed or
+repeated required headers, checks object type and reads only selected tips.
+readStoredObject was extracted from Git.Objects and reused without changing the
+protocol decoder's metadata obligations. One native scoped cat-file process is
+shared by tip reads and equal OIDs are deduplicated. Defaults/tip-only launch no
+cat-file, and metadata never traverses parents, validates history or scans files.
+Missing ancestors do not block reliable tip metadata. Missing/wrong/malformed
+tip objects produce commit_unavailable with Node/property context, retain other
+properties/Nodes, and yield complete partial JSON/CBOR with exit 3. Symbolic Node
+branches remain diagnosed/unavailable even if their resolved OID was read for
+another ordinary Node. Existing before/after ref change detection is preserved.
 
-Final authorized nix flake check passed with exit 0: fresh -Wall -Werror build,
-all 16 suites / 328 groups (30 Status groups, 14 added), treefmt 56 eligible
-files with zero changes. Native regression groups cover SHA-1/SHA-256 x
-files/reftable; they reproduce the actual valueless-config/upstream failure on
-pinned Git 2.56.0, retain A's known config despite B's invalid entry, and check
-default JSON/CBOR success for remote-only/repeated remote, partial-report exit 3,
-selected-symbolic refs:null, remote-only exclusion, global warnings and Deploy
-refusal. Adapter tests prove four bounded fallback ref calls, no fabricated
-Nodes when base reads fail, strict rejection and ref-race detection. Existing
-2-to-34-Node normal-path call counts remain unchanged. Only x86_64-linux was
-checked; other platforms, Git 2.47.3 and 10^4-Node timing were not verified.
-Successful final product derivation:
-/nix/store/yny4andfmm9x3xn480hcj30rs80x6c0w-git-roam-0.2.0.drv.
-Both full check runs passed; the first preceded extra CLI assertions. A new
-test's initial layout parse error was corrected before either build; no timeout
-or production compilation/test failure occurred in this correction task.
+Output.Number now carries Integer and uses CBOR.encodeInteger, avoiding platform
+Int narrowing of timestamps. Existing checkpoint-count values convert from Int
+without changing their wire values. CLI help, README and CHANGELOG TODO v0.3.0
+reflect the implemented property. Package/release metadata remains 0.2.0; no
+release-state/time changes, new dependency versions or lockfile changes.
 
-All 58 final working/index files match the successfully tested isolated snapshot
-by SHA-256. New verification material: tmp/b2-review-check and
-tmp/b2-review-verification.json; original B2 verification material is preserved.
-Full seven-path diff (staged plus initially unstaged additions) was reviewed;
-static diff HEAD --check passed. One fix commit draft is ready in validated
-tmp/commit.md: fix(GitRoam.Application.Status): preserve scoped upstream observations.
-No Breaking footer because this repairs the intended contract without changing
-CLI/schema. Split assessment: not necessary, medium complexity, one B2 fix.
-No raw transcript/review archive is needed; maintained regressions and these
-conclusions retain the necessary evidence. The original completion checkpoint added no
-project parent for then-uncommitted fixes. The B3 transition now grounds the
-committed B2 correction by the exact 58-file match, without repeating tests.
+Final authorized 300s/one-job/one-core nix flake check completed with exit 0:
+fresh -Wall -Werror build, all 16 suites / 342 groups (Status 44, 14 added), and
+treefmt on 58 eligible files with zero changes. New native groups cover SHA-1/
+SHA-256 x files/reftable, Root/Content/multi-parent tips, non-UTF-8 messages with
+encoding headers, opaque signature continuations, different identities/dates,
+mailmap independence, all three CLI formats, exact output keys, partial errors,
+missing ancestors, strict history rejection, costs, races, shared OIDs and
+symbolic aliases. Unit groups cover byte identity/message preservation, empty/
+nonstandard messages, malformed headers/dates, signed/unbounded integer dates,
+missing/wrong objects, transport/process/framing errors and empty reads.
+Final product derivation:
+/nix/store/lmn59x5nbzmpz5dsqrp86gvhpyylp4mh-git-roam-0.2.0.drv.
+Only x86_64-linux was checked; other platforms/minimum Git/10^4-Node timings
+are not proven. No timeout occurred. The initial full check passed formatting,
+compilation and 15 suites but four new tests mis-modeled Inspect's direct
+HistoryFailure as an error inside a report. Corrected only the assertions and
+added output/dedup/symbolic coverage; the final check passes all suites.
 
-See [status-stage-b.md](status-stage-b.md) for the full B1–B7 direction and review
-correction details. B5 must still migrate Hook ref enumeration and remove
-management InspectionReport/ManagedState coupling. Keep worktrees/status as
-independent properties. Partial observations never establish trusted state.
-Development TODO remains v0.3.0, package/release metadata 0.2.0.
+All 60 final worktree files match tmp/b3-verification.json and the checked
+isolated tmp/b3-check snapshot by SHA-256. Original B2 manifests are preserved.
+The complete 11-path diff, including untracked new modules, was reviewed;
+diff HEAD --check passed. The phase is one coherent change; split not necessary,
+medium complexity. tmp/commit.md contains the complete-diff draft:
+feat(GitRoam.Application.Status): add tip commit metadata queries.
+No Breaking footer is needed for this additive property. Source/tests and durable
+findings suffice; no new raw archive or uncommitted project-parent association.
 
-Only during this conversation / current Status redesign B1–B7, draft a commit
-message from the COMPLETE stage diff at each completion; use the principal full
-Haskell module name as scope and save only the message in validated tmp/commit.md.
-This convention does not apply to unrelated tasks or authorize project Git writes.
-On-demand working-directory Nix eval/build/check and outside-workspace read-only
-commands are authorized; B2 scoped Haskell/Cabal formatting uses a 120s bound,
-checks 300s and one job/core. Respect actual user staging and preserve their index.
+See [status-stage-b.md](status-stage-b.md) for the B1–B7 contract and evidence.
+B4 remains working-tree status; keep worktrees/status independent properties
+linked by raw path. B5 must atomically migrate management reportManagedState
+consumers and Hook ref enumeration. Partial observations never establish trusted
+ManagedState. Check scope, protocol and management safety were not changed.
 
-Current B3 work: add independent byte-safe tip commit metadata parsing and
-reuse the raw cat-file reader/batch transport without expanding protocol parsing.
-Return tree, ordered parents, author/committer names/emails/dates, subject and
-original message. Subject is the first LF-delimited message line, dropping only
-a terminal CR from that line; message remains byte-for-byte unchanged. Dates use
-integer Unix seconds plus the raw signed four-digit offset. No mailmap/encoding
-transcoding, history walk, ancestor validation or working-tree scan. Default
-properties stay tip/worktrees/remote; explicit commit omits dependency properties.
-Add malformed/byte/date/continuation tests, four-combination native and adapter
-cost/failure tests, sync docs, run authorized checks, draft the full-diff commit
-message, and maintain memory. B3 formatting is explicitly authorized on changed
-Haskell/Cabal files with the existing local treefmt and 120s bound.
-Earlier handoff sections below describe historical states, not next actions.
+Only for this conversation/current Status redesign B1–B7, draft a commit message
+from the COMPLETE stage diff at phase completion, using the principal full
+Haskell module name as scope and validated tmp/commit.md. This is not a global
+preference or project Git-write authorization. Working-directory Nix eval/build/
+check and outside-workspace read-only commands are authorized. B3 also has scoped
+Haskell/Cabal formatting authorization using local treefmt with a 120s bound;
+checks retain 300s/one-job/one-core limits. No project commits/pushes or lifecycle
+changes. If the user commits B3, verify blobs against the final manifest before
+grounding that exact state; do not rerun unchanged tests solely for a parent.
+Earlier handoff sections below are historical rather than current next actions.
 
 ## Completed follow-ups: creation format cleanup and output documentation
 
