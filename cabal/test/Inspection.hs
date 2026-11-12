@@ -630,11 +630,11 @@ cliTest environment = initialized environment "files" Sha1 $ \directory -> do
     w <- makeCommit environment directory at [k] "unconfirmed"
     setRef environment directory uuidA w
     _ <- ok environment directory ["switch", "-q", BSC.unpack uuidA] BS.empty
-    status <- cli ["status"]
+    status <- cli ["status", "-t", "node"]
     assertEqual ExitSuccess (gitExitCode status)
-    assertTrue "Direct Checkpoint contexts missing from status" ("  contexts" `BS.isInfixOf` gitStdout status && b `BS.isInfixOf` gitStdout status)
-    assertTrue "Content tail missing" ("content-tail yes" `BS.isInfixOf` gitStdout status)
-    assertTrue "Main worktree not distinguished" ("main; not a removable deployment" `BS.isInfixOf` gitStdout status)
+    assertTrue "Tip missing from status" (w `BS.isInfixOf` gitStdout status)
+    assertTrue "Status did not query every local Node" (uuidA `BS.isInfixOf` gitStdout status && uuidB `BS.isInfixOf` gitStdout status)
+    assertTrue "Worktree registration missing" ("worktree" `BS.isInfixOf` gitStdout status)
     checked <- cli ["check", "--node", BSC.unpack uuidA]
     assertEqual ExitSuccess (gitExitCode checked)
     bad <- cli ["check", "--node", "bad"]

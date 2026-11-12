@@ -12,6 +12,7 @@ module GitRoam.Cli (
 import Control.Exception (IOException, try)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
@@ -21,6 +22,7 @@ import qualified GitRoam.Application.Delete as Deletion
 import qualified GitRoam.Application.Deploy as Deployment
 import GitRoam.Application.Inspect
 import qualified GitRoam.Application.Protection as Protection
+import qualified GitRoam.Application.Status as Status
 import qualified GitRoam.Application.Undeploy as Undeployment
 import GitRoam.BuildInfo (packageVersion)
 import qualified GitRoam.Diagnostic as Diagnostic
@@ -42,7 +44,7 @@ data HelpTopic = GeneralHelp | HelpHelp | VersionHelp | CheckHelp | StatusHelp |
 
 data CheckpointMessage = InlineMessage String | FileMessage FilePath deriving (Eq, Show)
 
-data Command = Formatted Output.OutputFormat Command | ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | StatusNode (Maybe NodeId) | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
+data Command = Formatted Output.OutputFormat Command | ShowHelp HelpTopic | ShowVersion | CheckNode (Maybe NodeId) | QueryStatus Status.StatusQuery | EnableProtection | DisableProtection | DeployNodes FilePath (Maybe String) | UndeployNodes | CreateNode FilePath (Maybe NodeId) | CreateCheckpoint (Maybe NodeId) CheckpointMessage [String] | PreviewDelete NodeId | ExecuteDelete NodeId (Maybe String)
     deriving (Eq, Show)
 
 data CliResponse = CliResponse
@@ -145,17 +147,28 @@ parseSubcommand deployment arguments = case arguments of
     ["status", "--help"] -> help StatusHelp
     ["status", "-h"] -> help StatusHelp
     ["check"] -> Right (CheckNode Nothing)
-    ["status"] -> Right (StatusNode Nothing)
     ["check", "--node", node] -> CheckNode . Just <$> uuid node
-    ["status", "--node", node] -> StatusNode . Just <$> uuid node
     "check" : _ -> Left "Usage: git roam check [--node <uuid>]"
-    "status" : _ -> Left "Usage: git roam status [--node <uuid>]"
+    "status" : args -> statusArgs Nothing [] [] args
     ["help", topic] -> Left ("Unknown help topic: " <> quoted topic)
     "version" : _ -> Left "The version command takes no arguments."
     "help" : _ -> Left "Usage: git roam help [command]"
     option : _ | take 1 option == "-" -> Left ("Unknown option: " <> quoted option)
     command : _ -> Left ("Unknown command: " <> quoted command)
   where
+    statusArgs selected nodes properties args = case args of
+        option : value : rest | option `elem` ["-t", "--type"], selected == Nothing, value `elem` ["repo", "node"] -> statusArgs (Just value) nodes properties rest
+        option : value : rest | option `elem` ["-n", "--node"] -> uuid value >>= \node -> statusArgs selected (node : nodes) properties rest
+        option : value : rest | option `elem` ["-p", "--property"] -> do
+            property <- case value of
+                "tip" -> Right Status.TipProperty
+                "worktrees" -> Right Status.WorktreesProperty
+                "remote" -> Right Status.RemoteProperty
+                _ -> Left "Unknown or unavailable Status property (expected tip, worktrees, remote)"
+            statusArgs selected nodes (property : properties) rest
+        [] | selected == Just "repo", null nodes, null properties -> Right (QueryStatus Status.RepositoryStatus)
+        [] | selected == Just "node" -> Right (QueryStatus (Status.NodeStatusQuery (if null nodes then Status.AllNodes else Status.SelectedNodes (Set.fromList nodes)) (if null properties then Status.DefaultProperties else Status.SelectedProperties (Set.fromList properties))))
+        _ -> Left "Usage: git roam status -t repo | -t node [-n <uuid>]... [-p tip|worktrees|remote]..."
     createArgs path node args = case args of
         [] -> CreateNode <$> deploymentPath path <*> pure node
         "--path" : value : rest | path == Nothing && validValue value -> createArgs (Just value) node rest
@@ -204,7 +217,7 @@ renderHelp topic = case topic of
             , "  help [command]  Show general or command-specific help"
             , "  version         Print the package version"
             , "  check           Validate Node history and recorded contexts"
-            , "  status          Show Node history, Checkpoint contexts and worktrees"
+            , "  status          Observe repository protection or selected Node properties"
             , "  enable          Install or verify repository reference protection"
             , "  disable         Disable protection after full undeployment"
             , "  deploy          Deploy all local and fetched candidate Nodes"
@@ -225,7 +238,7 @@ renderHelp topic = case topic of
     HelpHelp -> Text.unlines ["usage: git roam help [command]", "", "Show general help or help for an available command."]
     VersionHelp -> Text.unlines ["usage: git roam version", "       git roam --version", "", "Print the package version."]
     CheckHelp -> inspectionHelp "check" "Validate the complete protocol history reachable from the selected managed Node refs."
-    StatusHelp -> inspectionHelp "status" "Show Node history, the latest Checkpoint's direct contexts, worktrees and diagnostics."
+    StatusHelp -> Text.unlines ["usage: git roam status -t repo", "       git roam status -t node [-n <uuid>]... [-p tip|worktrees|remote]...", "", "--type/-t is required exactly once. Repo rejects --node/-n and --property/-p.", "Node queries default to all canonical local Node branches and tip, worktrees, remote.", "Repeat --node/-n or --property/-p for set selection; properties are exact, not additive.", "Global --format belongs before status. No history validation, worktree file scan or network query.", "Remote observations use local refs and upstream configuration. Partial reads have diagnostics and nonzero exit.", "Commit metadata and working-tree status properties are not yet available."]
     EnableHelp -> Text.unlines ["usage: git roam enable", "", "Install or validate the repository-local reference-transaction Hook.", "The Hook runs git-roam --reference-transaction from Git's PATH, not a pinned executable path.", "An existing canonical Hook is unchanged; recognized old absolute-path Git-roam Hooks are migrated.", "Incomplete, inherited or divergent configuration is refused; Node history is not changed."]
     DisableHelp -> Text.unlines ["usage: git roam disable", "", "Remove Git-roam protection after all Node linked worktrees have been undeployed."]
     DeployHelp -> Text.unlines ["usage: git roam deploy --path <path> [--remote <remote>]", "       git roam --deploy-path <absolute-path> deploy [--remote <remote>]", "", "Provide exactly one path source; top-level --deploy-path and subcommand --path are mutually exclusive.", "Deploy all local Nodes and canonical fetched candidates under eight-character UUID directories.", "--remote limits discovery of missing Nodes to that remote; local branches are never advanced.", "Requires enabled protection. Does not fetch, merge or relocate existing worktrees.", "Failures report residual state after conservative compensation; no filesystem atomicity is promised."]
@@ -306,8 +319,18 @@ runFormatted format parsed = case parsed of
     Left message -> pure (failure 2 (message <> "\nTry 'git roam --help' for usage."))
     Right (ShowVersion) -> pure (resultResponse [("version", Output.String (Text.pack packageVersion))] ("git-roam " <> Text.pack packageVersion <> "\n"))
     Right (ShowHelp topic) -> pure (success (renderHelp topic))
-    Right (CheckNode node) -> inspect False node
-    Right (StatusNode node) -> inspect True node
+    Right (CheckNode node) -> inspect node
+    Right (QueryStatus request) -> do
+        directory <- getCurrentDirectory
+        outcome <- Status.queryStatus (nativeGit defaultGitExecutable) directory request
+        pure $ case outcome of
+            Left problem -> if format == Output.TextFormat then failure 3 (Text.pack (show problem)) else diagnosticFailure 3 "repository_discovery_failed" (Text.pack (show problem))
+            Right report ->
+                let issues = Status.reportDiagnostics report
+                 in CliResponse
+                        (if null issues then ExitSuccess else ExitFailure 3)
+                        (if format == Output.TextFormat then Encoding.encodeUtf8 (renderStatus report) else Output.encodeValue format (Output.statusValue report))
+                        (if format == Output.TextFormat then Text.unlines ["git-roam: " <> Status.statusMessage issue | issue <- issues] else "")
     Right EnableProtection -> lifecycle Protection.enableProtection "Repository protection enabled.\n"
     Right DisableProtection -> lifecycle Protection.disableProtection "Repository protection disabled.\n"
     Right (PreviewDelete node) -> do
@@ -419,7 +442,7 @@ runFormatted format parsed = case parsed of
         directory <- getCurrentDirectory
         result <- operation directory
         pure $ either (failureAs "protection_failed" . Text.pack) (const (resultResponse [("enabled", Output.Boolean (message == "Repository protection enabled.\n"))] message)) result
-    inspect status requested = do
+    inspect requested = do
         directory <- getCurrentDirectory
         let git = nativeGit defaultGitExecutable
         selected <- case requested of
@@ -432,13 +455,7 @@ runFormatted format parsed = case parsed of
             Left problem -> if format == Output.TextFormat then failure (inspectionExit problem) (inspectionDiagnostic problem) else if not (inspectionHasReport problem) then diagnosticFailure (inspectionExit problem) (inspectionCode problem) (inspectionDiagnostic problem) else CliResponse (ExitFailure (inspectionExit problem)) (Output.encodeValue format (Output.Object [("valid", Output.Boolean False), ("nodes", Output.Array []), ("diagnostics", Output.Array [Output.diagnostic (inspectionCode problem) "error" (inspectionDiagnostic problem)])])) ""
             Right report ->
                 let issues = reportProblems report
-                    output =
-                        if status
-                            then renderStatus report
-                            else
-                                if null issues
-                                    then "OK: " <> decimal (length (reportNodes report)) <> " Nodes; histories and recorded contexts are valid.\n"
-                                    else ""
+                    output = if null issues then "OK: " <> decimal (length (reportNodes report)) <> " Nodes; histories and recorded contexts are valid.\n" else ""
                     errors = Text.concat ["git-roam: " <> stateDiagnostic issue <> "\n" | issue <- issues]
                  in CliResponse (if null issues then ExitSuccess else ExitFailure 1) (if format == Output.TextFormat then Encoding.encodeUtf8 output else Output.encodeValue format (inspectionValue report)) (if format == Output.TextFormat then errors else "")
     resultResponse fields text = if format == Output.TextFormat then success text else CliResponse ExitSuccess (Output.encodeValue format (Output.Object fields)) ""

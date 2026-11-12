@@ -111,7 +111,7 @@ observeRefs git directory expected = runExceptT $ do
     found <- lift (inspectRepository git directory pathEnvironment)
     repository <- either (throwE . show) pure found
     observed <- lift (Refs.readNodeRefs git directory pathEnvironment (repositoryObjectFormat repository) Refs.LocalNodes)
-    refs <- either (throwE . refFailure) pure observed
+    refs <- either (throwE . refFailure) pure (Refs.requireCompleteRefs observed)
     forM_ refs $ \record -> unless (BS.null (Refs.observedSymbolic record)) (throwE "Symbolic Node ref in worktree plan")
     let actual = Map.fromList [(Refs.observedNode record, Refs.observedTip record) | record <- refs]
     unless (actual == expected) (throwE "Managed refs changed or the supplied snapshot is not repository-wide")

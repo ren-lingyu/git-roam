@@ -32,6 +32,12 @@ main =
             ++ [("native batch refs and worktree observations " ++ backend ++ " " ++ show format, fixture backend format (nativeObservations format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("Inspect, Deploy and Worktree retain symbolic-ref policies " ++ backend ++ " " ++ show format, fixture backend format (strictPolicies format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
 
+strictDecode :: ObjectFormat -> NodeRefScope -> BS.ByteString -> Either RefReadError [NodeRefObservation]
+strictDecode format scope = requireCompleteRefs . decodeNodeRefs format scope
+
+strictRead :: Git IO -> FilePath -> [(String, Maybe String)] -> ObjectFormat -> NodeRefScope -> IO (Either RefReadError [NodeRefObservation])
+strictRead git directory environment format scope = requireCompleteRefs <$> readNodeRefs git directory environment format scope
+
 local :: NodeId -> BS.ByteString
 local node = "refs/heads/" <> nodeIdBytes node
 
@@ -60,33 +66,33 @@ observations = forM_ [Sha1, Sha256] $ \format -> do
         b = row (local nodeB) oid ""
         r = row (remote rawPrefix nodeA) oid (remote "backup" nodeA)
         ordinary = row "refs/heads/main" "ignored" ""
-    records <- expectRight (decodeNodeRefs format LocalAndRemoteNodes (b <> ordinary <> r <> a))
+    records <- expectRight (strictDecode format LocalAndRemoteNodes (b <> ordinary <> r <> a))
     assertEqual [local nodeB, remote rawPrefix nodeA, local nodeA] (map observedRef records)
     assertEqual [nodeB, nodeA, nodeA] (map observedNode records)
     assertEqual [Nothing, Just rawPrefix, Nothing] (map observedRemotePrefix records)
     assertEqual ["", remote "backup" nodeA, "refs/heads/main"] (map observedSymbolic records)
     assertEqual [oid, oid, oid] (map (objectIdBytes . observedTip) records)
-    locals <- expectRight (decodeNodeRefs format LocalNodes (b <> r <> a))
+    locals <- expectRight (strictDecode format LocalNodes (b <> r <> a))
     assertEqual [local nodeB, local nodeA] (map observedRef locals)
-    assertEqual (Right []) (decodeNodeRefs format LocalNodes "")
+    assertEqual (Right []) (strictDecode format LocalNodes "")
 
 malformed :: IO ()
 malformed = forM_ [Sha1, Sha256] $ \format -> do
     let oid = BS.replicate (objectIdLength format) 49
         good = row (local nodeA) oid ""
     forM_ ["broken\n", local nodeA <> "\0" <> oid <> "\n", local nodeA <> "\0" <> oid <> "\0\0\n", "\n"] $ \bytes ->
-        case decodeNodeRefs format LocalNodes bytes of
+        case strictDecode format LocalNodes bytes of
             Left (MalformedRefOutput _) -> pure ()
             other -> fail ("Malformed row was accepted: " ++ show other)
     forM_ [BS.replicate (objectIdLength format) 48, BS.replicate (objectIdLength format) 103, BS.replicate (if format == Sha1 then 64 else 40) 49] $ \bad ->
-        case decodeNodeRefs format LocalNodes (row (local nodeA) bad "") of
+        case strictDecode format LocalNodes (row (local nodeA) bad "") of
             Left (InvalidRefObject _ _) -> pure ()
             other -> fail ("Invalid OID was accepted: " ++ show other)
     forM_ [good, row (local nodeA) (BS.replicate (objectIdLength format) 50) ""] $ \duplicate ->
-        case decodeNodeRefs format LocalNodes (good <> duplicate) of
+        case strictDecode format LocalNodes (good <> duplicate) of
             Left (DuplicateNodeRef _) -> pure ()
             other -> fail ("Duplicate ref was accepted: " ++ show other)
-    expectLeft (decodeNodeRefs format LocalAndRemoteNodes (row (remote "origin" nodeA) "bad" ""))
+    expectLeft (strictDecode format LocalAndRemoteNodes (row (remote "origin" nodeA) "bad" ""))
 
 adapter :: IO ()
 adapter = do
@@ -97,14 +103,14 @@ adapter = do
         fake result = Git $ \request -> do
             modifyIORef' calls (++ [request])
             pure result
-    readNodeRefs (fake (Right (GitResult ExitSuccess "" ""))) "/repository" environment Sha1 LocalAndRemoteNodes >>= assertEqual (Right [])
+    strictRead (fake (Right (GitResult ExitSuccess "" ""))) "/repository" environment Sha1 LocalAndRemoteNodes >>= assertEqual (Right [])
     readIORef calls >>= assertEqual [invocation]
     let transport = GitTransportError "fixture transport"
         failed = GitResult (ExitFailure 7) "partial" "fixture failure"
         warning = GitResult ExitSuccess (row (local nodeA) (BS.replicate 40 49) "") "warning: omitted broken ref"
-    readNodeRefs (fake (Left transport)) "/repository" environment Sha1 LocalNodes >>= assertEqual (Left (RefTransportFailure transport))
+    strictRead (fake (Left transport)) "/repository" environment Sha1 LocalNodes >>= assertEqual (Left (RefTransportFailure transport))
     forM_ [failed, warning] $ \result ->
-        readNodeRefs (fake (Right result)) "/repository" environment Sha1 LocalNodes >>= assertEqual (Left (RefCommandFailure result))
+        strictRead (fake (Right result)) "/repository" environment Sha1 LocalNodes >>= assertEqual (Left (RefCommandFailure result))
 
 nativeObservations :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 nativeObservations format git _ repo parent = do
@@ -117,12 +123,12 @@ nativeObservations format git _ repo parent = do
     _ <- ok git repo ["symbolic-ref", BSC.unpack (local nodeB), "refs/heads/ordinary"] ""
     calls <- newIORef []
     let observed = observeGit (\request -> modifyIORef' calls (++ [gitArguments request])) git
-    records <- readNodeRefs observed repo [] format LocalAndRemoteNodes >>= expectRight
+    records <- strictRead observed repo [] format LocalAndRemoteNodes >>= expectRight
     readIORef calls >>= assertEqual ["--no-replace-objects" : nodeRefArguments LocalAndRemoteNodes]
     assertEqual [local nodeA, local nodeB, remote "backup" nodeA, remote "origin/nested" nodeA] (map observedRef records)
     assertEqual ["", "refs/heads/ordinary", remote "origin/nested" nodeA, ""] (map observedSymbolic records)
     assertEqual [a, a, a, a] (map (objectIdBytes . observedTip) records)
-    locals <- readNodeRefs git repo [] format LocalNodes >>= expectRight
+    locals <- strictRead git repo [] format LocalNodes >>= expectRight
     assertEqual [local nodeA, local nodeB] (map observedRef locals)
     let target = parent </> "worktree with space"
     manual git repo target nodeA
@@ -139,7 +145,7 @@ strictPolicies format git executable repo parent = do
     enable git executable repo
     -- The OID is unchanged: Worktree must still reject the symbolic ref even
     -- though its map of Node identities and tips would match the trusted state.
-    facts <- readNodeRefs git repo [] format LocalNodes >>= expectRight
+    facts <- strictRead git repo [] format LocalNodes >>= expectRight
     assertEqual ["", "refs/heads/ordinary"] (map observedSymbolic facts)
     Inspect.inspectState git repo [] Nothing >>= assertEqual (Left (Inspect.SymbolicNodeBranch nodeB "refs/heads/ordinary"))
     _ <- Inspect.inspectState git repo [] (Just nodeA) >>= expectRight

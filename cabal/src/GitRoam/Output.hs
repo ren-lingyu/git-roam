@@ -3,7 +3,7 @@
 {- | Render CLI results and diagnostics through shared text, JSON and CBOR output.
 Preserve filesystem path bytes independently of the selected presentation format.
 -}
-module GitRoam.Output (OutputFormat (..), Value (..), encodeValue, diagnostic, renderDiagnostic, evidenceValue, renderCreation, renderDelete, decimal, nodeText, oidText, stateDiagnostic, inspectionDiagnostic, renderStatus, nodeValue, oidValue, worktreePairs, deleteValue, deleteFields, inspectionValue, inspectionCode, inspectionHasReport) where
+module GitRoam.Output (OutputFormat (..), Value (..), encodeValue, diagnostic, renderDiagnostic, evidenceValue, renderCreation, renderDelete, decimal, nodeText, oidText, stateDiagnostic, inspectionDiagnostic, renderStatus, statusValue, statusDiagnosticValue, nodeValue, oidValue, worktreePairs, deleteValue, deleteFields, inspectionValue, inspectionCode, inspectionHasReport) where
 
 import qualified Codec.CBOR.Encoding as CBOR
 import qualified Codec.CBOR.Write as CBOR
@@ -20,6 +20,8 @@ import qualified Data.Text.Encoding as Encoding
 import GitRoam.Application.Create (CreationResult (..), createdBundlePath)
 import qualified GitRoam.Application.Delete as Deletion
 import GitRoam.Application.Inspect
+import GitRoam.Application.Protection (ProtectionState (..))
+import qualified GitRoam.Application.Status as Status
 import GitRoam.Diagnostic (Evidence (..))
 import qualified GitRoam.Diagnostic as Diagnostic
 import qualified GitRoam.Git.Worktrees as Worktrees
@@ -158,28 +160,100 @@ inspectionDiagnostic problem = case problem of
     HistoryFailure reason -> "history-invalid: " <> Text.pack (show reason)
     _ -> "git-read-failure: " <> Text.pack (show problem)
 
-renderStatus :: InspectionReport -> Text
-renderStatus report
-    | null (reportNodes report) = "No managed Nodes.\n"
-    | otherwise = Text.concat (map renderNode (reportNodes report))
+statusDiagnosticValue :: Status.StatusDiagnostic -> Value
+statusDiagnosticValue value =
+    Object
+        [ ("code", String (Status.statusCode value))
+        , ("severity", String "error")
+        , ("message", String (Status.statusMessage value))
+        ,
+            ( "context"
+            , Object
+                ( [("node", nodeValue node) | Just node <- [Status.diagnosticNode value]]
+                    ++ [("property", String (Status.propertyName property)) | Just property <- [Status.diagnosticProperty value]]
+                    ++ [("path", Bytes path) | Just path <- [Status.diagnosticPath value]]
+                )
+            )
+        ]
+
+protectionText :: ProtectionState -> Text
+protectionText ProtectionEnabled = "enabled"
+protectionText ProtectionDisabled = "disabled"
+protectionText ProtectionMisconfigured = "misconfigured"
+protectionText ProtectionUnavailable = "unavailable"
+
+statusValue :: Status.StatusReport -> Value
+statusValue report = case report of
+    Status.RepositoryReport state issues -> Object [("repository", Object [("protection", Object [("state", String (protectionText state))])]), ("diagnostics", diagnostics issues)]
+    Status.NodesReport rows issues -> Object [("nodes", Array (map row rows)), ("diagnostics", diagnostics issues)]
   where
-    renderNode node =
-        Text.unlines $
-            [ "node " <> nodeText (viewNode node)
-            , "  tip " <> oidText (viewTip node) <> " (" <> kind (viewKind node) <> ")"
-            , "  checkpoint " <> maybe "none" oidText (viewLatestCheckpoint node)
-            , "  content-tail " <> (case viewKind node of Content _ -> "yes"; _ -> "no")
-            , "  checkpoints " <> decimal (viewCheckpointCount node)
-            , "  contexts " <> (if null (viewContextParents node) then "none" else "")
+    diagnostics = Array . map statusDiagnosticValue
+    property _ _ Status.NotRequested = []
+    property name _ Status.Unavailable = [(name, Null)]
+    property name encode (Status.Available value) = [(name, encode value)]
+    row node =
+        Object $
+            [("node", nodeValue (Status.statusNode node))]
+                ++ property "tip" oidValue (Status.statusTip node)
+                ++ property "worktrees" (Array . map tree) (Status.statusWorktrees node)
+                ++ property "remote" remote (Status.statusRemote node)
+    tree value =
+        Object
+            [ ("path", Bytes (Worktrees.treePath value))
+            , ("head", maybe Null oidValue (Worktrees.treeHead value))
+            , ("branch", maybe Null Bytes (Worktrees.treeBranch value))
+            , ("main", Boolean (Worktrees.treeMain value))
+            , ("bare", Boolean (Worktrees.treeBare value))
+            , ("detached", Boolean (Worktrees.treeDetached value))
+            , ("locked", Boolean (Worktrees.treeLocked value /= Nothing))
+            , ("lock_reason", maybe Null Bytes (Worktrees.treeLocked value))
+            , ("prunable", Boolean (Worktrees.treePrunable value /= Nothing))
+            , ("prune_reason", maybe Null Bytes (Worktrees.treePrunable value))
             ]
-                ++ ["    " <> oidText oid | oid <- viewContextParents node]
-                ++ [ "  worktree " <> Text.pack (show (worktreePath worktree)) <> if worktreeIsMain worktree then " (main; not a removable deployment)" else " (linked)"
-                   | worktree <- reportWorktrees report
-                   , worktreeNode worktree == Just (viewNode node)
-                   ]
-    kind Root = "root"
-    kind (Content _) = "content"
-    kind (Checkpoint _ _) = "checkpoint"
+    remote value = Object [("upstream", case Status.remoteUpstream value of Status.Available result -> maybe Null upstream result; _ -> Null), ("refs", maybe Null (Array . map (\(ref, tip) -> Object [("ref", Bytes ref), ("tip", oidValue tip)])) (Status.remoteRefs value))]
+    upstream value = Object [("remote", maybe Null Bytes (Status.upstreamRemote value)), ("source", maybe Null Bytes (Status.upstreamSource value)), ("ref", maybe Null Bytes (Status.upstreamRef value))]
+
+renderStatus :: Status.StatusReport -> Text
+renderStatus report = case report of
+    Status.RepositoryReport state _ -> "protection " <> protectionText state <> "\n"
+    Status.NodesReport [] _ -> "No local Nodes observed.\n"
+    Status.NodesReport rows _ -> Text.concat (map row rows)
+  where
+    field _ _ Status.NotRequested = []
+    field name _ Status.Unavailable = ["  " <> name <> " unavailable"]
+    field name render (Status.Available value) = map ("  " <>) (render name value)
+    row value =
+        Text.unlines $
+            ["node " <> nodeText (Status.statusNode value)]
+                ++ field "tip" (\name oid -> [name <> " " <> oidText oid]) (Status.statusTip value)
+                ++ field "worktrees" renderTrees (Status.statusWorktrees value)
+                ++ field "remote" renderRemote (Status.statusRemote value)
+    raw = maybe "unavailable" (Text.pack . show)
+    flag True = "yes"
+    flag False = "no"
+    renderTrees name [] = [name <> " none"]
+    renderTrees _ trees = concatMap renderTree trees
+    renderTree tree =
+        [ "worktree " <> Text.pack (show (Worktrees.treePath tree))
+        , "  head " <> maybe "unavailable" oidText (Worktrees.treeHead tree)
+        , "  branch " <> raw (Worktrees.treeBranch tree)
+        , "  main " <> flag (Worktrees.treeMain tree) <> " bare " <> flag (Worktrees.treeBare tree) <> " detached " <> flag (Worktrees.treeDetached tree)
+        , "  locked " <> flag (Worktrees.treeLocked tree /= Nothing) <> " prunable " <> flag (Worktrees.treePrunable tree /= Nothing)
+        ]
+            ++ ["  lock-reason " <> Text.pack (show reason) | Just reason <- [Worktrees.treeLocked tree]]
+            ++ ["  prune-reason " <> Text.pack (show reason) | Just reason <- [Worktrees.treePrunable tree]]
+    renderRemote name remote =
+        [name]
+            ++ ( case Status.remoteUpstream remote of
+                    Status.Available Nothing -> ["  upstream none"]
+                    Status.Available (Just upstream) -> ["  upstream remote " <> raw (Status.upstreamRemote upstream), "    source " <> raw (Status.upstreamSource upstream), "    ref " <> raw (Status.upstreamRef upstream)]
+                    _ -> ["  upstream unavailable"]
+               )
+            ++ tracking remote
+    tracking remote = case Status.remoteRefs remote of
+        Nothing -> ["  refs unavailable"]
+        Just [] -> ["  refs none"]
+        Just refs -> ["  ref " <> Text.pack (show ref) <> " " <> oidText tip | (ref, tip) <- refs]
 
 nodeValue :: NodeId -> Value
 nodeValue = String . nodeText

@@ -68,7 +68,7 @@ query git directory args input = do
 readSnapshot :: Git IO -> FilePath -> ObjectFormat -> IO (Either String Snapshot)
 readSnapshot git directory format = runExceptT $ do
     observed <- lift (Refs.readNodeRefs git directory environment format Refs.LocalAndRemoteNodes)
-    records <- either (throwE . refFailure) pure observed
+    records <- either (throwE . refFailure) pure (Refs.requireCompleteRefs observed)
     forM_ records $ \record ->
         unless (BS.null (Refs.observedSymbolic record)) $
             throwE (case Refs.observedRemotePrefix record of Nothing -> "Symbolic local Node branch"; Just _ -> "Symbolic remote Node candidate")

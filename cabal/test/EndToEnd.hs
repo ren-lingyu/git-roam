@@ -155,7 +155,7 @@ lifecycle backend format git executable repo parent = do
     contextsA0 <- expectRight (contextParents (managedHistory source) a0)
     assertEqual [b0] contextsA0
     check repo
-    _ <- roam aPath ["status"]
+    _ <- roam aPath ["status", "-t", "node"]
 
     -- Clone transports the Git DAG; deployment needs no dependency-closure
     -- expansion because every context is already represented by Git parents.
@@ -293,7 +293,7 @@ globalDeploymentPath format git executable repo parent = do
             assertEqual (ExitFailure 2) (gitExitCode rejected)
         snapshot git repo >>= assertEqual before
         writeFile unusedFile "not a directory\n"
-        forM_ [["check"], ["status"], ["enable"], ["--help"], ["--version"]] $ \args -> do
+        forM_ [["check"], ["status", "-t", "node"], ["enable"], ["--help"], ["--version"]] $ \args -> do
             ignored <- call executable repo (["--deploy-path", unusedFile] ++ args) ""
             assertEqual ExitSuccess (gitExitCode ignored)
         invalid <- call executable repo ["--deploy-path", "relative", "deploy"] ""
@@ -332,7 +332,7 @@ structuredLifecycle git executable repo parent = do
     success "json" repo ["enable"]
     forM_ ["json", "cbor"] $ \encoding -> do
         success encoding repo ["check"]
-        success encoding repo ["status"]
+        success encoding repo ["status", "-t", "node"]
         success encoding repo ["undeploy"]
         success encoding repo ["version"]
     success "json" repo ["disable"]
@@ -345,7 +345,7 @@ structuredLifecycle git executable repo parent = do
     bContent <- BSC.init <$> ok git repo ["commit-tree", BSC.unpack bTree, "-p", BSC.unpack bRoot, "-m", "Historical B Content"] ""
     forM_ ["json", "cbor"] $ \encoding -> do
         success encoding repo ["deploy", "--path", parent </> "nodes"]
-        success encoding repo ["status"]
+        success encoding repo ["status", "-t", "node"]
         blocked <- call encoding repo ["node", "delete", "--node", canonical nodeB, "--dry-run"]
         assertEqual (ExitFailure 1) (gitExitCode blocked)
         decode encoding (gitStdout blocked)
@@ -356,7 +356,7 @@ structuredLifecycle git executable repo parent = do
         assertEqual BS.empty (gitStderr warning)
         success encoding repo ["undeploy"]
         success encoding repo ["node", "delete", "--node", canonical nodeB, "--dry-run"]
-        missing <- call encoding parent ["status"]
+        missing <- call encoding parent ["status", "-t", "node"]
         assertTrue "Repository discovery succeeded outside a repository" (gitExitCode missing /= ExitSuccess)
         assertEqual BS.empty (gitStdout missing)
         _ <- expectRight (Aeson.eitherDecodeStrict' (gitStderr missing) :: Either String Aeson.Value)

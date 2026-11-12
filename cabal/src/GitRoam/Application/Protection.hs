@@ -4,6 +4,8 @@ module GitRoam.Application.Protection (
     enableProtection,
     disableProtection,
     requireProtection,
+    ProtectionState (..),
+    observeProtection,
     requireProtectionFor,
     withOperationLock,
     ownHookBypass,
@@ -89,24 +91,48 @@ legacyHookCommand bytes = case Encoding.decodeUtf8' bytes of
                     && isAbsolute (Text.unpack path)
                     && takeFileName (Text.unpack path) == "git-roam"
 
-values :: FilePath -> Bool -> String -> IO (Either String [BS.ByteString])
-values directory local key = do
-    outcome <- call directory (["config"] ++ ["--local" | local] ++ ["--null", "--get-all", hookPrefix ++ key])
+values :: Git IO -> FilePath -> Bool -> String -> IO (Either String [BS.ByteString])
+values git directory local key = do
+    observed <- runGit git (GitInvocation directory (["config"] ++ ["--local" | local] ++ ["--null", "--get-all", hookPrefix ++ key]) BS.empty readOnlyEnvironment)
+    let outcome = either (Left . show) Right observed
     pure $
-        outcome >>= \result -> case gitExitCode result of
-            ExitFailure 1 -> Right []
-            ExitSuccess -> case BS.unsnoc (gitStdout result) of
-                Just (body, 0) -> Right (BS.split 0 body)
-                _ -> Left "Invalid Hook configuration output"
-            _ -> Left (show (gitStderr result))
+        outcome >>= \result ->
+            if not (BS.null (gitStderr result))
+                then Left (show (gitStderr result))
+                else case gitExitCode result of
+                    ExitFailure 1 | BS.null (gitStdout result) -> Right []
+                    ExitSuccess -> case BS.unsnoc (gitStdout result) of
+                        Just (body, 0) -> Right (BS.split 0 body)
+                        _ -> Left "Invalid Hook configuration output"
+                    _ -> Left (show result)
+
+data ProtectionState = ProtectionEnabled | ProtectionDisabled | ProtectionMisconfigured | ProtectionUnavailable
+    deriving (Eq, Show)
+
+-- Observe the same local/effective requirements enforced by requireProtection.
+-- This is configuration evidence only, not a runtime executable probe.
+observeProtection :: Git IO -> FilePath -> IO (ProtectionState, Maybe String)
+observeProtection git directory = do
+    outcome <- runExceptT $ mapM observe configuration
+    pure $ case outcome of
+        Left problem -> (ProtectionUnavailable, Just problem)
+        Right rows
+            | all (\(local, effective, expected) -> local == [expected] && effective == [expected]) rows -> (ProtectionEnabled, Nothing)
+            | all (\(local, effective, _) -> null local && null effective) rows -> (ProtectionDisabled, Nothing)
+            | otherwise -> (ProtectionMisconfigured, Nothing)
+  where
+    observe (key, expected) = do
+        local <- ExceptT (values git directory True key)
+        effective <- ExceptT (values git directory False key)
+        pure (local, effective, expected)
 
 requireProtection :: FilePath -> IO (Either String ())
 requireProtection directory =
     runExceptT $
         mapM_
             ( \(key, value) -> do
-                local <- ExceptT (values directory True key)
-                effective <- ExceptT (values directory False key)
+                local <- ExceptT (values native directory True key)
+                effective <- ExceptT (values native directory False key)
                 unless (local == [value] && effective == [value]) $
                     throwE "Git-roam protection is missing, disabled or divergent; run git roam enable and ensure git-roam is on PATH"
             )
@@ -124,8 +150,8 @@ enableProtection directory = withOperationLock directory $ runExceptT $ do
             _ : _ : text : _ -> mapM readMaybe (take 2 (splitDot text)) :: Maybe [Int]
             _ -> Nothing
     unless (maybe False (>= [2, 54]) numbers) (throwE "Git >= 2.54 with configured named Hooks is required")
-    local <- mapM (\(key, _) -> ExceptT (values directory True key)) configuration
-    effective <- mapM (\(key, _) -> ExceptT (values directory False key)) configuration
+    local <- mapM (\(key, _) -> ExceptT (values native directory True key)) configuration
+    effective <- mapM (\(key, _) -> ExceptT (values native directory False key)) configuration
     if all null local && all null effective
         then
             mapM_
@@ -155,7 +181,7 @@ disableProtection directory = withOperationLock directory $ runExceptT $ do
     records <- either throwE pure (Worktrees.decodeWorktrees (repositoryObjectFormat repository) bytes)
     let nodes = [node | record <- records, not (Worktrees.treeMain record), Just node <- [Worktrees.worktreeNode record]]
     unless (null nodes) (throwE "Undeploy all Node linked worktrees before disabling protection")
-    observed <- mapM (\(key, _) -> ExceptT (values directory False key)) configuration
+    observed <- mapM (\(key, _) -> ExceptT (values native directory False key)) configuration
     unless (all null observed) $ do
         ExceptT (requireProtection directory)
         mapM_

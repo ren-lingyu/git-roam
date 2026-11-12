@@ -118,7 +118,7 @@ inspectState git directory environment target = do
     readRefs format = do
         let arguments = Refs.nodeRefArguments Refs.LocalNodes
         observed <- lift (Refs.readNodeRefs git directory (environment ++ readOnlyEnvironment) format Refs.LocalNodes)
-        records <- either (throwE . failure arguments) pure observed
+        records <- either (throwE . failure arguments) pure (Refs.requireCompleteRefs observed)
         pure (Map.fromList [(Refs.observedNode record, (Refs.observedTip record, Refs.observedSymbolic record)) | record <- records])
 
     failure arguments problem = case problem of

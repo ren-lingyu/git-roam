@@ -12,6 +12,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import GitRoam.Application.Create (CreationResult (..), createdBundlePath)
+import qualified GitRoam.Application.Status as Status
 import GitRoam.Cli
 import GitRoam.ObjectId (ObjectFormat (Sha1), parseObjectId)
 import GitRoam.Output
@@ -135,7 +136,7 @@ sharedModel = do
 
 globalFormat :: IO ()
 globalFormat = do
-    assertEqual (Right (Formatted JsonFormat (StatusNode Nothing))) (parseCommand ["--format", "json", "status"])
+    assertEqual (Right (Formatted JsonFormat (QueryStatus (Status.NodeStatusQuery Status.AllNodes Status.DefaultProperties)))) (parseCommand ["--format", "json", "status", "-t", "node"])
     mapM_
         (expectLeft . parseCommand)
         [["--format"], ["--format", "yaml", "status"], ["--format", "json", "--format", "json", "status"], ["node", "create", "--path", "work", "--format", "json"], ["status", "--format", "json"]]

@@ -4,7 +4,7 @@
 * Version status
 Git-roam v0.2.0 implements the Checkpoint context protocol, including its public commands and reference-transaction Hook. This protocol is incompatible with v0.1.0 formal Checkpoint dependencies. See [[file:CHANGELOG.org][Changelog]] and the [[file:CHANGELOGS/v0.2.0.org][v0.2.0 release notes]] for the changes.
 
-The current development target is v0.3.0. Its first Status/validation refactoring step (B1) shares batch Node ref observations across inspection, deployment and worktree planning, retaining complete refnames, object-format-aware OIDs and symbolic-ref targets. Remote Node candidates share Deployment's existing UUID-suffix rule; a ref-path prefix is not proof of a configured remote name. Worktree registration continues to use the shared NUL-delimited parser. Each operation retains its own validation and safety policy. The public =check= and =status= interfaces described below are unchanged at B1; the later property-based Status interface is not yet implemented.
+The current development target is v0.3.0. B2 introduces independent Status queries for repository protection and the Node properties =tip=, =worktrees= and =remote=. The shared ref reader retains reliable partial results and exposes completeness to strict callers; upstream observations use batch Git reads. Commit metadata and working-tree status properties remain planned for B3 and B4. The protocol and the current =check= interface are unchanged.
 
 Git-roam represents independently versioned, UUID-identified Nodes in standard Git repositories. A Node's first-parent history contains its Root, ordinary Content commits and optional Checkpoints. A Checkpoint fixes an explicitly selected historical context from other Nodes. It is not a complete knowledge dependency declaration and does not cause other Node branches to advance. Native Git transports and retains reachable history; Git-roam does not infer knowledge relationships from Org links.
 
@@ -50,7 +50,7 @@ The installed executable is =git-roam=. When its directory is on =PATH=, Git exp
   git roam help version
   git roam version
   git roam check
-  git roam status
+  git roam status -t node
   git roam enable
   git roam disable
   git roam node create --path /path/to/worktrees
@@ -97,18 +97,27 @@ A wrapper can prepend the same option for every invocation:
 Calls through this wrapper must omit the subcommand =--path=. Other public commands and help/version queries accept the top-level option without inspecting or creating that directory; its absolute-path syntax is still checked. The internal reference-transaction Hook remains independent: wrapper-supplied deployment-path prefixes are ignored before Hook dispatch, without validating or using their values. Hook configuration, transaction input and protection rules are unchanged. No environment variable or persistent directory setting is introduced. Existing deployed worktrees keep their actual paths, and newly created worktrees retain the normal path and user-data safety checks.
 
 * Read-only repository inspection
-=check= validates the complete Git ancestry of the selected managed local Node tips, including each context commit's own history and stored objects. It does not require an external context to remain in that external Node's current branch. =status= shows the current tip kind, latest first-parent Checkpoint, Content tail, Checkpoint count, the latest Checkpoint's direct context OIDs, and Git-recorded Node worktree locations. Direct contexts are not transitive knowledge dependencies; the latest Checkpoint's list is shown even when its Node has since acquired ordinary Content.
+=check= validates the complete Git ancestry of selected managed local Node tips, including each context commit's history and stored objects. It does not require an external context to remain in its Node's current branch. With =--node <uuid>= it checks that Node; without it, a canonical Node branch checked out in the current main or linked worktree is inferred, otherwise the local managed set is checked. Protection need not be enabled. Its existing text and structured inspection reports are retained at B2.
 
-Both commands accept =--node <uuid>=. Without it, the current worktree's symbolic =HEAD= selects a Node when it names a canonical local UUID branch, including in the main worktree. An ordinary branch, detached =HEAD=, or bare repository does not imply a Node, so inspection uses repository scope. Node scope validates the selected Node and its ancestors, not every unrelated local Node branch. These commands work before protection is enabled.
+=status= observes Git facts without requiring valid Git-roam history. Exactly one =--type/-t= is required. =repo= reports only =repository.protection.state=: =enabled=, =disabled=, =misconfigured= or =unavailable=. Enabled means local and effective configuration match the requirements used by protection checks; it does not establish runtime Hook executable availability. Repo queries reject Node and property selectors and do not enumerate Nodes.
 
 #+begin_src sh
   git roam check --node 11111111-1111-4111-8111-111111111111
-  git roam status --node 11111111-1111-4111-8111-111111111111
+  git roam status -t repo
+  git roam status -t node
+  git roam status -t node -n 11111111-1111-4111-8111-111111111111 -p tip
+  git roam --format json status -t node -p worktrees -p remote
 #+end_src
 
-Inspection never fetches or modifies refs, index, worktrees or history. It validates stored parents without replacement or graft interpretation and reports missing objects, invalid histories and shallow history separately. Managed refs are observed before and after inspection, so races may be reported as changed observations without promising isolation from arbitrary Git writers.
+Node queries default to all canonical local UUID branches, including existing canonical non-v4 identities, and exclude remote-only Nodes. Repeat =--node/-n <uuid>= to select a set; results are sorted by UUID. Missing explicitly selected Nodes produce diagnostics without losing successful results. There are no =current= or =all= selector strings. The Node UUID is always the record identity.
 
-Exit status is 0 for success, 1 for invalid history or managed state, 2 for invalid command arguments, and 3 for unavailable evidence or Git read and observation failures. Inspection does not repair history or install protection.
+Repeat =--property/-p= for exact property selection, rather than adding to defaults. Without it, the selection is =tip=, =worktrees= and =remote=. Duplicate Node/property values are deduplicated; repeated =--type= is rejected. =tip= is the full object-format-aware OID; symbolic Node branches are diagnosed and their tip is unavailable. =worktrees= reports Git registration, including path, HEAD, branch, main/bare/detached state and lock/prune reasons. Registration does not prove the path exists. =remote= reports locally configured upstream remote/source/resolved ref and full remote-tracking ref/OID pairs, using the same candidate recognition as deployment. A path prefix is not assumed to be a configured remote name; local upstream remote =.= is supported. Missing or ambiguous upstream evidence retains confirmed configuration and diagnostics. No fetch or other network query occurs.
+
+Status does not read commit history or scan worktree files. =commit= and =status= properties are not available yet. Properties not requested are omitted; requested empty collections use =[]=, and unavailable observations use =null= with diagnostics. Reliable partial ref results survive other row failures, while duplicates are quarantined rather than arbitrarily selected. Strict inspection and management callers require complete ref observations. Default Status uses batch reads for refs, upstream configuration and worktree registration; Git subprocess counts do not grow per Node.
+
+Both commands leave refs, index, worktrees and history unchanged. Check validates stored parents without replacement or graft interpretation and distinguishes missing objects, invalid and shallow histories. Status rechecks refs and diagnoses detected changes, without promising an atomic snapshot across separate Git observations. Neither command repairs history or installs protection, and Status results do not replace management preflight.
+
+Status exits 0 for a completed observation, including disabled/misconfigured protection or registered locked/prunable worktrees; 2 for invalid arguments; and 3 for incomplete observations or read failures. Partial reports remain complete JSON/CBOR values with contextual diagnostics. Check retains exit 0 for success, 1 for invalid history/state, 2 for invalid arguments, and 3 for unavailable evidence/read failures.
 
 * Native Git and tests
 The Nix package selects standard Git from its locked nixpkgs input. Direct Cabal builds use =git= from =PATH= unless =GIT_ROAM_GIT= selects another executable at compile time. The adapter retains ordinary Git configuration and passes arguments directly to the native process API.
@@ -146,7 +155,7 @@ Save the printed commit OID as =<B0>=. Next, record A's committed contents and s
   git add note.org
   git commit -m 'Write A0'
   git roam checkpoint -m 'Record context for A0' --context <B0>
-  git roam status
+  git roam status -t node
   git roam check
 #+end_src
 
@@ -200,7 +209,7 @@ Use =git roam check= to diagnose invalid Node histories, conflicting Roots, iden
 Conditional updates, application locks, safety preflight and post-checks reduce or diagnose races without guaranteeing arbitrary-process serializability. After a failure, inspect actual refs and =git worktree list --porcelain=, preserve residual files, and rerun a read-only check when a stable observation is possible. Do not assume every error means no changes occurred. Git-roam does not promise recovery of discarded objects or a lost original branch tip, or automatically force-clean, stash, reset or rewrite history for recovery.
 
 * Raw object reading
-Raw object validation uses a scoped =git --no-replace-objects cat-file --batch= process per validation operation, shared by commit/tree reads and their existing per-call cache. =check=, =status=, candidate validation and the Hook's local-history path share this mechanism. Blob existence/type checks continue to use a separate batch metadata query. There is no cross-command object cache, daemon or repository registration state.
+Raw object validation uses a scoped =git --no-replace-objects cat-file --batch= process per validation operation, shared by commit/tree reads and their existing per-call cache. =check=, candidate validation and the Hook's local-history path share this mechanism. Blob existence/type checks continue to use a separate batch metadata query. There is no cross-command object cache, daemon or repository registration state.
 
 Requests within a session are serialized, including concurrent callers. Full SHA-1/SHA-256 OIDs, response OIDs/types/sizes, binary body length and the terminator are checked. Missing objects remain distinct from malformed or truncated replies. A framing or I/O failure makes that session unusable; it is not retried as another object. Replacement refs, grafts and shallow rules retain their existing interpretation boundaries.
 
@@ -239,7 +248,7 @@ A Root has no parents. An ordinary Content commit has exactly one same-Node pare
 
 The first-parent chain records one Node's own evolution. Git ancestry across all parents records object reachability, not a complete knowledge-dependency relation. Direct context queries return the additional parents of an individual Checkpoint; Root and Content have no direct contexts. Ordinary Node branch transitions must retain the same Root but need not retain old Checkpoints. Node creation and deletion remain separate controlled operations.
 
-Protocol tests cover valid and malformed histories, context parent order, Root consistency, tree equality, repeated contexts, historical contexts no longer retained by a source Node branch, and SHA-1/SHA-256 object formats. The native reader and managed-state validator power =check=, =status= and reference protection; multi-start ancestry queries share a visited set.
+Protocol tests cover valid and malformed histories, context parent order, Root consistency, tree equality, repeated contexts, historical contexts no longer retained by a source Node branch, and SHA-1/SHA-256 object formats. The native reader and managed-state validator power =check= and reference protection; =status= uses native batch observations; multi-start ancestry queries share a visited set.
 
 * Internal worktree foundation
 The library provides whole-set worktree planning and protected native add/remove primitives used by Node creation, deployment and undeployment. Planning preserves existing manual or moved Node linked worktrees, distinguishes main and detached worktrees, and refuses locked, missing or prunable targets. Main worktrees are never removal targets.
@@ -285,7 +294,7 @@ The Root has no parents and contains only =<uuid>/.roam=, an empty regular file.
   # Create or edit note.org here.
   git add note.org
   git commit -m 'Write a note'
-  git roam status
+  git roam status -t node
 #+end_src
 
 These single-parent commits are Content: they do not record external contexts and do not require a later Checkpoint. Ordinary Git can revise Content under the enabled history protection rules. Use =checkpoint= only when an explicit external history context needs to be recorded.
@@ -353,7 +362,7 @@ help remains text even when a format is selected. The format option cannot be
 repeated. It can appear before or after the top-level =--deploy-path= pair.
 
 #+begin_src sh
-  git roam --format json status | jq '.nodes[] | .node'
+  git roam --format json status -t node | jq '.nodes[] | .node'
   git roam --format json check
   git roam --format cbor undeploy > undeployment.cbor
   git roam --format json node delete --node <uuid> --dry-run
@@ -365,7 +374,7 @@ one complete value without a trailing newline. Paths use the lossless JSON
 native CBOR byte strings. Invalid UTF-8 has =utf8: null=. Raw reference names
 and configuration keys use the same byte convention. UUIDs and OIDs are strings.
 
-Creation keeps =node=, =root=, =worktree= and =bundle=. Inspection results contain
+Creation keeps =node=, =root=, =worktree= and =bundle=. Check inspection results contain
 =valid=, =nodes= and =diagnostics=. Checkpoint results contain =node=,
 =checkpoint=, =predecessor=, =contexts= and =diagnostics=. Deployment reports
 =deployed_worktrees= and =tracking_sources=; undeployment reports
@@ -373,6 +382,8 @@ Creation keeps =node=, =root=, =worktree= and =bundle=. Inspection results conta
 worktree entries have =node= and =path=. Worktrees nested in inspection Nodes
 and listed in deletion previews have =path= and =main=. Protection results have
 =enabled= and version results have =version=.
+Status Node reports contain =nodes= and =diagnostics=, with =node= plus only selected properties in each record. Repo reports contain =repository.protection.state= and =diagnostics=. Status worktrees include the full registration fields described above. Paths, branch/ref names, upstream remote/source/ref and lock/prune reasons use the shared lossless byte encoding. Status diagnostics add =context= with available =node=, =property= and =path= fields. Partial machine reports keep diagnostics in stdout; failures before a report use stderr JSON Lines.
+
 Deletion previews include =node=, =old_tip=, =root=, =exclusive_commits=,
 =worktrees=, =config_keys=, =plan_id= and =diagnostics=. Successful execution
 also reports =deleted: true=. Absent values use =null= and empty sets use arrays.

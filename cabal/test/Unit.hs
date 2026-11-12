@@ -191,7 +191,7 @@ globalUnusedTest =
         , ["enable"]
         , ["disable"]
         , ["check"]
-        , ["status"]
+        , ["status", "-t", "node"]
         , ["undeploy"]
         , ["help", "node", "create"]
         , ["node", "create", "--help"]
