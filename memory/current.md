@@ -11,77 +11,72 @@ repository-descriptive documentation. The previous pause checkpoint would have
 been better classified chore(memory); no history rewrite was requested.
 Task status is tracked separately below; this convention governs message choice.
 
-## Active B6: bounded native-enumeration verification
+## Current handoff: B6 complete and verified
 
-User resumed the revised B6 direction with a new engineering decision: CANCEL
-B6-ref/raw Git interface and patched dependency. Do not build or propose a Git
-patch for this phase. Preserve protocol requirements (canonical local Node refs
-must be direct and point to valid history), while Check verifies the local managed
-state exposed by Git native enumeration. Document silently omitted dangling
-symbolic refs as a known implementation limit, analogous to not rehashing every
-blob. Do not redesign the shared observation model for exhaustive corruption.
+B6 is complete in 24 uncommitted project paths (including the history-test rename).
+Base remains 3fbbe95047a2cabe06c60b4a9c6958b227e6ba8e; all 65 committed B4-fix
+blobs matched its final manifest before implementation. Project index empty;
+no agent project staging/commit/push. User review/commit precedes B7.
 
-Baseline remains 3fbbe95047a2cabe06c60b4a9c6958b227e6ba8e, verified against all
-65 B4-fix manifest blobs; project clean at entry. B6 must remove Check --node and
-worktree inference, validate the whole enumerated set, create independent
-Valid/Invalid/Inconclusive reports (true/false/null, exits 0/1/3), optional
---show-refs full-refname/OID MAP (omitted/null/{}/mapping), preserve initial refs
-across later failure, and make ref/session integrity supersede provisional Invalid.
-Use typed object errors to separate reliable missing/type/decoding violations from
-read/framing uncertainty. Unify Validation history/connectivity/identity logic;
-candidate validation must not enumerate live refs. Retain Checkpoint inferNode,
-readonly operation registration preflight and strict mutation/Hook acceptance.
-Remove Inspect presentation and legacy names entirely; keep meaningful old tests.
-Check does not inspect worktree/status/upstream/protection or transitions.
+The user's revised B6 supersedes all old Check-scope rules: Check always validates
+the whole local set EXPOSED by Git native enumeration, no --node or worktree
+inference. Independent CheckConclusion/CheckDiagnostic/CheckReport, true/false/null
+and exits 0/1/3. --show-refs only controls output: full-refname/OID MAP, omitted
+when unselected, null for unreliable initial enumeration, {} for observed empty.
+Initial refs are captured before raw-session startup and survive later history,
+object, ref-race and completion failures. Ref/session integrity overrides provisional
+violations. JSON/CBOR reports contain valid, optional refs, diagnostics; no old
+views or duplicate machine stderr. Repository discovery remains command-level.
 
-First safety audit: Create/Deploy infer missing local UUIDs from enumeration;
-this can miss occupied dangling symrefs. Pinned Git 2.56.0 refs exists reports
-exit 0 for these names in all four format/backend combinations; absent exits 2
-(with diagnostic stderr). Use exit codes, not message matching. Add targeted
-name-occupancy preflight and transaction no-deref protection so races cannot
-redirect create through a symref. Review concrete tags/names where appropriate;
-do not enumerate backend internals or widen Check's guarantee. Existing visible
-symbolic-ref rejection remains. Default Status public model/CLI unchanged.
+Validation has one static history/connectivity/identity acceptance path for actual
+and explicit candidate refs; candidates never enumerate live refs. Actual read-only
+operation projection remains within before/after refs and strict session completion.
+Create/Checkpoint/Delete/Undeploy retain registration preflight, Deploy planning
+and Hook transitions/strict refs remain. Checkpoint inferNode retained. Inspect
+module, presentation, aliases/NodeNotManaged and old CLI/output helpers removed.
+MalformedObject is only reliable protocol decode failure; framing/read failures
+stay inconclusive. Missing-object responses require complete framing and batch
+metadata has exact count/OID/known-kind/final LF checks. MissingReachableObjects
+now contains typed OIDs, emitted in diagnostic context rather than parsed messages.
 
-Implementation now written: independent Application.Check report/conclusion/context
-codes; --show-refs rendering only; shared Validation static acceptance with captured
-initial refs outside the strict session, no actual Node selection; protocol
-MalformedObject distinct from read failure; stricter missing/header/metadata
-framing. Create/Deploy exact name probes and no-deref transactions added. Inspect
-source deleted; old 37-case suite migrated to HistoryValidation with protocol
-assertions rather than view adapters. New Check suite covers public wire/scope,
-classification/evidence, native session failures and occupied-name/race protection.
-README/help/CHANGELOG TODO v0.3.0 updated with bounded enumeration guarantee.
-Scoped nix fmt passed (20 files, nine changed); first full 300s/single-job/core
-Nix check passed formatting and library compilation, then found a missing
-containers dependency in the migrated Refs test. Dependency added and an unused
-Check-test import removed. Second compilation then caught the type-default
-warnings below. No full-suite pass is claimed yet.
-Subsequent compilation caught two Check-test type-default warnings; explicit
-String annotations fixed. Runtime Check/old-safety suites now execute. Found
-three real acceptance issues: old nested-tree text assertion expected stderr/
-legacy code (migrated to node_tree_invalid in report stdout); completely bogus
-commit fixture rejected by Git itself (use native-accepted duplicate-tree header,
-which the unchanged protocol decoder rejects); inline option no-deref applied
-before verify did not protect following create in transaction race tests. Replaced
-with command-level update-ref --no-deref --stdin, confirmed by native probe with
-verify-before-create: rejects dangling symref, preserves it and leaves target
-absent. Added both Create/Deploy race cases and ref-probe fail-closed assertions.
-No Git patch. Fourth full check now includes all three corrections and typed
-missing-object OID context. The empty-state test intentionally expects Valid/{}
-for a native-omitted dangling symref, recording the user's bounded observation
-contract rather than changing protocol legality. Prior runtime passed the other
-old suites, but stale diagnostic assertions and two new fixture/race cases failed;
-those failures were fixed, not skipped. Next: resolve actual failures, finish regression review and acceptance, draft full
-phase message and checkpoint. No Git dependency patch or B7 work. User stages/
-commits project. Latest plan overrides all old preserved Check scope/inference.
+User CANCELLED B6-ref/raw Git API/patched dependency. Native Git 2.56.0 silently
+omits dangling symbolic Node refs in all four combinations; document as a known
+implementation bound, without relaxing protocol legality or redesigning observation.
+Check intentionally reports Valid/{} for such an omitted-only set. Visible symbolic
+Node refs still reject. Exact-name refs exists probes return 0 for occupied even
+unresolved names and 2 for absent (stderr may contain normal absence diagnostic).
+Create/Deploy check concrete names at preparation/execution; Create also probes its
+exact tag. Use global update-ref --no-deref --stdin for creation and compensation
+transactions. Inline option no-deref was insufficient with preceding verify;
+race regressions caught target creation, fixed by command-level flag. Native probes
+and all four-combination Create/Deploy races prove original symrefs retained and
+referents absent. No Git dependency/lock/protocol/Status public changes.
 
-Verified limitation evidence: Git 2.56.0 for-each-ref silently omits dangling
-symbolic Node refs with exit 0 and empty stdout/stderr in SHA-1/SHA-256 x
-files/reftable. In SHA-1 both backends, GIT_REF_PARANOIA=1 and --include-root-refs
-do not help; refs verify --strict --verbose succeeds. Reproduction fixtures are
-only tmp/b6-probe. No B6 source patch or build existed at resumption. Earlier
-Git-side design direction was accepted then explicitly cancelled by this update.
+FINAL checks passed on x86_64-linux: scoped nix fmt; full 300s/single-job/core
+nix flake check, all 18 suites / 433 groups (new Check 29; original 37 migrated
+to HistoryValidation; Status 74 and all management/Hook/batch tests retained);
+-Wall -Werror; treefmt 64 eligible files zero changes. Independent decoded JSON/
+CBOR value/map/null/omission assertions passed. Default nix build of same snapshot
+with --no-link passed. Product:
+/nix/store/pa2720rj9z6bfwsvj4bm0i1wgnjxmflz-git-roam-0.2.0.drv.
+All 66 files equal tmp/b6-check and tmp/b6-verification.json by SHA-256. Earlier
+initial-pass manifest preserved separately. No skips/timeouts. Initial checks
+found missing test containers, type-default warnings, stale diagnostic assertions,
+invalid bogus-commit fixture and inline option scope issue; all fixed. Native Git
+accepts the final duplicate-tree-header fixture, the existing protocol decoder
+rejects it. Minimum Git, other platforms and 10^4-Node timings unverified (B7).
+
+README/help/CHANGELOG TODO v0.3.0 synchronized including breaking Check interface
+and bounded guarantee; package remains 0.2.0, released history unchanged. Full
+tracked/untracked phase diff reviewed, diff --check passed. tmp/commit.md uses
+refactor(GitRoam.Application.Check): validate the complete managed state,
+Chinese ASCII-punctuation body and BREAKING-CHANGE footer. Split not necessary,
+high difficulty from shared evidence and caller safety. No new raw archive needed;
+source/tests and distilled facts suffice. Completion checkpoint adds no parent
+for uncommitted B6. Verify user's later commit against final manifest before
+grounding; no unchanged-test rerun merely for provenance. B7 next only after user
+instruction. Preserve B4 raw-argv limitation and bounded minimum-version claims.
+Full-diff phase-message convention is only this conversation/current B1-B7 work.
 
 ## Historical B4-fix completion evidence
 

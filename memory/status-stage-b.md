@@ -1,6 +1,6 @@
 # Stage B: Status queries and protocol validation
 
-## Current B6 override
+## Current B6 contract (implemented and verified)
 
 The latest user B6 plan supersedes the initial Check-scope rules below: Check
 always validates the whole set exposed by native enumeration, removes --node and
@@ -617,6 +617,66 @@ without raw archive. Completion checkpoint has no parent for uncommitted fix.
 Verify the user's later commit against final manifest, then enter B6 on actual
 HEAD. Original Check scope and strict B5 validation remain constraints for B6.
 
+## Completed B6: bounded whole-state Check and strict validation
+
+Baseline is committed B4-fix, verified by all 65 manifest blobs. B6 changes 24
+project paths including new Application.Check, new Check tests and renamed
+HistoryValidation tests. Check always uses all enumerated local managed refs;
+--node/inference removed. CheckConclusion Valid/Invalid/Inconclusive maps to
+true/false/null and exits 0/1/3. Output selection is a CLI/Output bool only:
+--show-refs emits initial full-refname/OID map without extra Git reads, otherwise
+field omitted; failed initial reads give null, known empty enumeration {}.
+Initial evidence is captured before raw session startup and retained through
+history/object/ref/completion failure. Ref changes and strict completion failure
+override provisional Invalid. Stable typed codes and node/object context; machine
+reports contain one legal stdout value and no duplicate stderr diagnostics.
+
+Validation shares static shallow/history/connectivity/identity acceptance for
+actual and candidate refs. Candidate validation does not read live refs. Actual
+loading and readonly operation preflight stay inside ref/session completion gates.
+Only final successful ManagedState reaches operations. MalformedObject denotes
+reliably read protocol decode errors; read/framing/metadata uncertainty remains
+ObjectReadFailure. Complete missing response, metadata row/OID/type/LF checks and
+typed missing OIDs prevent false Invalid conclusions and message parsing. Removed
+Inspect/model/error aliases/NodeNotManaged/old rendering completely. Existing
+firstParentHistory/contextParents/reachableHistory and Checkpoint inferNode remain.
+
+Known native omission is deliberately bounded per user decision: no B6-ref node,
+no custom raw enumeration or Git patch/dependency. Protocol direct-ref legality
+unchanged; Git 2.56.0 omitted dangling refs may escape Check. README/help explain
+this and lack of independent full-ODB/blob rehash audit. Empty-state regression
+explicitly exercises that implementation boundary across all four combinations.
+Exact refs exists probes protect concrete Create/Deploy names despite resolution
+failure. Create also probes exact tag, both recheck before installation and use
+GLOBAL update-ref --no-deref --stdin so preceding verify does not consume an
+inline no-deref option. Four-combination races preserve intruder symrefs/referents;
+lookup failure is never interpreted as a free name. Other operations reject
+missing selected refs or retain their existing full-state/safety checks. Hook's
+strict native ref reading, Content fast path and transition validation unchanged.
+
+Final 300s/single-job/core isolated nix flake check passed on x86_64-linux:
+18 suites / 433 groups, Check29 new, former Inspection37 preserved/migrated,
+Status74 and all existing protocol/management/Hook/batch cancellation suites.
+Four combinations cover whole/ordinary/Node/bare scope, unrelated refs excluded,
+locally valid histories with combined Root conflict, reliable invalid vs unknown
+objects, malformed protocol, missing blob, provisional-invalid ref/session races,
+initial map retention/null/empty and no extra show-refs reads, readonly cost
+separation, occupied/raced Create/Deploy names. JSON/CBOR decoded truth values
+and full maps/null/omission independently asserted. nix fmt passed; treefmt64
+zero changes, -Wall -Werror. Default nix build of same snapshot passed --no-link.
+Final product /nix/store/pa2720rj9z6bfwsvj4bm0i1wgnjxmflz-git-roam-0.2.0.drv.
+All 66 files match tmp/b6-check and tmp/b6-verification.json. No skip/timeout;
+compile/fixture/old-schema/inline-option failures corrected, not weakened. Other
+platforms/minimum Git/10^4-Node performance remain unverified, reserved for B7.
+
+README/help/CHANGELOG TODO v0.3.0 describe final interface; no package version,
+lockfile or released-history edits. Complete phase diff reviewed, diff --check
+passes, index empty. tmp/commit.md uses requested Application.Check refactor title
+and breaking footer. One coupled phase, split not necessary, high difficulty.
+User stages/commits; no ordinary Git mutation by agent. Distillation suffices
+without raw archive; completion has no project parent for uncommitted B6. Verify
+later committed blobs against final manifest, then B7 after user instruction.
+
 ## Post-B1 requirements adopted for B2 and B5
 
 The user refined the plan after inspecting actual B1. These requirements were
@@ -730,16 +790,16 @@ and parent order, contexts, necessary objects/types, tree structure/names,
 connectivity, shallow evidence and relevant ref changes. Current Protocol
 modules/tests define the rules. Public report does not browse worktrees/dirty/
 protection/delete safety/sync, although necessary internal evidence reads remain.
-Preserve existing Check scope: explicit --node, otherwise current canonical
-Node inference, otherwise whole local set. This differs from Status's all-Nodes
-default. Do not unify them for cosmetic consistency.
+The updated B6 scope is the entire local managed set exposed by native Git
+enumeration. No --node or worktree inference. Initial ref evidence and final
+outcome are separate; native silent dangling-symref omissions are documented.
 
-Recommended report: valid true|false|null, checked_nodes [{node,tip}], diagnostics.
-True = complete pass; false = definite violation; null = incomplete without a
-definite violation. Keep both violations and unknown evidence; never success
-when either prevents it. checked_nodes means refs actually selected, not all
-context commits read. Stable diagnostic codes and existing exit/error categories
-survive; justified changes require explicit tests/rationale.
+Implemented report: valid true|false|null, optional refs MAP, diagnostics.
+True = complete reliable validation of that observable set; false = confirmed
+violation; null = inconclusive. Complete observation/session boundary takes
+precedence over provisional violations. --show-refs is output-only and retains
+initial input across later failure; null vs {} distinguish unknown vs empty.
+Stable diagnostic codes/context and exits 0/1/3 replace the old report contract.
 
 Extract direct complete-state load and explicit candidate-ref validation APIs
 returning trusted ManagedState only on complete success. Mutators depend on
@@ -814,7 +874,7 @@ with worktrees/files. No daemon/watcher/cache or speculative complex concurrency
    Deploy, Undeploy, Delete, Checkpoint and Protection Hook safety. Invalid/
    missing history, races, invalid config, dirty/ignored/untracked user data,
    compensation/residual evidence and multi-Node contexts remain protected.
-6. B6: independent protocol-only Check/report, preserved scope/inference,
+6. B6: independent protocol-only whole-enumerated-state Check/report, no --node/inference,
    tri-state validity and typed diagnostics. Remove old InspectionReport,
    status-history presentation and wrappers after last real callers migrate.
    Cover protocol/tree/context/missing/shallow/race/scope failures.
@@ -859,10 +919,10 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-B1-B5 and their review corrections were committed by the user and verified
-against their respective manifests. The relative-worktree B4-fix is complete and
-verified in the uncommitted worktree; await its separate user commit before B6.
-Only within this conversation / the
+B1-B5, their review corrections and B4-fix were committed by the user and verified
+against their respective manifests. B6 is complete and verified in the uncommitted
+worktree; await user review/commit and B7 instruction. Only within this conversation /
+the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;
