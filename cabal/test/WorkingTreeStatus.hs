@@ -17,14 +17,16 @@ import qualified GitRoam.Application.Status as App
 import GitRoam.Application.Worktree (planRemovalFor)
 import GitRoam.Git
 import qualified GitRoam.Git.Status as Working
+import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Output
 import GitRoam.Protocol.Identity (NodeId, nodeIdBytes)
+import GitRoam.Repository
 import GitRoam.Worktree.Paths (decodePath, encodePath)
-import System.Directory (createDirectory, removeFile, renameDirectory, renameFile)
+import System.Directory (canonicalizePath, createDirectory, removeFile, renameDirectory, renameFile)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode (..))
-import System.FilePath ((</>))
+import System.FilePath (isAbsolute, (</>))
 import TestSupport
 import WorktreeFixture
 
@@ -37,6 +39,7 @@ workingTreeTests =
         ++ [("native submodule summary ignores ignore overrides " ++ backend ++ " " ++ show format, fixture backend format (submodules format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
         ++ [("status rejects replaced worktree identities and retains partial reports " ++ backend ++ " " ++ show format, fixture backend format (identities format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
         ++ [("status costs, failures and readonly process environment " ++ backend ++ " " ++ show format, fixture backend format costs) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+        ++ [("relative linked-worktree registration and backlink identity " ++ backend ++ " " ++ show format, fixture backend format (relativeWorktrees format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
 
 summary :: Bool -> Bool -> Bool -> Bool -> Working.WorkingTreeStatus
 summary = Working.WorkingTreeStatus
@@ -178,6 +181,70 @@ nativeChanges git executable repo parent = do
     conflictPath <- decodePath conflict
     BS.writeFile (path </> conflictPath) "conflicted content"
     check (summary False False False True)
+
+relativeWorktrees :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
+relativeWorktrees format git _ repo parent = do
+    root git repo nodeA
+    root git repo nodeB
+    expected <- inspectRepository git repo [] >>= expectRight
+    common <- decodePath (repositoryCommonDirectory expected) >>= canonicalizePath
+    forM_ [(nodeA, True), (nodeB, False)] $ \(node, explicit) -> do
+        let path = parent </> (if explicit then "relative-flag" else "relative-config")
+        unless explicit $ do
+            _ <- ok git repo ["config", "worktree.useRelativePaths", "true"] ""
+            pure ()
+        _ <- ok git repo (["worktree", "add"] ++ ["--relative-paths" | explicit] ++ ["--", path, BSC.unpack (nodeIdBytes node)]) ""
+        actual <- inspectRepository git path [] >>= expectRight
+        admin <- decodePath (repositoryGitDirectory actual) >>= canonicalizePath
+        rawPath <- encodePath path
+        assertEqual (Just rawPath) (repositoryWorktree actual)
+        assertEqual format (repositoryObjectFormat actual)
+        decodePath (repositoryCommonDirectory actual) >>= canonicalizePath >>= assertEqual common
+        -- Verify Git really wrote relative paths and native discovery resolved
+        -- both .git and commondir. Do not duplicate discovery in production.
+        dot <- BS.readFile (path </> ".git")
+        forward <- maybe (fail "missing gitdir header") pure (BS.stripPrefix "gitdir: " dot >>= BS.stripSuffix "\n") >>= decodePath
+        assertEqual False (isAbsolute forward)
+        canonicalizePath (path </> forward) >>= assertEqual admin
+        commonLink <- BS.readFile (admin </> "commondir") >>= terminatedPath
+        assertEqual False (isAbsolute commonLink)
+        canonicalizePath (admin </> commonLink) >>= assertEqual common
+        original <- BS.readFile (admin </> "gitdir")
+        backlink <- terminatedPath original
+        assertEqual False (isAbsolute backlink)
+        own <- canonicalizePath (path </> ".git")
+        canonicalizePath (admin </> backlink) >>= assertEqual own
+        let check summaryValue = forM_ [repo, path] $ \from -> report git from [App.StatusProperty] >>= expectSummary node summaryValue
+        check clean
+        BS.writeFile (path </> "untracked") "user data"
+        check (summary False False True False)
+        removeFile (path </> "untracked")
+        check clean
+        -- Corrupt the backlink after Git returns registration, so the query
+        -- must reject the registered path itself rather than merely discover
+        -- that a newly reported path is absent.
+        bad <- encodePath (backlink ++ "-wrong")
+        let damaged = Git $ \invocation -> do
+                result <- runGit git invocation
+                if all (`elem` gitArguments invocation) ["worktree", "list"]
+                    then BS.writeFile (admin </> "gitdir") (bad <> "\n")
+                    else pure ()
+                pure result
+        bracket_
+            (pure ())
+            (BS.writeFile (admin </> "gitdir") original)
+            ( do
+                value <- report damaged repo [App.StatusProperty]
+                row <- nodeRow node value
+                case App.statusWorkingTrees row of App.Available [App.WorktreeStatus found Nothing] -> assertEqual rawPath found; _ -> fail (show row)
+                let diagnostics = App.reportDiagnostics value
+                assertEqual [(Just node, Just App.StatusProperty, Just rawPath)] [(App.diagnosticNode d, App.diagnosticProperty d, App.diagnosticPath d) | d <- diagnostics]
+                assertTrue "backlink identity check was bypassed" (any ((== "Worktree administration points to another path") . App.statusMessage) diagnostics)
+            )
+        check clean
+        Worktrees.listWorktrees git repo format >>= expectRight >>= \records -> assertTrue "relative registration was lost" (any ((== rawPath) . Worktrees.treePath) records)
+  where
+    terminatedPath bytes = maybe (fail "missing path terminator") decodePath (BS.stripSuffix "\n" bytes)
 
 submodules :: ObjectFormat -> Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 submodules format git _ repo parent = do

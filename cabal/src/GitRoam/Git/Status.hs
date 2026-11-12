@@ -16,7 +16,7 @@ import GitRoam.Repository
 import GitRoam.Worktree.Paths (decodePath)
 import System.Directory (canonicalizePath)
 import System.Exit (ExitCode (..))
-import System.FilePath (takeDirectory, (</>))
+import System.FilePath (isAbsolute, takeDirectory, (</>))
 import qualified System.Posix.Files as Files
 
 data WorkingTreeStatus = WorkingTreeStatus
@@ -146,7 +146,8 @@ readWorkingTreeStatus git expected record = do
                 unless (Files.isRegularFile dotInfo && takeDirectory admin == common </> "worktrees") (throwE "Linked worktree administration is not registered in this repository")
                 backlink <- lift (BS.readFile (admin </> "gitdir"))
                 raw <- maybe (throwE "Invalid worktree administration backlink") pure (BS.stripSuffix "\n" backlink)
-                linked <- canonical raw
+                backlinkPath <- lift (decodePath raw)
+                linked <- lift (canonicalizePath (if isAbsolute backlinkPath then backlinkPath else admin </> backlinkPath))
                 own <- lift (canonicalizePath (path </> ".git"))
                 unless (linked == own) (throwE "Worktree administration points to another path")
         -- process marshals environment and cwd with the filesystem encoding,
