@@ -5,8 +5,8 @@ module Main (main) where
 import Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
-import Data.List (isPrefixOf, sort)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import GitRoam.Application.Deploy
 import GitRoam.Application.Protection (ownHookBypass)
@@ -89,16 +89,29 @@ fetch git repo remote directory = do
 refs :: Git IO -> FilePath -> IO BS.ByteString
 refs git repo = ok git repo ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/"] ""
 
+observeOccupancyProbes :: Git IO -> IO (Git IO, IORef [[String]])
+observeOccupancyProbes git = do
+    probes <- newIORef []
+    let measured = observeGit (\invocation -> if take 2 (gitArguments invocation) == ["refs", "exists"] then modifyIORef' probes (gitArguments invocation :) else pure ()) git
+    pure (measured, probes)
+
+assertOccupancyProbes :: [NodeId] -> [[String]] -> IO ()
+assertOccupancyProbes imports probes = do
+    let allowed = map (\node -> ["refs", "exists", "refs/heads/" ++ BSC.unpack (nodeIdBytes node)]) imports
+    assertTrue "Occupancy probe targets a ref outside the imported Nodes" (all (`elem` allowed) probes)
+    -- Bound the cost without requiring redundant probes; creation safety is
+    -- covered independently by the occupied-name and transaction-race tests.
+    forM_ allowed $ \args ->
+        assertTrue ("Too many occupancy probes: " ++ show args) (length (filter (== args) probes) <= 2)
+
 batch :: Git IO -> FilePath -> FilePath -> FilePath -> IO ()
 batch git executable repo parent = do
     upstream <- source git repo parent
     fetch git repo "origin" upstream
     enable git executable repo
-    probes <- newIORef []
-    let measured = observeGit (\invocation -> if take 2 (gitArguments invocation) == ["refs", "exists"] then modifyIORef' probes (gitArguments invocation :) else pure ()) git
+    (measured, probes) <- observeOccupancyProbes git
     report <- deploy executable measured repo (parent </> "deployed") Nothing >>= expectRight
-    -- Current cost, retained for Stage A: preparation plus application per import.
-    readIORef probes >>= assertEqual (sort (concatMap (\node -> replicate 2 ["refs", "exists", "refs/heads/" ++ BSC.unpack (nodeIdBytes node)]) [nodeA, nodeB])) . sort
+    readIORef probes >>= assertOccupancyProbes [nodeA, nodeB]
     writeIORef probes []
     assertEqual 2 (length (deployedWorktrees report))
     assertEqual 2 (length (trackingSources report))
@@ -177,7 +190,9 @@ independentSources git executable repo parent = do
     -- a Node-level dependency closure to construct the complete target state.
     _ <- ok git repo ["update-ref", BSC.unpack ("refs/heads/" <> nodeIdBytes nodeA), BSC.unpack a] ""
     enable git executable repo
-    report <- deploy executable git repo (parent </> "work") Nothing >>= expectRight
+    (measured, probes) <- observeOccupancyProbes git
+    report <- deploy executable measured repo (parent </> "work") Nothing >>= expectRight
+    readIORef probes >>= assertOccupancyProbes [nodeB]
     assertEqual [nodeA, nodeB] (map fst (deployedWorktrees report))
     assertEqual [nodeB] (map fst (trackingSources report))
     state <- snapshot git repo
