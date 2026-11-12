@@ -726,14 +726,22 @@ raw build logs retained. Default native tests bind ordinary Git2.56.0 xgw store
 output; agent experiments use command-mapped Git-with-svn2.56.0 2qpb output.
 Both comparison runs use the same latter binary; paths in current.md distinguish.
 
-Final scoped nix flake check passed18 suites/451 groups, -Wall -Werror; treefmt66
-zero changes. Scoped nix fmt and final default nix build passed. All68 files
-match tmp/b7-check and tmp/b7-verification.json; released CHANGELOG, .gitignore,
-version, lock and protocol unchanged. Packaged help topics/JSON version pass,
-no formal benchmark executable. Final product and exact commands in current.md.
-Full10-path source diff reviewed, root index empty. tmp/commit.md holds the full
-phase message. Final state is uncommitted; user reviews/stages/commits. Verify
-later blobs, then continue only the next explicitly requested work.
+At the main B7 commit, scoped nix flake check passed18 suites/451 groups,
+-Wall -Werror; treefmt66 zero changes. Scoped nix fmt and default nix build
+passed. Its 68-file tree matched tmp/b7-check and tmp/b7-verification.json;
+released CHANGELOG, .gitignore, version, lock and protocol were unchanged.
+Packaged help topics/JSON version passed; no formal benchmark executable.
+
+The user committed the main B7 changes and then a Deploy test-only refinement.
+The latter replaces an exact-two occupancy assertion with an at-most-two bound
+for each imported Node, asserts all probes target those imports, and extends the
+existing-local/remote-only case so only the Node needing a new local branch can
+be probed. Re-deploy remains zero-probe; occupied-name and concurrent symbolic
+creation safety tests remain. No production code changed. The project HEAD and
+worktree were inspected clean. Tests were not rerun after this small test edit;
+the 18/451 result and 68-file manifest refer to the preceding main B7 commit.
+The current memory checkpoint is associated with the exact committed project
+state inspected for this handoff; no new test pass is claimed.
 
 Stage A owns repeated full planning/ref/worktree observations, batch Deploy/
 Undeploy, collection of all unsafe Nodes/issues, and the current2n occupancy

@@ -11,7 +11,7 @@ repository-descriptive documentation. The previous pause checkpoint would have
 been better classified chore(memory); no history rewrite was requested.
 Task status is tracked separately below; this convention governs message choice.
 
-## Current handoff: Phase B complete; B7 awaits user review/commit
+## Current handoff: Phase B complete; Stage A remains separate
 
 Actual baseline is the user's B6 commit
 0376d2691cf1bf4abad00a476b41cb5bc4d9aa9a; all 66 final B6 manifest files
@@ -27,7 +27,8 @@ Final intended product changes: upstream config-problem flag/Set built once,
 missing-blob prepend/reverse with original order/type precedence; actual CLI
 cross-command/parser/stream/read-only cases; decoded JSON/CBOR context/evidence
 assertions; native promisor/no-lazy-fetch trace; native 10/100-Node default-Status
-launch-count comparison; Deploy 2n occupancy probe cost assertion. Existing
+launch-count comparison; Deploy occupancy probes scoped to imported Nodes and
+bounded at no more than two per Node needing a new local branch. Existing
 shared-batch/dedup/property-selection/worktree-cost/Check-scope/show-refs tests
 remain. No wall-clock thresholds. Only dependencies already used elsewhere in the project added to affected test suites;
 no new external dependency. README/CHANGELOG converge on final interfaces and
@@ -47,21 +48,27 @@ successful acceptance. Experiment files moved to tmp/b7-performance-tools;
 formal Cabal/ignore/README/CHANGELOG benchmark changes removed. New native
 10/100 regression is included. FINAL scoped check passed 18 suites /451 groups,
 -Wall -Werror; treefmt66 zero changes. Default nix build passed, --no-link.
-All 68 source/doc files match tmp/b7-check and tmp/b7-verification.json. Root
-index empty, HEAD remains actual B6. Ignore file is unchanged; no bench directory,
+These results and the 68-file manifest apply to the main B7 commit before the
+follow-up test-only commit below. Ignore file is unchanged; no bench directory,
 stanza, script, dependency or benchmark binary in the formal package. Released
 CHANGELOG/history, version0.2.0, lock/protocol/public CLI/schema unchanged. Actual
-packaged --help/status --help/check --help/node --help/JSON version all pass.
-Final product /nix/store/c3l4vvsmd7q85zynibrdlry72mbdryw7-git-roam-0.2.0;
-derivation /nix/store/iqsr66z4pdydjmz5si2dqli4ksa7aqxy-git-roam-0.2.0.drv.
-Old 69/72-file manifests and earlier benchmark-oriented checks are superseded.
-No skipped tests or hidden unresolved failure. Complete 10-path phase diff
-reviewed (8 tracked modifications, two new test modules); diff --check passes.
-Commit draft tmp/commit.md: test(GitRoam.Cli): finalize status and validation acceptance.
-Split optional, high difficulty: local fixes and integration tests can separate,
-but jointly establish B7 acceptance. No extra project parent for uncommitted B7.
-User stages/commits; verify later commit against final 68-file manifest. Do not
-re-run unchanged tests merely for provenance. Stop here; Stage A is separate.
+packaged --help/status --help/check --help/node/JSON version all pass. Final
+product /nix/store/c3l4vvsmd7q85zynibrdlry72mbdryw7-git-roam-0.2.0; derivation
+/nix/store/iqsr66z4pdydjmz5si2dqli4ksa7aqxy-git-roam-0.2.0.drv. Old 69/72-file
+manifests and earlier benchmark-oriented checks are superseded. No skipped tests
+or hidden unresolved failure. The main B7 diff was reviewed and diff --check passed.
+
+The user committed B7, then committed a test-only Deploy refinement. It replaces
+the exact-two occupancy-probe expectation with an at-most-two bound per imported
+Node, rejects probes for names outside the imported set, and exercises the case
+where an already-local Node coexists with a remote-only Node: only the Node that
+needs a new local branch may be probed. Existing-name and concurrent symbolic
+creation regressions continue to cover safety. No production behavior changed.
+The current project worktree is clean. The prior 18-suite/451-group check and
+build were run before this small test revision and were not rerun afterward; the
+68-file manifest likewise describes the pre-revision tree. This checkpoint is
+grounded in the exact committed project state inspected now. No new project test
+result is claimed. Stage A remains separate; await the user's next objective.
 
 ## Commands and verification boundary
 
@@ -69,7 +76,7 @@ Executed baseline: timeout 300s nix flake check . --no-update-lock-file
 --max-jobs 1 --cores 1 --print-build-logs (cached verified B6 product).
 Last scoped formatter: timeout 120s nix fmt --no-update-lock-file --
 --walk filesystem --no-cache cabal/test/IntegrationAcceptance.hs cabal/git-roam.cabal.
-Final check: timeout 300s nix flake check
+Final check at the main B7 commit: timeout 300s nix flake check
 path:/home/lingyu/Projects/git-roam/tmp/b7-check --no-update-lock-file
 --max-jobs 1 --cores 1 --print-build-logs (exit0; tmp/b7-scoped-final-check.log).
 Final build: timeout 300s nix build
@@ -119,8 +126,9 @@ was confirmed via targeted derivation JSON read. No Git patch/lock change.
 ## Stage A and accepted boundaries
 
 Stage A owns repeated global Deploy/Undeploy planning/observations, batch planning,
-complete unsafe-removal diagnostics and the current two exact-name probes per
-import. Retain final no-deref conditional creation, strict candidate validation,
+complete unsafe-removal diagnostics and reducing the current occupancy preflight
+probes. The regression permits at most two per imported Node needing a local
+branch without prescribing an exact count. Retain final no-deref conditional creation, strict candidate validation,
 compensation and user-data checks. Do not delete guards merely for a smaller count.
 No large deployment promise follows from 10k-ref observation results. v0.3.0 is
 not released; Phase A/release gates stay independent. User stages/commits after
