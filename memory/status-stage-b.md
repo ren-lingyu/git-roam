@@ -427,20 +427,81 @@ its blobs before grounding. The user has now committed this correction at
 b7a0e150547c51a46fed3a01413344f6dadd2e41, verified by 61-file equivalence.
 The explicitly requested B4 work is recorded below.
 
-## Active B4: verified worktree identity and native status
+## Completed B4: verified native worktree status
 
-The user committed the B3 correction at b7a0e150547c51a46fed3a01413344f6dadd2e41;
-61 blobs match the final B3 session manifest and entry worktree/index are clean.
-B4 is explicitly authorized, including scoped formatter; retain 300s single-job/
-core Nix limits. Verify actual root/common/admin/HEAD before/after and linked
-admin backpointer; pin status to the verified git-dir/work-tree. Do not trust
-path existence/discovery alone. Parse porcelain-v2 NUL structure, extra rename/
-copy paths, unmerged and submodule flags. Summaries keep unmerged separate from
-ordinary XY changes; submodule dirty flags also count unstaged, U untracked.
-Keep worktrees/status separate properties linked by raw path and share the
-registration read. Unknown is unavailable with diagnostics, never false/clean.
-Preserve partial data, readonly/default cost and existing removal/delete safety;
-no B5/B6 migration. Complete tests, docs, full-diff draft and memory handoff.
+Baseline is the user's B3 correction commit, verified by 61-file equivalence.
+B4 is implemented/tested but uncommitted in nine paths: new Git/Status.hs and
+test/WorkingTreeStatus.hs, Application/Status.hs, Cli.hs, Output.hs,
+git-roam.cabal, test/Status.hs, README.org and CHANGELOG.org. Index is empty;
+no agent ordinary project staging/commit/push. Package stays 0.2.0, development
+TODO v0.3.0, no release-state/time/lock/protocol or B5/B6 changes.
+
+NodeProperty adds StatusProperty; NodeStatus carries separate per-worktree
+status observations. Worktrees/status share one registration observation but
+exact selection never leaks dependency fields. Worktree records sort by raw
+path and only selected Nodes are scanned. No associated worktrees => [], failed
+registration => status:null. Per-path unavailable => state=unavailable and all
+four boolean flags null plus worktree_status_unavailable Node/property/path
+diagnostic. Other successful properties/Nodes survive; dirty exits 0 and read/
+partial failures exit 3. Defaults remain tip/worktrees/remote without scans.
+Text, JSON and CBOR keep existing byte encoding and report-completeness rules.
+
+The Git.Status parser consumes porcelain-v2 -z record structure, including two
+NUL paths for rename/copy, ordinary tracked fields, unmerged, submodule flags,
+byte filenames and unknown optional headers. Malformed/truncated/empty records,
+mode/OID/XY/score errors fail the worktree. A lone NUL is invalid, not clean.
+Unmerged XY is conflict-side state and sets unmerged separately; normal XY
+sets staged/unstaged. Submodule HEAD/content dirt contributes unstaged; U also
+untracked, with fixed ignore-submodules=none despite ignore config. Ignored files
+do not count. Native options use untracked=normal/no-ahead-behind and readonly
+no-optional-locks/GIT_OPTIONAL_LOCKS=0, no lazy fetch, fsmonitor/untrackedCache off.
+
+Reader checks actual root/common/admin/object-format, HEAD branch/OID and
+root/.git device/inode before/after. Main admin must equal common; linked admin
+must be a direct child under common/worktrees and its gitdir backlink must point
+to this worktree's .git. Unsupported metadata types/leaf symlinks reject before
+Git discovery. This prevents discovery into another clean repository or another
+same-Node worktree from yielding a false clean. Lasting identity changes discard
+that status. Separate-command observations are not claimed atomic.
+
+Raw-byte finding was tested and grounded in official process 1.6.26.1 source
+(System/Process/Posix.hs): cwd/environment use withFilePath, argv withCString.
+Pinned-source Nix eval/build fetched the source (project legacyPackages lacks
+haskellPackages, so use inputs.nixpkgs); no project dependencies changed. Reader
+therefore clears inherited redirecting environment then sets verified absolute
+GIT_DIR/GIT_WORK_TREE per invocation. Paths remain lossless without global
+encoding changes/new transport. Fixtures first add at ASCII paths, filesystem-
+rename to raw bytes and native worktree repair from raw cwd; byte filenames stage
+through NUL stdin and rename with filesystem/native add. Tests assert actual raw
+registration paths. Existing broader argv path call sites remain a known separate
+boundary; do not assume their byte safety or expand this B4 work implicitly.
+
+Added 18 groups (Status 70). Native SHA-1/SHA-256 x files/reftable covers all flags,
+rename/unmerged/submodule (including ignore overrides), non-UTF-8/newline names
+and worktree paths, text/JSON/CBOR and dirty 0, empty associations, locked/missing/
+prunable entries, foreign separate-git-dir clean repo, missing .git, same-Node
+wrong admin alias, change after status, main checkout, partial/malformed/global
+registration failures and selected query costs. Default/tip/worktrees/remote
+avoid status; status avoids cat-file/history. Index/HEAD/refs/data remain unchanged
+even with forced stat-cache refresh and a hostile inherited GIT_INDEX_FILE.
+Clean status plus ignored data or MERGE_HEAD still fails unchanged removal
+preflight with the specific expected reason. No safety preflight was merged into
+observation. Existing management/protocol/Hook suites remain intact and pass.
+
+Final full authorized 300s/one-job/core nix flake check passes all 16 suites /
+376 groups, -Wall -Werror and treefmt 61 eligible files/zero changes. Derivation:
+/nix/store/fm2lda6kn55134mazsza57rx4jiddcz9-git-roam-0.2.0.drv.
+Only x86_64-linux checked; other systems/minimum Git/10^4-Node timing unknown.
+First check found lone-NUL acceptance and fixture path mismatch with surrogate
+logging failure; second exposed the exact mismatch. Third full check passed
+with the byte-safe pinning/fixture fix; fourth passed final text dirty-exit
+assertions. No timeout/skipped test. All 63 final files match checked snapshot
+by SHA-256: tmp/b4-check and tmp/b4-verification.json. Earlier manifests preserved.
+Full diff reviewed, diff HEAD --check passes. Draft tmp/commit.md uses full
+GitRoam.Application.Status scope, no Breaking footer, one coherent phase (split
+not necessary, high identity/byte/parser coupling). No new raw archive/uncommitted
+project parent needed. Await user review/commit; verify committed blobs before
+grounding. B5 remains atomic management/Hook migration under a new instruction.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -687,7 +748,8 @@ changes. Do not reopen historical experiments/releases as implicit work.
 B1 and initial B2 were committed by the user. B2 review corrections are now
 committed and verified by manifest equivalence. B3 is complete and verified
 in the committed initial B3 snapshot. Its session correction is now verified in
-the committed B3 correction snapshot. B4 is explicitly requested and active. Only within this conversation / the
+the committed B3 correction snapshot. B4 is now verified in the uncommitted
+worktree; await review/commit and a new B5 instruction. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;
