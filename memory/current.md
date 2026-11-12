@@ -1,6 +1,63 @@
 # Git Roam current state
 
-## Current handoff: relative linked-worktree fix complete
+## Paused by user: revised B6 and raw-ref interface design
+
+The user explicitly paused work after accepting the Git-side interface extension
+DIRECTION and asking for a concrete patch DESIGN first. Do not implement B6,
+patch Git or run further investigations until the user resumes. No B6 source,
+Git dependency, docs, index or project history changes have been made. No B6
+Cabal/Nix build/test was run and no concrete patch design file was completed.
+
+Actual HEAD is 3fbbe95047a2cabe06c60b4a9c6958b227e6ba8e, clean at entry.
+All 65 committed blobs match tmp/b4-fix-verification.json. The user supplied a
+revised B6 plan: Check ALWAYS validates all local managed refs, removes --node
+and worktree inference, reports Valid/Invalid/Inconclusive as true/false/null
+with exits 0/1/3. Default keys valid/diagnostics; optional --show-refs emits a
+full-refname-to-full-OID MAP, omitted when unrequested, null when complete mapping
+unavailable, {} for confirmed empty. Keep initial refs across later failures
+without rereading to reconstruct them. Ref changes or strict batch failure
+supersede provisional Invalid. Confirmed missing/wrong-type/malformed protocol
+objects are Invalid; observation failures are Inconclusive, via typed errors.
+Unify Validation history/connectivity/identity logic, preserve strict candidate
+validation without live-ref enumeration and operation worktree preflight, retain
+Checkpoint inferNode, remove obsolete Inspect models/functions/aliases. Check
+must not read worktree/status/upstream/protection config or validate transitions.
+Keep new Check app/model independent from Output and retain all meaningful old
+safety/protocol tests. Docs TODO v0.3.0 and full acceptance follow implementation.
+This NEW plan overrides old B6 statements preserving Check scope/inference.
+
+Critical VERIFIED gate: pinned Git 2.56.0 silently omits a dangling canonical
+symbolic Node ref in ALL FOUR SHA-1/SHA-256 x files/reftable combinations:
+for-each-ref exits 0 with empty stdout/stderr. In SHA-1 both backends, show-ref
+also omits it, --include-root-refs and GIT_REF_PARANOIA=1 do not help, and
+refs verify --strict --verbose succeeds. Reproduction repositories only in
+validated tmp/b6-probe; no ordinary project refs touched. Thus current shared
+reader can falsely claim an empty complete set; affects strict callers, not just
+Check. Do not ship Check Valid on this observation boundary or add backend-specific
+files/reftable parsing. Git v2.56.0 refs.h documents refs_for_each_ref_ext plus
+REFS_FOR_EACH_INCLUDE_BROKEN; struct reference contains name, target, nullable/
+zero unresolved OID and flags. for-each-ref CLI has no raw inclusion option and
+uses regular iteration. Sources reviewed through official git/git v2.56.0:
+https://github.com/git/git/blob/v2.56.0/refs.h
+https://github.com/git/git/blob/v2.56.0/builtin/for-each-ref.c
+https://github.com/git/git/blob/v2.56.0/ref-filter.c
+
+NEXT AFTER RESUME: present a concrete Git-side raw-enumeration patch design for
+review, before applying dependency/product changes. Proposed direction is a
+small Git CLI extension over its backend-agnostic ref API with include-broken,
+fixed versioned NUL framing, optional resolved OID, target and explicit flags;
+shared GitRoam.Git.Refs consumes it for all callers. Specify unsupported stock
+Git fail-closed, integration only into git-roam's pinned Nix Git dependency,
+no unsafe for-each-ref fallback, and tests for dangling/chained/cyclic/broken refs
+across four combinations. This is a proposal, NOT an approved concrete contract:
+command spelling/framing, unresolved-OID refs:null semantics, Status internal
+adaptation and packaging/build details remain to be reviewed. User accepted
+expanded scope for design, not execution yet. No design file or patch exists.
+GAW check is healthy when run in .agents. An accidental check at the project root
+reported missing config for main, not GAW damage; corrected and user independently
+confirmed .agents check. No GAW lifecycle mutation or repair is needed.
+
+## Historical B4-fix completion evidence
 
 B4-fix is complete in four uncommitted files: Git/Status.hs,
 test/WorkingTreeStatus.hs, README.org and CHANGELOG.org. Baseline is the user's
