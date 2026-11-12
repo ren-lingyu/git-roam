@@ -503,19 +503,65 @@ not necessary, high identity/byte/parser coupling). No new raw archive/uncommitt
 project parent needed. Await user review/commit; verify committed blobs before
 grounding. B5 remains atomic management/Hook migration under a new instruction.
 
-## Active B5: independent validation and complete operation migration
+## Completed B5: independent validation and atomic caller migration
 
-The user committed B4 at 1e430e1302f1c1185d7dfc165b07b4902de3306f;
-63 committed blobs match final B4 manifest and entry worktree/index are clean.
-B5 and scoped formatter are authorized; retain 300s/one-job/core checks.
-Extract validation/evidence/error/inference without CLI/Status/worktree models,
-keep legacy Check presentation until B6, remove reportManagedState and migrate
-all management callers plus Hook candidates atomically. Old Inspect's implicit
-worktree registration failure gate must become explicit operation preflight,
-inside before/after refs and strict session completion. Shared Hook ref reader
-must reject incomplete/warned/symbolic observations. Preserve protocol and
-all operation safety/compensation rules. Add regressions/docs, verify and draft
-one full-diff commit; no project Git writes or broad argv migration.
+B4 entry commit was verified against all 63 files in the final B4 manifest.
+B5 changes 23 project paths, including Application/Validation.hs and the new
+validation-tests main. ValidationError moves out of Inspect; existing constructor
+labels, diagnostic categories and exit mappings remain to preserve current CLI
+behavior. ValidationEvidence is abstract; its read-only projection runs within
+before/after complete local refs and a strictly successful history session.
+loadManagedState validates the whole set with no presentation/worktree reads;
+validateCandidate validates explicit refs with shallow/history/connectivity/
+identity checks and no implicit live-ref enumeration. Callers retain their own
+execution-time ref checks. Protocol decoder and raw transport are unchanged.
+
+Create, Checkpoint, Delete and Undeploy call Worktree.loadOperationState, which
+explicitly retains old Inspect's registration read/parse gate before identity
+acceptance, inside ref-change and strict-session completion. Original operation
+identity-error strings are preserved. All prepare, execution, compensation and
+residual-state call sites migrated, not just initial loads. Deploy imports the
+candidate validator and keeps its existing planning/ref safeguards. Hook accepts
+an injected Git adapter, uses shared readNodeRefs plus requireCompleteRefs and
+rejects symbolic Nodes. Private Hook ref enumeration/decoder removed; native
+transaction-input parsing, local Content fast path, all-set conflict validation,
+packed-ref pruning evidence and locks remain separate unchanged responsibilities.
+
+Inspect is now only the legacy Check projection: node/history/worktree views and
+problems. It has no reportManagedState, error/inference/candidate reexports or
+compatibility-only wrappers. Production Inspect imports remain only in CLI and
+Output. No Status observation enters trusted state. Check public output/scope,
+Root/Content/Checkpoint protocol and all operation safety policies stay unchanged.
+README and CHANGELOG TODO v0.3.0 describe B5; no package/lock/release metadata change.
+
+Final isolated 65-file snapshot includes both untracked modules. Authorized
+300s/single-job/core nix flake check returned exit 0 on x86_64-linux: all 17 suites
+/ 400 groups pass, -Wall -Werror, treefmt 63 eligible files, zero changes. New
+24 groups cover four format/backend combinations, no-worktree core loading,
+identity mismatch, warned/malformed/duplicate/nonzero/transport ref failures,
+native symbolic Node rejection including an unrelated Hook Node, ref-change
+precedence, callback-success followed by native nonzero session shutdown, and
+all management registration guards with exact failure cause, unchanged refs,
+no ref/object/worktree write commands and absent created paths. Existing context,
+missing objects, shallow, installed Hook, user-data/rollback and cancellation
+regressions pass. No skipped test or timeout. Initial compilation found a missing
+Delete import; fixed. Subsequent full checks passed; final review strengthened
+operation assertions and added the explicit native Hook symbolic case, all in the
+final verified snapshot. Product derivation:
+/nix/store/dbc1kc7mzajzir1n3yhj5dd57fpwl6r4-git-roam-0.2.0.drv.
+Only x86_64-linux verified; no minimum-version, other-system or 10^4-Node benchmark
+claim. tmp/b5-verification.json contains the SHA-256 manifest and tmp/b5-check
+contains source. Earlier intermediate manifests retained separately.
+
+All current files equal the final snapshot; complete tracked/untracked diff
+reviewed and diff --check passed. Full-phase tmp/commit.md uses
+refactor(GitRoam.Application.Validation): separate protocol validation from inspection.
+Split not necessary, high difficulty due to coupled validation and caller safety.
+Project index empty, user commits. Completion memory has no parent for an
+uncommitted B5; source/tests and durable findings suffice without raw archive.
+Await review/commit and B6 instruction; verify committed blobs against the final
+manifest before grounding. B6 changes Check report/tri-state validity and removes
+remaining obsolete legacy presentation only as part of that next phase.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -569,8 +615,8 @@ ref enumeration remains, plus strict incomplete-observation and installed-Hook
 transaction/safety regressions.
 
 At adoption this addition changed planning only. B2 requirements are now
-implemented and verified as recorded above; the B5 Hook/management migrations
-remain pending. Do not infer their completion from B2 shared-reader changes.
+implemented and verified as recorded above; B5 Hook/management migrations are
+now separately completed and verified in the B5 section, not inferred from B2.
 
 ## Public Status decisions
 
@@ -759,11 +805,10 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-B1 and initial B2 were committed by the user. B2 review corrections are now
-committed and verified by manifest equivalence. B3 is complete and verified
-in the committed initial B3 snapshot. Its session correction is now verified in
-the committed B3 correction snapshot. B4 is now verified in the uncommitted
-worktree; B4 is now committed and verified against its manifest. B5 is active; finish its independent validation, atomic migration, regression checks and documentation before B6. Only within this conversation / the
+B1-B4 and their review corrections were committed by the user and verified
+against their respective manifests. B5 is complete and verified in the uncommitted
+worktree; await user review/commit and a new B6 instruction. Only within this
+conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;

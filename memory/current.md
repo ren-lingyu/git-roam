@@ -1,38 +1,48 @@
 # Git Roam current state
 
-## Active objective: B5 independent validation and atomic operation migration
+## Current handoff: B5 validation migration complete and verified
 
-The user committed B4 at 1e430e1302f1c1185d7dfc165b07b4902de3306f.
-All 63 committed blobs match the final B4 verification manifest; project
-worktree/index are clean at B5 entry. B5 is explicitly requested; scoped
-Haskell/Cabal formatting is authorized (local treefmt, 120s); existing Nix
-checks remain 300s/one-job/core. Prior B4 evidence below is historical.
+B5 is complete in 23 uncommitted project paths, including new
+Application/Validation.hs and test/Validation.hs. The user committed B4 at
+1e430e1302f1c1185d7dfc165b07b4902de3306f; all 63 committed blobs matched the
+B4 manifest, grounding the B5 transition. Project index remains empty; no agent
+project staging, commit or push. Await user review/commit and B6 instruction.
 
-Extract Application.Validation, complete ManagedState loader and explicit
-candidate validator, shared strict error/evidence handling and current-Node
-inference. Keep Check's current public report until B6. Remove reportManagedState
-from InspectionReport and migrate all production consumers together, including
-Checkpoint/Create/Delete/Undeploy, Deploy candidates and Protection Hook.
-Audit found old Inspect also gated operations on worktree registration read:
-retain this as explicit Application.Worktree operation preflight, inside the
-same before/after ref and strict object-session boundary. Validation core itself
-must not depend on presentation or worktrees. Hook must use shared RefObservation
-plus completeness judgment and reject symbolic/incomplete evidence. Preserve
-shallow/connectivity/context/identity/race/session checks and operation locks,
-protection, expected-old writes, rollback/user-data safeguards. Do not use Status
-partial observations, implement B6/new check schema, or expand argv-byte work.
-Add native/adaptor regressions, sync docs, full checks, complete-diff draft and
-memory checkpoint. No project staging/commit/push authorized.
+Validation now owns complete-state loading, candidate validation, Node inference
+and strict evidence/ref/session boundaries independently of CLI/Status/worktrees.
+Every management caller migrated atomically; InspectionReport.reportManagedState
+and report adapters are gone. Inspect retains only real legacy Check presentation
+until B6. Worktree.loadOperationState explicitly preserves the old registration
+failure gate inside the same ref and strict session boundary for Create,
+Checkpoint, Delete and Undeploy; Deploy retains its existing planning guards.
+Hook uses shared complete refs, rejects symbolic/incomplete rows, and keeps its
+transaction input, packed pruning, transitions and operation lock safeguards.
+No Status partial results become trusted state. Check/protocol/schema unchanged.
 
-B5 implementation now extracted Validation and removed every reportManagedState
-access. Worktree.loadOperationState preserves registration failure and ref/session
-boundaries; the Hook shares complete RefObservation and accepts injected Git for
-native/fault tests. Added validation-tests across four format/backend combinations
-covering core independence/identity, incomplete refs/Hook, ref-race precedence,
-native session-exit rejection and all operation registration guards. Docs updated.
-First full Nix check passed formatting but found a missing Delete import; fixed,
-second full check underway. No test pass is claimed yet. Complete source snapshot
-has 65 files including both new modules. Next: finish tests, review and final draft.
+Final 300s/one-job/core Nix check passed: 17 suites / 400 groups (24 new Validation
+groups), -Wall -Werror, treefmt 63 eligible files with zero changes. Native tests
+cover SHA-1/SHA-256 x files/reftable, strict ref errors and symbolic Hook refusal,
+core/worktree independence, branch identity, ref-race precedence, actual scoped
+session nonzero exit after successful callback, and all management entry points'
+registration failures before ref/object/worktree writes or path creation. Existing
+protocol, Hook, user-data, rollback, CLI and batch cancellation tests pass.
+Final product: /nix/store/dbc1kc7mzajzir1n3yhj5dd57fpwl6r4-git-roam-0.2.0.drv.
+All 65 files match tmp/b5-check and tmp/b5-verification.json by SHA-256.
+Only x86_64-linux verified; other systems/minimum Git/10^4-Node timing unverified.
+
+README and CHANGELOG TODO v0.3.0 synchronized; package remains 0.2.0 and no
+lock/release-state/time changes. Full diff including both new files reviewed;
+diff --check passed. tmp/commit.md uses refactor(GitRoam.Application.Validation),
+English title/Chinese ASCII-punctuation body, no breaking footer. One tightly
+coupled phase: split not necessary, high difficulty. No raw archive needed;
+source/tests plus distilled findings suffice. Completion checkpoint has no extra
+project parent for uncommitted B5. When user commits, compare every blob with
+final manifest before grounding; no unchanged-test rerun only to obtain a parent.
+B6 next: pure Check report, original scope/inference, tri-state validity and
+stable diagnostics; do not start before a new user instruction. Scoped formatting
+and Nix authorizations persist for their stated scope; full-diff message convention
+is limited to this conversation/current B1-B7 redesign. Preserve the historical
+B4 argv/byte-path boundary below rather than expanding this task.
 
 ## Historical B4 completion evidence
 
