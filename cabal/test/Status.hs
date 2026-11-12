@@ -23,6 +23,7 @@ import GitRoam.Git.Worktrees (Worktree (..))
 import GitRoam.ObjectId
 import GitRoam.Output
 import GitRoam.Protocol.Identity
+import StatusRegression (regressionTests)
 import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
@@ -40,6 +41,7 @@ main =
             ++ [("Status lightweight observations and batch upstream " ++ backend ++ " " ++ show format, fixture backend format (nativeQueries format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("Status partial reads and strict callers " ++ backend ++ " " ++ show format, fixture backend format (partialQueries format)) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
             ++ [("Status CLI reports and argument errors " ++ backend ++ " " ++ show format, fixture backend format cliQueries) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
+            ++ regressionTests
 
 first :: [a] -> a
 first (value : _) = value

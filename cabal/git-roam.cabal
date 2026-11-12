@@ -131,6 +131,7 @@ test-suite status-tests
   hs-source-dirs:     test
   main-is:            Status.hs
   other-modules:
+    StatusRegression
     TestSupport
     WorktreeFixture
 

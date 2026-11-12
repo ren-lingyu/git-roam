@@ -11,6 +11,8 @@
 - Add top-level =--format text|json|cbor= for all result commands, shared lossless path encoding, structured reports and JSON Lines diagnostics in noninteractive machine mode.
 
 ** Fixed
+- Treat remote-only branch configuration as no upstream, and use Git's effective remote value across repeated or inherited settings. Keep multiple merge values explicitly diagnosed.
+- Preserve readable Node properties and other Nodes' upstream configuration after upstream query or Node-local configuration failures. Restrict symbolic remote diagnostics to selected local Nodes and distinguish excluded candidates from an empty ref set.
 - Allow =undeploy= when only a residual =REBASE_HEAD= remains after a rebase. Rebase state directories (=rebase-merge= and =rebase-apply=) and all other removal safety checks still prevent unsafe removal.
 - Allow =pack-refs= and its maintenance task to prune redundant loose Node refs after packing them, while continuing to refuse ordinary Node branch deletion.
 
