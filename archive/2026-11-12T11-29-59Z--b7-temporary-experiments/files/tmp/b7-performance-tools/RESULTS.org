@@ -1,0 +1,192 @@
+#+title: Phase B observation and validation acceptance evidence
+
+* Source and method
+Measured on 2026-11-12, x86_64-linux, Intel Core Ultra X7 358H, Git 2.56.0,
+GHC 9.12.3. B6 baseline: =0376d2691cf1bf4abad00a476b41cb5bc4d9aa9a=.
+B7 results use the uncommitted worktree's two bounded production optimizations;
+no release version or protocol change. Before/after binaries use the identical
+Haskell observation harness with respectively B6 and B7 production libraries.
+The pinned package and its full default tests were built for both binaries.
+Final integration acceptance, including the later native lazy-fetch regression,
+is recorded in project memory; the benchmark binary does not claim those tests.
+
+All tables report three samples per workload, median seconds. Fixture generation
+is excluded from query time. OS caches are warm after generation; application
+caches are fresh per query. Proxy launches and per-request logging are included.
+The primary measurements below ran serially without a concurrent Nix build.
+Earlier overlapping exploratory measurements are excluded from these tables.
+Timing differences at small scales include startup/scheduling variation; no
+absolute latency guarantee or statistical significance claim is made.
+
+See [[file:README.org][harness instructions]] for exact reproduction, metric boundaries and options.
+The B7 binary is =/nix/store/i81j03jxkn8v7pjk4r666ap3nq6nxpad-git-roam-0.2.0=;
+the B6 comparison binary is =/nix/store/c2n1901clv0s0qbkabnrhqrqdfj7i5hx-git-roam-0.2.0=.
+Both contain =bin/observation-benchmark=. Git is
+=/nix/store/2qpb7835xdl1aayzr7q24kbrs2d1ajv3-git-with-svn-2.56.0/bin/git=.
+Raw samples and fixture parameters are preserved in the GAW Phase B performance
+archive; these tables intentionally avoid large machine-specific logs in README.
+
+Peak RSS, cold-cache timings, Git 2.54 runtime compatibility, aarch64 execution
+and large Deploy/Undeploy throughput were not measured. All four object/ref
+combinations below were actually exercised; configured platforms are not tests.
+
+* Independent Root fixtures
+For N Nodes: N local refs, N remote-tracking refs, N unique tips/commits,
+N+1 trees, one shared marker blob, three registered worktrees (two associated
+with Nodes). No upstream config entries or diagnostics. All queries completed.
+=tip-one= and =status-one= select one Node, with one associated worktree;
+=status= selects both associated worktrees. Other queries do not scan files.
+Processes are actual native Git launches; batch requests are distinct from
+processes. Raw requests are N for commit and 2N+1 for Check, with one session.
+Repo has zero ref enumerations; other queries have two. Ordered maps/sets and
+native backend costs prevent a claim of strict linear wall-clock complexity.
+
+** sha1 / files
+| Query | 10 | 100 | 1,000 | 10,000 | Git processes | Raw sessions | Requests at 10k | JSON bytes at 10k |
+|---+---+---+---+---+---+---+---+---|
+| repo | 0.0647 | 0.0540 | 0.0736 | 0.0792 | 12 | 0 | 0 | 68 |
+| tip | 0.0454 | 0.0326 | 0.0550 | 0.1661 | 8 | 0 | 0 | 970029 |
+| default | 0.0469 | 0.0487 | 0.1295 | 0.4227 | 10 | 0 | 0 | 3611045 |
+| remote | 0.0357 | 0.0385 | 0.0744 | 0.4044 | 9 | 0 | 0 | 2970029 |
+| commit | 0.0351 | 0.0411 | 0.2241 | 1.0318 | 9 | 1 | 10000 | 6030029 |
+| status | 0.1755 | 0.1902 | 0.2566 | 0.3434 | 43 | 0 | 0 | 600595 |
+| check | 0.0420 | 0.0866 | 0.2808 | 1.7796 | 11 | 1 | 20001 | 32 |
+| check-refs | 0.0413 | 0.0704 | 0.2978 | 2.0640 | 11 | 1 | 20001 | 930041 |
+| tip-one | 0.0321 | 0.0401 | 0.0706 | 0.1486 | 8 | 0 | 0 | 126 |
+| status-one | 0.1468 | 0.1324 | 0.1442 | 0.2364 | 26 | 0 | 0 | 372 |
+
+** sha1 / reftable
+| Query | 10 | 100 | 1,000 | 10,000 | Git processes | Raw sessions | Requests at 10k | JSON bytes at 10k |
+|---+---+---+---+---+---+---+---+---|
+| repo | 0.0709 | 0.0747 | 0.0799 | 0.0727 | 12 | 0 | 0 | 68 |
+| tip | 0.0286 | 0.0530 | 0.0678 | 0.1293 | 8 | 0 | 0 | 970029 |
+| default | 0.0552 | 0.0568 | 0.0981 | 0.3124 | 10 | 0 | 0 | 3611059 |
+| remote | 0.0626 | 0.0568 | 0.1111 | 0.3104 | 9 | 0 | 0 | 2970029 |
+| commit | 0.0655 | 0.0507 | 0.2099 | 0.9983 | 9 | 1 | 10000 | 6030029 |
+| status | 0.2165 | 0.2107 | 0.2178 | 0.2864 | 43 | 0 | 0 | 600609 |
+| check | 0.0440 | 0.0667 | 0.1778 | 2.0691 | 11 | 1 | 20001 | 32 |
+| check-refs | 0.0582 | 0.0641 | 0.3175 | 2.0611 | 11 | 1 | 20001 | 930041 |
+| tip-one | 0.0529 | 0.0392 | 0.0771 | 0.1217 | 8 | 0 | 0 | 126 |
+| status-one | 0.1462 | 0.1295 | 0.1010 | 0.2114 | 26 | 0 | 0 | 379 |
+
+** sha256 / files
+| Query | 10 | 100 | 1,000 | 10,000 | Git processes | Raw sessions | Requests at 10k | JSON bytes at 10k |
+|---+---+---+---+---+---+---+---+---|
+| repo | 0.0654 | 0.0624 | 0.0749 | 0.0759 | 12 | 0 | 0 | 68 |
+| tip | 0.0582 | 0.0552 | 0.0648 | 0.1831 | 8 | 0 | 0 | 1210029 |
+| default | 0.0521 | 0.0619 | 0.1247 | 0.4291 | 10 | 0 | 0 | 4091103 |
+| remote | 0.0575 | 0.0674 | 0.1171 | 0.4137 | 9 | 0 | 0 | 3210029 |
+| commit | 0.0565 | 0.0615 | 0.2030 | 1.1637 | 9 | 1 | 10000 | 6270029 |
+| status | 0.2131 | 0.2090 | 0.2604 | 0.3770 | 43 | 0 | 0 | 600605 |
+| check | 0.0594 | 0.0950 | 0.2269 | 2.3438 | 11 | 1 | 20001 | 32 |
+| check-refs | 0.0522 | 0.0942 | 0.3588 | 2.1648 | 11 | 1 | 20001 | 1170041 |
+| tip-one | 0.0304 | 0.0445 | 0.1016 | 0.1561 | 8 | 0 | 0 | 150 |
+| status-one | 0.1369 | 0.1353 | 0.1779 | 0.2487 | 26 | 0 | 0 | 377 |
+
+** sha256 / reftable
+| Query | 10 | 100 | 1,000 | 10,000 | Git processes | Raw sessions | Requests at 10k | JSON bytes at 10k |
+|---+---+---+---+---+---+---+---+---|
+| repo | 0.0849 | 0.0743 | 0.0609 | 0.0705 | 12 | 0 | 0 | 68 |
+| tip | 0.0547 | 0.0578 | 0.0676 | 0.1284 | 8 | 0 | 0 | 1210029 |
+| default | 0.0698 | 0.0783 | 0.0909 | 0.3141 | 10 | 0 | 0 | 4091117 |
+| remote | 0.0638 | 0.0751 | 0.0999 | 0.3293 | 9 | 0 | 0 | 3210029 |
+| commit | 0.0647 | 0.0735 | 0.1994 | 0.9746 | 9 | 1 | 10000 | 6270029 |
+| status | 0.2051 | 0.2642 | 0.2351 | 0.3402 | 43 | 0 | 0 | 600619 |
+| check | 0.0699 | 0.0873 | 0.3172 | 2.0826 | 11 | 1 | 20001 | 32 |
+| check-refs | 0.0774 | 0.0997 | 0.3279 | 2.1362 | 11 | 1 | 20001 | 1170041 |
+| tip-one | 0.0533 | 0.0687 | 0.0630 | 0.0879 | 8 | 0 | 0 | 150 |
+| status-one | 0.1689 | 0.1890 | 0.1594 | 0.1908 | 26 | 0 | 0 | 384 |
+
+* Initial refs output cost
+At 10,000 refs, Check and =check-refs= use exactly the same native process,
+raw request, session and enumeration counts. The following operational timings
+separate application observation from JSON encoding/lazy report construction;
+individual medians can fluctuate without indicating algorithm changes.
+
+| Format/backend | Query | Observation s | Encoding s | Bytes |
+|---+---+---+---+---|
+| sha1/files | check | 1.7704 | 0.000014 | 32 |
+| sha1/files | check-refs | 2.0495 | 0.009205 | 930041 |
+| sha1/reftable | check | 2.0477 | 0.000024 | 32 |
+| sha1/reftable | check-refs | 2.0347 | 0.013099 | 930041 |
+| sha256/files | check | 2.3217 | 0.000019 | 32 |
+| sha256/files | check-refs | 2.1140 | 0.011557 | 1170041 |
+| sha256/reftable | check | 2.0742 | 0.000011 | 32 |
+| sha256/reftable | check-refs | 2.0955 | 0.022905 | 1170041 |
+
+* Shared history and context
+SHA-1, 10,000 local/remote refs and unique tips; 29,999 reachable commits
+(10,000 Roots, 10,000 Content commits in one shared chain, 9,999 Checkpoints),
+10,001 trees and one blob. Every Checkpoint reuses the same external Content tip.
+All queries passed, including the 10,000-deep ancestry. Check reads each unique
+commit/tree once: 40,000 raw requests within one session, not once per context.
+The earlier exploratory 10/100/1,000/10,000 shared runs also passed on both
+backends, but overlapped compilation and are not the timing baseline.
+
+| Backend | Check s | Check refs s | Commit s | Git processes for Check | Raw requests |
+|---+---+---+---+---+---|
+| files | 3.8068 | 4.4202 | 1.0091 | 11 | 40000 |
+| reftable | 4.2552 | 3.9961 | 1.1176 | 11 | 40000 |
+
+* Upstream config problem indexing
+A separate Root fixture adds N valueless branch remote entries. Both binaries
+retain N+1 diagnostics and partial reports; remote/default use 11/12 Git
+processes and four ref enumerations because the upstream atom fails and falls
+back to plain refs. Identical error counts and process counts are required;
+no error or safety check was removed for speed. B6 scanned P problems for each
+of N Nodes, O(NP). B7 builds a global flag and Node Set once, O(P log P), then
+uses O(log P) lookup per Node; original diagnostic generation is retained.
+
+| Backend | Query | Nodes | Before s | After s | Diagnostics |
+|---+---+---+---+---+---|
+| files | remote | 10 | 0.0719 | 0.0792 | 11 |
+| files | default | 10 | 0.0613 | 0.0678 | 11 |
+| files | remote | 100 | 0.0844 | 0.0752 | 101 |
+| files | default | 100 | 0.0880 | 0.0797 | 101 |
+| files | remote | 1000 | 0.1673 | 0.1623 | 1001 |
+| files | default | 1000 | 0.1622 | 0.1581 | 1001 |
+| files | remote | 10000 | 0.9243 | 0.5969 | 10001 |
+| files | default | 10000 | 0.9377 | 0.6153 | 10001 |
+| reftable | remote | 10 | 0.0530 | 0.0791 | 11 |
+| reftable | default | 10 | 0.0572 | 0.0831 | 11 |
+| reftable | remote | 100 | 0.0550 | 0.0728 | 101 |
+| reftable | default | 100 | 0.0497 | 0.0898 | 101 |
+| reftable | remote | 1000 | 0.1147 | 0.1156 | 1001 |
+| reftable | default | 1000 | 0.1048 | 0.1008 | 1001 |
+| reftable | remote | 10000 | 0.7605 | 0.3867 | 10001 |
+| reftable | default | 10000 | 0.7685 | 0.4102 | 10001 |
+
+Missing-blob list construction separately changes repeated append to prepend
+and one final reverse (quadratic copying to linear accumulation). Functional
+regression checks order and WrongObjectType priority; no large missing-blob
+latency claim is made from the one-blob normal fixture.
+
+* Architecture and Stage A handoff
+Audit found no production Inspection presentation dependencies. Status is
+independent of protocol validation; Check maps shared Validation evidence;
+candidate validation does not enumerate live refs. Operations and Protection
+retain strict acceptance/preflight/transition rules, and Output performs no
+Git queries. Worktree/remote association already uses indexes, commit OIDs
+are deduplicated, and history/object evidence is shared per invocation.
+
+Full default regression retains the four-way native matrix, batch cancellation,
+relative/non-UTF-8 worktrees, pack-refs maintenance and management safety.
+New tests cover executable cross-command semantics, serialized diagnostic
+contexts/evidence, partial-ref strictness, config failures and read-only state.
+The native promisor regression records Git trace events to detect hidden lazy
+fetches; it uses only a local unavailable remote, not a network server.
+
+Deploy currently performs two exact-name occupancy probes per imported Node:
+measured four probes for two imports, zero for an already-local re-deploy, in
+all four functional combinations. Both checks remain. Stage A owns batch
+Deploy/Undeploy planning, repeated global observations/replanning and complete
+unsafe-removal diagnostics. It must preserve conditional non-dereferencing
+creation, strict candidate validation, compensation and user-data protection.
+No ten-thousand-worktree deployment claim follows from these observations.
+
+Accepted bounds remain: Git can silently omit dangling symbolic refs; Check is
+not a full ODB/rehash audit or transition verifier, does not collect every error,
+and reports initial refs rather than atomic/current/per-Node-validated values.
+Status partial results cannot certify management state; clean does not mean
+safe removal; existing operation locks do not isolate arbitrary external writers.
+Phase B completion does not release v0.3.0 or complete Stage A.

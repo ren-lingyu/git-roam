@@ -1,6 +1,6 @@
 # Stage B: Status queries and protocol validation
 
-## Current B6 contract (implemented and verified)
+## Final Stage B contract (implemented and verified)
 
 The latest user B6 plan supersedes the initial Check-scope rules below: Check
 always validates the whole set exposed by native enumeration, removes --node and
@@ -677,6 +677,77 @@ User stages/commits; no ordinary Git mutation by agent. Distillation suffices
 without raw archive; completion has no project parent for uncommitted B6. Verify
 later committed blobs against final manifest, then B7 after user instruction.
 
+## Completed B7: formal acceptance and temporary-only performance evidence
+
+Actual baseline is the user-committed B6, verified against all 66 final blobs.
+Architecture audit confirms independent native Status, strict shared Validation,
+whole-enumerated-state Check and presentation-independent management/Protection.
+Whole-state scope is necessary for cross-history Root consistency: individually
+valid local histories can conflict when combined. Actual/candidate static rules
+are shared; candidate input never implicitly enumerates actual refs. Check reads
+no status/worktree/upstream/protection display data. No old Inspect/API aliases.
+
+Only two production paths needed changes: upstream config-problem indexing from
+O(NP) scans to one global/Node Set index and per-Node lookup; missing-blob list
+accumulation from repeated append to prepend/reverse, same order/type priority.
+Existing worktree/remote indexes, unique-tip deduplication, immutable history/
+object evidence sharing, selection costs and strict boundaries remain intact.
+Formal existing suites add executable cross-command/parser/stream/read-only,
+JSON/CBOR diagnostic context/evidence, native promisor no-lazy-fetch trace,
+10/100-Node native default-query launch counts and current Deploy probe counts.
+No machine-dependent time thresholds and no separate formal fixture framework.
+All four SHA1/SHA256 x files/reftable functional combinations pass.
+
+The user corrected the initial B7 experiment packaging: NO formal benchmark
+harness/executable/scripts/stanza/dependencies/package. Temporary experiments
+validate implementation, not establish long-term product infrastructure. Removed
+the entire formal bench directory, Cabal declarations, ignore exceptions and
+README/CHANGELOG benchmark references. These documents contain no raw data or
+machine timings. Only normal test-suite dependency declarations remain.
+
+One-off primary evidence: 212 workloads /636 samples, serial warm-cache triplets;
+Roots at10/100/1000/10000 cover all four combinations; shared 10k SHA1 histories
+and valueless-config before/after cover both backends. Native launch count is
+constant for default Status10, tip8, remote9, commit9, Check/show-refs11; commit
+one session/N requests, Root Check one session/2N+1 requests. Worktree status43
+for two associated trees or26 for one, independent of total Node count. Shared
+10k graph has29999 commits/10001 trees/1blob;40000 requests, not repeated per
+context. Config-error diagnostics remain N+1 with same process counts; at10k
+default before/after files .9377/.6153s, reftable .7685/.4102s. No absolute timing
+or statistical claim. No cold cache/RSS/minimum Git/other-platform measurements.
+
+Original samples: archive/2026-11-12T11-16-04Z--b7-performance/MANIFEST.md.
+Temporary source/key results/reproduction:
+archive/2026-11-12T11-29-59Z--b7-temporary-experiments/MANIFEST.md.
+Old draft cabal/bench references are historical, not current instructions. Keep
+archives unchanged. Current REPRODUCE.md explains isolated temporary source-copy
+builds and the driver-version refinement limitation. No fixture repos/binaries/
+raw build logs retained. Default native tests bind ordinary Git2.56.0 xgw store
+output; agent experiments use command-mapped Git-with-svn2.56.0 2qpb output.
+Both comparison runs use the same latter binary; paths in current.md distinguish.
+
+Final scoped nix flake check passed18 suites/451 groups, -Wall -Werror; treefmt66
+zero changes. Scoped nix fmt and final default nix build passed. All68 files
+match tmp/b7-check and tmp/b7-verification.json; released CHANGELOG, .gitignore,
+version, lock and protocol unchanged. Packaged help topics/JSON version pass,
+no formal benchmark executable. Final product and exact commands in current.md.
+Full10-path source diff reviewed, root index empty. tmp/commit.md holds the full
+phase message. Final state is uncommitted; user reviews/stages/commits. Verify
+later blobs, then continue only the next explicitly requested work.
+
+Stage A owns repeated full planning/ref/worktree observations, batch Deploy/
+Undeploy, collection of all unsafe Nodes/issues, and the current2n occupancy
+checks (four for two imports, zero re-deploy). Preserve native no-deref conditional
+creation, candidate validation, compensation and user-data protections. These are
+not B7 failures. Phase B complete does not releasev0.3.0 or complete Stage A.
+
+Accepted bounds remain native omitted dangling refs, no full ODB/rehash or
+historical transition audit, no all-error collector, no cross-observation atomic
+snapshot, no arbitrary-external-writer isolation, initial refs not validated/current
+per-Node results, clean not removal-safe, partial Status not trusted management
+state. Relative backlink resolution is against the verified admin directory,
+while native discovery handles .git/commondir; identity checks are not relaxed.
+
 ## Post-B1 requirements adopted for B2 and B5
 
 The user refined the plan after inspecting actual B1. These requirements were
@@ -904,10 +975,13 @@ mutators never consume partial Status as trusted state.
 
 ## Remaining decisions and completion
 
-Subject derivation, submodule summary, malformed metadata behavior, missing/
-ambiguous upstream representation, ref-race evidence, protection classification
-and exact diagnostics/schema details need implementation tests/review. The plan
-is accepted, not a claim these technical assumptions are established facts.
+Original design assumptions have been resolved by implementation and tests:
+subject is first LF line with terminal CR removed, original message bytes kept;
+submodule/NUL porcelain framing is tested; typed malformed versus unavailable
+object evidence remains distinct; upstream ambiguity/partial config and ref-race
+classification, protection states and actual JSON/CBOR context encoding are
+covered. Remaining platform/minimum-version/cold-cache/RSS limits are explicitly
+unverified, not hidden claims or unconditional new work.
 
 Completion requires independent Status/Check/mutator layers, reusable Git reads,
 complete trusted mutation validation, all five Node properties and repo
@@ -919,11 +993,10 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-B1-B5, their review corrections and B4-fix were committed by the user and verified
-against their respective manifests. B6 is complete and verified in the uncommitted
-worktree; await user review/commit and B7 instruction. Only within this conversation /
-the
-current Status-query redesign B1–B7, draft one commit message from the COMPLETE
+B1-B6, review corrections and B4-fix were committed by the user and verified
+against their respective manifests. B7 and Phase B are complete and verified in
+the uncommitted worktree; await user review/commit. Only within this conversation /
+the current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;
 if staged, use the complete staged diff and distinguish unrelated/unstaged work.

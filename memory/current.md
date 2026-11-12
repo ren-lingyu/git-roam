@@ -11,74 +11,131 @@ repository-descriptive documentation. The previous pause checkpoint would have
 been better classified chore(memory); no history rewrite was requested.
 Task status is tracked separately below; this convention governs message choice.
 
-## Active B7: integration acceptance and bounded performance
+## Current handoff: Phase B complete; B7 awaits user review/commit
 
-User authorized the supplied B7 plan. Actual baseline is committed B6
-0376d2691cf1bf4abad00a476b41cb5bc4d9aa9a; all 66 final manifest files match.
-Entry project/index clean. Baseline nix flake check returned exit 0, using cached
-B6 product (18 suites / 433 groups previously actually executed); only
-x86_64-linux checked. Do not present cache reuse as a fresh suite execution.
+Actual baseline is the user's B6 commit
+0376d2691cf1bf4abad00a476b41cb5bc4d9aa9a; all 66 final B6 manifest files
+matched at entry, worktree/index clean. Baseline flake check reused its verified
+B6 product. No agent project stage/commit/push. Latest user B7 correction is
+binding: performance acceptance uses formal structural regressions plus one-off
+experiments, NOT a product benchmark facility. Remove all formal benchmark
+source/stanza/scripts/dependencies/package/ignore exceptions. No raw measurements
+or machine-specific timings in README/CHANGELOG. This avoids maintaining new
+performance infrastructure just to accept the observation/validation architecture.
 
-Audit/fix local upstream config-problem indexing and missing-object accumulation;
-add executable/cross-command/wire diagnostic and no-network/read-only regressions;
-build reproducible opt-in scale harness with distinct logical/native/batch metrics.
-Record actual 10/100/1000/10000 results or explicit resource limits, files/reftable.
-Finalize README/CHANGELOG/help, preserve released history, package version and
-storage protocol. No custom Git patch/backend parser or extra public properties.
-Stage A Deploy/Undeploy global/batch planning remains independent. Keep strict
-Validation and management/Hook preflight boundaries; native omission accepted.
-Project commit remains user's action. Draft complete B7 diff message at end.
+Final intended product changes: upstream config-problem flag/Set built once,
+missing-blob prepend/reverse with original order/type precedence; actual CLI
+cross-command/parser/stream/read-only cases; decoded JSON/CBOR context/evidence
+assertions; native promisor/no-lazy-fetch trace; native 10/100-Node default-Status
+launch-count comparison; Deploy 2n occupancy probe cost assertion. Existing
+shared-batch/dedup/property-selection/worktree-cost/Check-scope/show-refs tests
+remain. No wall-clock thresholds. Only dependencies already used elsewhere in the project added to affected test suites;
+no new external dependency. README/CHANGELOG converge on final interfaces and
+Stage A handoff; protocol/package/lock/released history unchanged.
 
-### B7 implementation and audit progress
+Architecture audit: no production Inspection identifiers/dependencies. Status
+never validates history; Check maps shared Validation, candidate state never
+implicitly reads live refs; operations/Hook do not consume presentation. Maps
+already index worktree/remote association; unique tip reads and history/object
+caches already share evidence. Keep these correct implementations unchanged.
 
-Only two production hot paths changed: config problem indexing (once per
-observation, Set membership per Node) and prepend/reverse missing-blob collection
-with original diagnostic order/type precedence. Worktree and remote associations
-already use Maps; unique commit OIDs and immutable history evidence already share
-readers/caches. No speculative data-structure rewrite. Old Inspect production
-identifiers absent; Protocol has no presentation dependency, operations/Hook do
-not consume Status/Check reports, candidate validation remains explicit-only.
+Previous full run passed 18 suites / 447 groups including four native no-fetch
+cases; final input review found three ignored experiment artifacts. A subsequent
+attempt to include them failed their formatting. The user then explicitly
+rejected formal experiment infrastructure, so that attempt is retired, not a
+successful acceptance. Experiment files moved to tmp/b7-performance-tools;
+formal Cabal/ignore/README/CHANGELOG benchmark changes removed. New native
+10/100 regression is included. FINAL scoped check passed 18 suites /451 groups,
+-Wall -Werror; treefmt66 zero changes. Default nix build passed, --no-link.
+All 68 source/doc files match tmp/b7-check and tmp/b7-verification.json. Root
+index empty, HEAD remains actual B6. Ignore file is unchanged; no bench directory,
+stanza, script, dependency or benchmark binary in the formal package. Released
+CHANGELOG/history, version0.2.0, lock/protocol/public CLI/schema unchanged. Actual
+packaged --help/status --help/check --help/node --help/JSON version all pass.
+Final product /nix/store/c3l4vvsmd7q85zynibrdlry72mbdryw7-git-roam-0.2.0;
+derivation /nix/store/iqsr66z4pdydjmz5si2dqli4ksa7aqxy-git-roam-0.2.0.drv.
+Old 69/72-file manifests and earlier benchmark-oriented checks are superseded.
+No skipped tests or hidden unresolved failure. Complete 10-path phase diff
+reviewed (8 tracked modifications, two new test modules); diff --check passes.
+Commit draft tmp/commit.md: test(GitRoam.Cli): finalize status and validation acceptance.
+Split optional, high difficulty: local fixes and integration tests can separate,
+but jointly establish B7 acceptance. No extra project parent for uncommitted B7.
+User stages/commits; verify later commit against final 68-file manifest. Do not
+re-run unchanged tests merely for provenance. Stop here; Stage A is separate.
 
-Added actual executable cross-command/parser/stream/read-only matrix and decoded
-JSON/CBOR diagnostic context/evidence tests. Extend Deploy tests to count current
-2n exact-name probes for n imports, zero when already local; retain both guards
-for Stage A. Opt-in benchmark stanza plus Haskell native proxy/Python driver
-separates launch/session/request counters and uses valid native fast-import roots,
-shared Content/context closures and valueless-config failure workloads. Small
-native fixture probes for all three shapes succeeded; completed scales are below.
+## Commands and verification boundary
 
-First new full test execution: 17/18 suites passed, all four new cross-command
-cases failed because test assumed unsafe-undeploy preflight always yields stdout
-report. Existing command-level refusal legitimately has empty stdout and JSONL
-stderr. Corrected test to handle both established report/no-report branches;
-no product stream contract changed. Werror partial-head/benchmark output compile
-errors also fixed. The intermediate rerun passed; final added regressions are pending below.
-README/CHANGELOG edits remain worktree-targeted, released history/version intact.
+Executed baseline: timeout 300s nix flake check . --no-update-lock-file
+--max-jobs 1 --cores 1 --print-build-logs (cached verified B6 product).
+Last scoped formatter: timeout 120s nix fmt --no-update-lock-file --
+--walk filesystem --no-cache cabal/test/IntegrationAcceptance.hs cabal/git-roam.cabal.
+Final check: timeout 300s nix flake check
+path:/home/lingyu/Projects/git-roam/tmp/b7-check --no-update-lock-file
+--max-jobs 1 --cores 1 --print-build-logs (exit0; tmp/b7-scoped-final-check.log).
+Final build: timeout 300s nix build
+path:/home/lingyu/Projects/git-roam/tmp/b7-check#default --no-link
+--no-update-lock-file --max-jobs 1 --cores 1 --print-out-paths
+(exit0; tmp/b7-scoped-final-build.out/log).
+The Nix build actually ran all 18 Cabal suites; no separate cabal test all CLI
+invocation is claimed. Only x86_64-linux executed. Native functional tests cover
+all four format/backend combinations with the package-bound Git2.56.0. The
+complete final source snapshot includes new untracked tests; all68 bytesets
+match the verification manifest after formatting. No test skipped or timeout.
 
-### B7 measured scale boundaries (final checks pending)
+## Performance evidence and reproduction
 
-18/18 suites passed for the intermediate benchmark build, 443 groups; last native
-promisor/lazy-fetch and strengthened set-selection assertions await final flake
-check. Both B6-comparison and B7 benchmark binaries built with full defaults.
-Primary serial warm-cache runs: 212 workloads / 636 samples. Root matrix covers
-all four combinations and all 10/100/1000/10000 scales. Shared SHA1 10k closure
-has 29999 commits, 10001 trees, one blob; one raw session / 40000 requests.
-Default Status stays 10 native Git processes; tip8, remote9, commit9 (one session,
-N requests), status43 for two worktrees or26 for one; Check/show-refs11 with
-one session and 2N+1 Root requests. Repo12, no refs. All normal runs complete.
-Configuration errors preserve N+1 diagnostics and 11/12 remote/default processes.
-At 10k default, before/after medians files .9377/.6153s, reftable .7685/.4102s.
-No absolute timing or full statistical claim. Early overlapping exploratory runs
-are excluded from primary timing tables. Peak RSS/cold cache/minimum Git/other
-platforms untested. Developer tables: cabal/bench/RESULTS.org, method README.org.
+Primary serial warm-cache experiments: 212 workloads / 636 samples, three per
+workload, no concurrent Nix build. Roots cover SHA1/SHA256 x files/reftable at
+10/100/1000/10000 Nodes. Shared quiet SHA1 10k fixture has 29999 commits,
+10001 trees and one blob; Check one session /40000 raw requests. Default Status
+10 native Git processes independent of N; tip8, remote9, commit9 with one session
+and N unique requests; status43 for two worktrees or26 for one; Check/show-refs11
+with one session /2N+1 Root requests. Repo12 with no ref enumeration. All normal
+queries complete. Configuration errors retain N+1 diagnostics and 11/12 remote/
+default processes; 10k default before/after medians files .9377/.6153s and
+reftable .7685/.4102s. Same Git and Haskell counter before/after. Timings include
+proxy overhead, no absolute/statistical guarantee. Exploratory overlapping runs
+excluded. No cold-cache/RSS/minimum Git/other-platform/deployment throughput claims.
 
-Independent sample evidence captured byte-exact, five files, under
+Original sample bytes and conditions:
 archive/2026-11-12T11-16-04Z--b7-performance/MANIFEST.md.
-Its manifest describes provenance, instrumentation, selection and bounds; no raw
-build logs, binaries or fixture repositories retained. Source is uncommitted B7,
-not an invented result commit. Stage A owns repeated global planning/observation,
-full unsafe-removal diagnostics and 2n occupancy checks; preserve final native
-conditional creation, strict validation, compensation and user data boundaries.
+Temporary-only tools, derived key results and reproduction:
+archive/2026-11-12T11-29-59Z--b7-temporary-experiments/MANIFEST.md.
+Read saved REPRODUCE.md for isolated-source-copy instructions. Old cabal/bench
+paths/packaging wording in historical samples/RESULTS.org are draft-time context,
+not current formal-source instructions. No old product-oriented README archived.
+No fixture repositories, binaries, build logs or conversations retained. Driver
+has minor post-run robustness/metadata refinements; do not claim all historical
+sample driver bytes match the saved final script. Existing archive is immutable.
+
+Default package/native functional tests bind
+/nix/store/xgw813vgzl2q0696sq45adpj0xd690jq-git-2.56.0/bin/git.
+Agent commands/experiments use the session-mapped Git-with-svn
+/nix/store/2qpb7835xdl1aayzr7q24kbrs2d1ajv3-git-with-svn-2.56.0/bin/git.
+Both are Git2.56.0; before/after timings use the SAME latter executable. Distinct
+Nix variants are not a cross-variant timing comparison. Exact dependency field
+was confirmed via targeted derivation JSON read. No Git patch/lock change.
+
+## Stage A and accepted boundaries
+
+Stage A owns repeated global Deploy/Undeploy planning/observations, batch planning,
+complete unsafe-removal diagnostics and the current two exact-name probes per
+import. Retain final no-deref conditional creation, strict candidate validation,
+compensation and user-data checks. Do not delete guards merely for a smaller count.
+No large deployment promise follows from 10k-ref observation results. v0.3.0 is
+not released; Phase A/release gates stay independent. User stages/commits after
+review; full B7 diff message already drafted with a real Haskell-module scope.
+The session-only B1-B7 message convention ends with this completed redesign.
+
+Accepted bounds: native Git can omit dangling symbolic refs; Check is not full
+ODB/blob-rehash/transition validation or an all-error collector; initial refs do
+not assert per-Node validity/current/atomic state; multiple observations are not
+a transaction. Status partial facts never certify ManagedState. Clean is not safe
+removal, and existing locks do not isolate arbitrary external writers. These are
+current design choices, not unconditional B7 TODOs. Check whole-state scope is
+needed to detect cross-history Root conflicts even when each local history alone
+is valid. Checkpoint inference remains separate. Relative worktree backlinks
+resolve against admin directories; strict identity checks stay intact.
 
 ## Historical B6 completion evidence (before the user commit)
 

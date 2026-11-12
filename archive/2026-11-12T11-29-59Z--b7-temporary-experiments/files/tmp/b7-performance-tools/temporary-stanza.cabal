@@ -1,0 +1,8 @@
+
+benchmark observation-benchmark
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:    experiment
+  main-is:          Observation.hs
+  build-depends:    aeson, base >=4.16 && <5, bytestring, containers, git-roam, process
+  default-language: Haskell2010
+  ghc-options:      -Wall -threaded -Werror
