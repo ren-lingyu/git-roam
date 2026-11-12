@@ -1,19 +1,50 @@
 # Git Roam current state
 
-## Active objective: B4 relative-worktree backlink fix
+## Current handoff: relative linked-worktree fix complete
 
-The user committed B5 at a9ffa8689d6919809ab3207718b4800e177ee526; all 65
-committed blobs equal the final B5 verification manifest, worktree/index clean at
-entry. New request fixes only relative admin/gitdir backlinks in Git.Status,
-with native four-combination regressions and README/CHANGELOG TODO v0.3.0.
-Resolve relative backlink bytes from the verified admin directory, keep all
-identity checks, use native discovery for .git/commondir. Test both --relative-paths
-and worktree.useRelativePaths, main/linked queries, clean/dirty, actual relative
-files and corrupted-backlink refusal. No CLI/schema/protocol or B6 implementation.
-Working-directory Nix checks remain authorized; no project staging/commit/push.
-Prepare a separate full-diff fix(GitRoam.Git.Status) message and completion
-checkpoint. Source/test/doc implementation written; validation is next. Do not
-claim native discovery behavior verified until tests run.
+B4-fix is complete in four uncommitted files: Git/Status.hs,
+test/WorkingTreeStatus.hs, README.org and CHANGELOG.org. Baseline is the user's
+B5 commit a9ffa8689d6919809ab3207718b4800e177ee526; all 65 committed B5 blobs
+matched the final B5 verification manifest at entry and ground the transition.
+Project index remains empty. No agent project staging/commit/push; user makes
+this separate fix commit before B6. No B6 implementation in this fix.
+
+Git.Status decodes the admin/gitdir backlink losslessly and canonicalizes
+absolute paths directly, relative paths against the verified admin directory.
+The exact own-.git comparison, other identity anchors, before/after checks,
+read-only flags and path environment remain. No new discovery implementation,
+CLI/schema/model/protocol or operation-safety changes.
+
+Pinned Git 2.56.0 native tests confirm both worktree add --relative-paths and
+worktree.useRelativePaths=true write relative .git, commondir and backlink paths.
+Existing Repository discovery correctly supplies absolute root/admin/common;
+no extra production parsing is required. Main and linked query origins identify
+clean, dirty/untracked, then clean. Corrupting a relative backlink just after
+registration is read preserves the registered path and still yields unavailable,
+exact identity diagnostic and Node/property/path context; restoration returns
+clean. Every group covers both modes across SHA-1/SHA-256 x files/reftable.
+Existing absolute and non-UTF-8 path, identity and read-only tests pass.
+
+The first full authorized 300s/single-job/core Nix check returned exit 0:
+17 suites / 404 groups (Status 74, four added), -Wall -Werror and treefmt 63
+eligible files, zero changes. All 65 files match tmp/b4-fix-check and
+tmp/b4-fix-verification.json by SHA-256. Final product:
+/nix/store/0x9cm5fd4vrn0gysf0kbvqwj9kvk3qvd-git-roam-0.2.0.drv.
+Only x86_64-linux checked; other systems/minimum Git/10^4-Node timing unverified.
+No test skipped, failure or timeout; no new formatter authorization was needed
+because manual source edits already passed the formatter check.
+
+README documents absolute/relative registration; CHANGELOG Fixed remains under
+TODO v0.3.0. Package/release/lock metadata unchanged. Complete four-file diff
+reviewed, diff --check passed. tmp/commit.md has the user's exact title
+fix(GitRoam.Git.Status): resolve relative worktree backlinks, Chinese body with
+ASCII punctuation. Split not necessary, medium difficulty from native path/
+identity evidence. Normal memory distilled findings suffice, no new raw archive.
+Completion checkpoint adds no parent for the uncommitted fix. Verify committed
+blobs against its final manifest before grounding; then resume B6 on actual HEAD.
+B6 still requires pure Check report, original scope/inference and tri-state
+validity/stable diagnostics. The phase-message convention is limited to this
+conversation/current B1-B7 redesign. Keep the historical B4 argv-byte limitation.
 
 ## Historical B5 completion evidence
 

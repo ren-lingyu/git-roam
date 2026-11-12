@@ -563,6 +563,40 @@ Await review/commit and B6 instruction; verify committed blobs against the final
 manifest before grounding. B6 changes Check report/tri-state validity and removes
 remaining obsolete legacy presentation only as part of that next phase.
 
+## Completed B4-fix after B5: relative linked-worktree backlinks
+
+Baseline is the committed B5 snapshot, verified against all 65 final manifest
+blobs with clean entry state. Four-path fix: Git.Status backlink resolution,
+WorkingTreeStatus regressions, README and CHANGELOG Fixed under TODO v0.3.0.
+Decode filesystem bytes, resolve relative backlinks from admin, then perform the
+existing own-.git identity comparison. No new discovery, CLI/schema/model/protocol
+or management change. Other identity, read-only and byte-path safeguards remain.
+
+Native Git 2.56.0 confirms both explicit --relative-paths and
+worktree.useRelativePaths=true produce relative .git, commondir and admin/gitdir.
+Tests compare these with native Repository discovery's absolute root/admin/common
+paths and query clean/dirty/clean from main and linked worktrees. They corrupt a
+relative backlink immediately after native registration output; the registered
+path then fails the exact identity check with unavailable and Node/property/path
+diagnostic. Restoring it returns clean. Four new groups exercise both modes across
+all object-format/ref-backend combinations. Absolute/non-UTF-8 and read-only
+identity cases continue passing.
+
+First full authorized 300s/single-job/core Nix check returned exit 0: x86_64-linux,
+17 suites / 404 groups, Status 74, -Wall -Werror and treefmt 63 files zero changes.
+Product /nix/store/0x9cm5fd4vrn0gysf0kbvqwj9kvk3qvd-git-roam-0.2.0.drv.
+All 65 files match tmp/b4-fix-check and tmp/b4-fix-verification.json by SHA-256;
+diff --check passes. No skipped tests, failure or timeout. Other platforms,
+minimum Git and 10^4-Node timings remain unverified. No formatter was run on
+project files; manual edits passed formatting check. No package/release/lock change.
+
+Full four-file diff reviewed, project index empty; user stages/commits separately.
+tmp/commit.md uses requested fix(GitRoam.Git.Status) title and complete fix diff.
+Split not necessary, medium difficulty. Distilled findings and source/tests suffice
+without raw archive. Completion checkpoint has no parent for uncommitted fix.
+Verify the user's later commit against final manifest, then enter B6 on actual
+HEAD. Original Check scope and strict B5 validation remain constraints for B6.
+
 ## Post-B1 requirements adopted for B2 and B5
 
 The user refined the plan after inspecting actual B1. These requirements were
@@ -805,10 +839,10 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-B1-B4 and their review corrections were committed by the user and verified
-against their respective manifests. B5 is complete and verified in the uncommitted
-worktree; await user review/commit and a new B6 instruction. Only within this
-conversation / the
+B1-B5 and their review corrections were committed by the user and verified
+against their respective manifests. The relative-worktree B4-fix is complete and
+verified in the uncommitted worktree; await its separate user commit before B6.
+Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;
