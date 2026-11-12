@@ -11,6 +11,24 @@ repository-descriptive documentation. The previous pause checkpoint would have
 been better classified chore(memory); no history rewrite was requested.
 Task status is tracked separately below; this convention governs message choice.
 
+## Active B7: integration acceptance and bounded performance
+
+User authorized the supplied B7 plan. Actual baseline is committed B6
+0376d2691cf1bf4abad00a476b41cb5bc4d9aa9a; all 66 final manifest files match.
+Entry project/index clean. Baseline nix flake check returned exit 0, using cached
+B6 product (18 suites / 433 groups previously actually executed); only
+x86_64-linux checked. Do not present cache reuse as a fresh suite execution.
+
+Audit/fix local upstream config-problem indexing and missing-object accumulation;
+add executable/cross-command/wire diagnostic and no-network/read-only regressions;
+build reproducible opt-in scale harness with distinct logical/native/batch metrics.
+Record actual 10/100/1000/10000 results or explicit resource limits, files/reftable.
+Finalize README/CHANGELOG/help, preserve released history, package version and
+storage protocol. No custom Git patch/backend parser or extra public properties.
+Stage A Deploy/Undeploy global/batch planning remains independent. Keep strict
+Validation and management/Hook preflight boundaries; native omission accepted.
+Project commit remains user's action. Draft complete B7 diff message at end.
+
 ## Current handoff: B6 complete and verified
 
 B6 is complete in 24 uncommitted project paths (including the history-test rename).
