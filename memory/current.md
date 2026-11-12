@@ -1,13 +1,43 @@
 # Git Roam current state
 
-## Current handoff: B3 session correction implemented and verified
+## Active objective: B4 working-tree status property
 
-The user committed initial B3 at fd3a694561dbbf8bc1ab527ba9d1e58b56bbd741.
-All 60 committed blobs matched the successful B3 snapshot at correction entry;
-the transition checkpoint grounds that exact committed state. The requested B3
-correction is now complete in 12 uncommitted project paths, including new shared
-test/BatchFixture.hs. The project index is empty. The agent did not stage/commit/
-push ordinary project files. Await user review/commit; B4–B6 were not implemented.
+The user committed the B3 session correction at
+b7a0e150547c51a46fed3a01413344f6dadd2e41. All 61 committed blobs match its
+successful verification manifest, with clean project worktree/index at B4 entry.
+The user explicitly requested B4 and emphasized real worktree identity, complete
+porcelain-v2 NUL/rename/unmerged/submodule parsing and separation from removal
+safety. B4 scoped Haskell/Cabal formatting is authorized with existing local
+treefmt (120s); existing Nix check authorization retains 300s/one-job/core.
+
+Implement independent Git.Status reader/parser and opt-in status property. Share
+one worktree registration observation with -p worktrees; exact -p status must not
+emit worktrees. Pin the status process to verified git-dir/work-tree, compare
+root/common/admin/HEAD evidence before and after, check linked admin backpointer
+and reject wrong/missing/replaced registrations instead of reporting clean.
+Use porcelain v2 -z, fixed untracked/submodule options and no optional locks,
+clear redirecting Git environment. Separate unmerged from ordinary staged/
+unstaged XY; submodule dirty flags contribute unstaged and its U flag untracked.
+Maintain reliable partial reports and path/Node/property diagnostics, no full
+history traversal or mutation. Defaults remain tip/worktrees/remote. Do not
+change undeploy/delete safety/preflight, protocol, B5/B6, subject or remote model.
+Add parser/identity/dirty/partial/readonly/cost/CLI regressions across four native
+Git combinations, sync docs, run checks, draft full-diff commit and checkpoint.
+Prior B3 correction evidence below is historical, not B4 verification.
+
+B4 implementation is in nine uncommitted paths, including new Git/Status.hs and
+test/WorkingTreeStatus.hs. Registration is shared, status pinned and identity
+checked before/after with linked admin backlink and inode evidence. Parser covers
+fixed fields, extra rename/copy NUL records, conflicts and submodule flags. First
+full check compiled -Wall -Werror and formatting passed; 15 suites passed, but
+Status rejected-input test found lone NUL incorrectly accepted, now fixed. A
+native non-UTF-8-path test raised IOException and its diagnostic printing failed
+on a surrogate, aborting remaining Status groups. Added ASCII-safe exception
+reporting in that new test to expose the actual cause. Strengthened ignored/
+operation preflight assertions and upfront .git file type validation. Second
+check is running; B4 is not yet verified. No project Git writes.
+
+## Historical B3 session correction evidence
 
 BatchOutcome separates a callback result from completion problems. Typed
 BatchRequestFailed and BatchProcessExited allow retaining prior complete,

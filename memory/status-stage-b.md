@@ -423,7 +423,24 @@ Original B3 manifests are preserved. Full diff reviewed, diff HEAD --check passe
 One coupled fix; split not necessary, high lifecycle/safety coupling. Draft
 full-diff tmp/commit.md uses GitRoam.Git.Batch scope and no Breaking footer. No new
 raw archive or uncommitted project parent needed. Await user review/commit; verify
-its blobs before grounding. B3 correction is complete; B4 awaits a new instruction.
+its blobs before grounding. The user has now committed this correction at
+b7a0e150547c51a46fed3a01413344f6dadd2e41, verified by 61-file equivalence.
+The explicitly requested B4 work is recorded below.
+
+## Active B4: verified worktree identity and native status
+
+The user committed the B3 correction at b7a0e150547c51a46fed3a01413344f6dadd2e41;
+61 blobs match the final B3 session manifest and entry worktree/index are clean.
+B4 is explicitly authorized, including scoped formatter; retain 300s single-job/
+core Nix limits. Verify actual root/common/admin/HEAD before/after and linked
+admin backpointer; pin status to the verified git-dir/work-tree. Do not trust
+path existence/discovery alone. Parse porcelain-v2 NUL structure, extra rename/
+copy paths, unmerged and submodule flags. Summaries keep unmerged separate from
+ordinary XY changes; submodule dirty flags also count unstaged, U untracked.
+Keep worktrees/status separate properties linked by raw path and share the
+registration read. Unknown is unavailable with diagnostics, never false/clean.
+Preserve partial data, readonly/default cost and existing removal/delete safety;
+no B5/B6 migration. Complete tests, docs, full-diff draft and memory handoff.
 
 ## Post-B1 requirements adopted for B2 and B5
 
@@ -670,7 +687,7 @@ changes. Do not reopen historical experiments/releases as implicit work.
 B1 and initial B2 were committed by the user. B2 review corrections are now
 committed and verified by manifest equivalence. B3 is complete and verified
 in the committed initial B3 snapshot. Its session correction is now verified in
-the uncommitted worktree; await user review/commit and a new B4 instruction. Only within this conversation / the
+the committed B3 correction snapshot. B4 is explicitly requested and active. Only within this conversation / the
 current Status-query redesign B1–B7, draft one commit message from the COMPLETE
 stage diff immediately on completion of each later stage, even before
 user staging. Review new files and tracked changes against the stage baseline;
