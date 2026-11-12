@@ -1,11 +1,11 @@
 # Git Roam current state
 
-## Current handoff: B2 implemented and verified; awaiting user review
+## Active objective: repair B2 review findings before B3
 
-B2 is complete in the project worktree on the user's committed B1 baseline,
-refactor(GitRoam.Git.Refs): share batch Node ref observations. Ordinary project
-files are unstaged/uncommitted (15 modified tracked paths plus new
-cabal/src/GitRoam/Application/Status.hs and cabal/test/Status.hs). No agent
+The user committed B2 as a2018485275e476c9cb9645cb2dc67c27b40b482; all 57
+committed files match the B2 verification manifest, and the worktree/index were
+clean at resumption. The user then supplied a B2 review requiring corrections
+before B3. Treat initial B2 completion/test evidence below as the pre-fix state. No agent
 project staging, commit, branch or push was performed. Development TODO stays
 v0.3.0; package/release metadata remains 0.2.0 and release history is untouched.
 
@@ -71,11 +71,15 @@ It does not authorize project staging/commits. User authorized on-demand
 working-directory Nix eval/build/check and outside-workspace read-only commands;
 B2 also had explicit scoped Haskell/Cabal formatting authorization (120s).
 
-Next: await user review/commit of B2 or a new B3 instruction. Do not start B3 or
-stage/commit/push project files automatically. If the user commits, compare its
-blobs with the B2 verification manifest before associating test evidence with
-that exact commit. This memory checkpoint adds no project parent for tested
-uncommitted source. Earlier handoff facts below are historical, not next actions.
+Current work: correct remote-only and effective scalar remote semantics, isolate
+upstream atom failures from base ref facts with bounded batch fallback, retain
+Node-local config successes/errors including native valueless records, and scope
+symbolic remote diagnostics/unknown-empty distinctions to selected local Nodes.
+Preserve CLI/default/schema/protocol/check/strict-base-observation boundaries.
+Add native four-combination and adapter regressions, sync README/CHANGELOG, run
+authorized checks and draft one full-diff fix commit message. Initial tests do
+not verify these fixes. Do not freeze B2 or begin B3 until correction acceptance.
+No project staging/commits/pushes are authorized.
 
 ## Completed follow-ups: creation format cleanup and output documentation
 
