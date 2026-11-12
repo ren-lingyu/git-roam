@@ -109,9 +109,11 @@ even when its OID matches the trusted snapshot. Deploy also still refuses
 symbolic remote candidates for existing local Nodes. No paths are created by
 these refused operation scenarios. Existing lifecycle/Hook/race suites pass.
 This does not establish all-platform, exact-minimum-Git or 10^4-Node benchmark
-claims. No benchmark was run. The actual implementation is uncommitted, so the
-completion memory checkpoint has no additional project parent pretending to
-represent that tested source. Recoverable source/tests and durable results
+claims. No benchmark was run. The first implementation-completion checkpoint retained the then-uncommitted
+verification state without a project parent. The user has since committed B1
+with full module scope GitRoam.Git.Refs; all 55 committed blobs match the verified
+manifest and the project worktree/index are clean. The committed-source handoff
+associates that exact project state without rerunning unchanged tests. Recoverable source/tests and durable results
 suffice; routine failed/successful build logs need no new archive.
 
 ## Public Status decisions
@@ -294,8 +296,14 @@ auto fetch/push/live network, ahead/behind/divergence, full history browser/diff
 notes/signature validation, generic refspec engine, new cache/DB or protocol
 changes. Do not reopen historical experiments/releases as implicit work.
 
-B1 is complete in the verified uncommitted worktree. Await user review/commit
-or a new instruction; do not start B2 automatically. If the user commits, compare
-committed blobs with the current verification manifest before claiming exact
-committed-source test equivalence. Recheck latest HEAD before the next phase;
-B2–B7 implementation and future check permissions are not implied by B1.
+B1 is complete, verified and committed by the user. Await an instruction for B2;
+recheck latest HEAD before beginning. Only within this conversation / the
+current Status-query redesign B1–B7, draft one commit message from the COMPLETE
+stage diff immediately on completion of each later stage, even before
+user staging. Review new files and tracked changes against the stage baseline;
+if staged, use the complete staged diff and distinguish unrelated/unstaged work.
+Use the principal full Haskell module name as scope, preserving capitalization,
+as explicitly chosen for B1. Save the draft to validated tmp/commit.md. This
+temporary message-drafting convention ends with this redesign; do not apply it
+to unrelated work. It does not authorize project staging or commits, later-stage
+implementation or additional check commands by itself.

@@ -3,9 +3,10 @@
 ## Current handoff: stage B1 complete; v0.3.0 development target
 
 The user requested B1 implementation and synchronized documentation, with the
-CHANGELOG TODO target at v0.3.0. B1 is implemented and verified in the project
-worktree; ordinary project files remain unstaged/uncommitted at the inspected
-main baseline 17c2594c6423c899b39d99bdcb01431efc2e9eb9. The initial user edit
+CHANGELOG TODO target at v0.3.0. The user committed B1 as
+refactor(GitRoam.Git.Refs): share batch Node ref observations. The project
+worktree/index are clean; all 55 committed blobs match the successful B1
+verification manifest, with the inspected baseline as the direct parent. The initial user edit
 already set TODO v0.3.0 and was preserved. Package/release metadata remains
 0.2.0; no release transition, tag or push is implied.
 
@@ -33,8 +34,11 @@ difference, an accidentally removed forM import and a wrong new UUIDv1 test
 expectation; all were corrected. No timeout occurred. Canonical existing Node
 refs accept non-v4 UUIDs; creation's stricter identity policy is separate.
 The complete execution bounds and earlier failed derivations are in the stage B
-memory. Test success belongs to the verified uncommitted source, not the original
-baseline. This completion checkpoint therefore adds no guessed project parent.
+memory. The earlier completion checkpoint recorded tested uncommitted source without
+a project parent. The new committed-source handoff associates the exact B1
+commit after full blob equivalence and eight-file scope review; it introduces
+only the reviewed B1 commit above the already retained baseline. No tests were
+rerun solely for this association.
 
 The plan's decision-bearing excerpts and complete supplement remain immutable
 historical evidence: [source selection and limits](../archive/2026-11-11T18-21-37Z--stage-b-plan/MANIFEST.md).
@@ -43,12 +47,23 @@ Keep B1–B7, migrate all management callers together in B5, and keep worktrees/
 status independent exact-select properties linked by raw path. Status may be
 partial; mutators still require complete trusted ManagedState and fresh preflight.
 
-Next: await user review/commit of B1 or a new instruction. Do not start B2,
-project staging/commits/pushes, releases or unrelated work automatically. If the
-user commits B1, compare its blobs with the retained verification manifest before
-claiming that exact commit was tested. B1 Nix execution permission applies only
-to this task; later phases require their own active authorization. Earlier
-clean-worktree and next-action statements below describe historical handoffs.
+Only for this conversation / the current Status-query redesign (B1–B7), the
+user requires a commit-message draft immediately at each subsequent stage
+completion, based on the COMPLETE stage diff, without waiting for a
+separate staging/message request. Before staging, inspect tracked worktree
+changes and new files against the stage baseline; after user staging, use the
+complete staged diff and keep unrelated/unstaged work distinct. Write one draft
+to the validated tmp/commit.md; user prefers the principal full Haskell module
+name as scope (e.g. GitRoam.Git.Refs), preserving module capitalization rather
+than forcing lowercase. This temporary convention ends with the Status-query
+redesign and is not a global rule for other tasks. It does not authorize agent
+project staging/commits.
+
+Next: await an instruction to start B2. Do not automatically implement later
+stages, stage/commit/push project files or initiate releases. Recheck latest HEAD
+before the next phase. B1 Nix execution permission applies to B1; later phases
+follow active authorization. Earlier clean-worktree and next-action statements
+below describe historical handoffs.
 
 ## Completed follow-ups: creation format cleanup and output documentation
 
