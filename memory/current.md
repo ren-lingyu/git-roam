@@ -29,7 +29,58 @@ Stage A Deploy/Undeploy global/batch planning remains independent. Keep strict
 Validation and management/Hook preflight boundaries; native omission accepted.
 Project commit remains user's action. Draft complete B7 diff message at end.
 
-## Current handoff: B6 complete and verified
+### B7 implementation and audit progress
+
+Only two production hot paths changed: config problem indexing (once per
+observation, Set membership per Node) and prepend/reverse missing-blob collection
+with original diagnostic order/type precedence. Worktree and remote associations
+already use Maps; unique commit OIDs and immutable history evidence already share
+readers/caches. No speculative data-structure rewrite. Old Inspect production
+identifiers absent; Protocol has no presentation dependency, operations/Hook do
+not consume Status/Check reports, candidate validation remains explicit-only.
+
+Added actual executable cross-command/parser/stream/read-only matrix and decoded
+JSON/CBOR diagnostic context/evidence tests. Extend Deploy tests to count current
+2n exact-name probes for n imports, zero when already local; retain both guards
+for Stage A. Opt-in benchmark stanza plus Haskell native proxy/Python driver
+separates launch/session/request counters and uses valid native fast-import roots,
+shared Content/context closures and valueless-config failure workloads. Small
+native fixture probes for all three shapes succeeded; completed scales are below.
+
+First new full test execution: 17/18 suites passed, all four new cross-command
+cases failed because test assumed unsafe-undeploy preflight always yields stdout
+report. Existing command-level refusal legitimately has empty stdout and JSONL
+stderr. Corrected test to handle both established report/no-report branches;
+no product stream contract changed. Werror partial-head/benchmark output compile
+errors also fixed. The intermediate rerun passed; final added regressions are pending below.
+README/CHANGELOG edits remain worktree-targeted, released history/version intact.
+
+### B7 measured scale boundaries (final checks pending)
+
+18/18 suites passed for the intermediate benchmark build, 443 groups; last native
+promisor/lazy-fetch and strengthened set-selection assertions await final flake
+check. Both B6-comparison and B7 benchmark binaries built with full defaults.
+Primary serial warm-cache runs: 212 workloads / 636 samples. Root matrix covers
+all four combinations and all 10/100/1000/10000 scales. Shared SHA1 10k closure
+has 29999 commits, 10001 trees, one blob; one raw session / 40000 requests.
+Default Status stays 10 native Git processes; tip8, remote9, commit9 (one session,
+N requests), status43 for two worktrees or26 for one; Check/show-refs11 with
+one session and 2N+1 Root requests. Repo12, no refs. All normal runs complete.
+Configuration errors preserve N+1 diagnostics and 11/12 remote/default processes.
+At 10k default, before/after medians files .9377/.6153s, reftable .7685/.4102s.
+No absolute timing or full statistical claim. Early overlapping exploratory runs
+are excluded from primary timing tables. Peak RSS/cold cache/minimum Git/other
+platforms untested. Developer tables: cabal/bench/RESULTS.org, method README.org.
+
+Independent sample evidence captured byte-exact, five files, under
+archive/2026-11-12T11-16-04Z--b7-performance/MANIFEST.md.
+Its manifest describes provenance, instrumentation, selection and bounds; no raw
+build logs, binaries or fixture repositories retained. Source is uncommitted B7,
+not an invented result commit. Stage A owns repeated global planning/observation,
+full unsafe-removal diagnostics and 2n occupancy checks; preserve final native
+conditional creation, strict validation, compensation and user data boundaries.
+
+## Historical B6 completion evidence (before the user commit)
 
 B6 is complete in 24 uncommitted project paths (including the history-test rename).
 Base remains 3fbbe95047a2cabe06c60b4a9c6958b227e6ba8e; all 65 committed B4-fix
