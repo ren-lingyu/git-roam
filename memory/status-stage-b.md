@@ -1,5 +1,25 @@
 # Stage B: Status queries and protocol validation
 
+## Current B6 override
+
+The latest user B6 plan supersedes the initial Check-scope rules below: Check
+always validates the whole set exposed by native enumeration, removes --node and
+inference, uses independent Valid/Invalid/Inconclusive reports (true/false/null,
+exit 0/1/3) and optional initial --show-refs MAP. Preserve initial refs across
+later errors and make ref/session integrity override provisional violations.
+Unify static Validation, distinguish malformed reliable objects from read failure,
+remove Inspect and keep operation preflight/Hook strict acceptance. Checkpoint
+still uses inferNode. Check reads no worktree/status/upstream/protection data.
+
+The user CANCELLED raw Git enumeration / patched dependency: dangling symbolic
+refs silently omitted by Git 2.56.0 are a documented detection boundary, not a
+v0.3.0 ref-backend implementation task. Protocol requires direct valid Node refs
+regardless of detection limits. Existing visible symbolic refs still reject.
+Audit and protect concrete Create/Deploy UUID name occupancy using native refs
+exists and no-deref creation, without redesigning the ref observation model.
+Current implementation/check progress is in current.md. Do not follow stale
+historical instructions to preserve Check --node or solve raw enumeration first.
+
 ## Source, scope and assessment
 
 Adopted user development guide plus supplementary judgment, received on
