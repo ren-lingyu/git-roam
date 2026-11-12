@@ -7,6 +7,7 @@ module GitRoam.Application.Status (
     StatusQuery (..),
     PropertyResult (..),
     NodeStatus (..),
+    WorktreeStatus (..),
     RemoteObservation (..),
     UpstreamObservation (..),
     StatusReport (..),
@@ -18,7 +19,9 @@ module GitRoam.Application.Status (
 ) where
 
 import Control.Applicative ((<|>))
+import Control.Monad (forM)
 import qualified Data.ByteString as BS
+import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -28,14 +31,14 @@ import GitRoam.Git
 import qualified GitRoam.Git.Commit as Commit
 import GitRoam.Git.Objects (readOnlyEnvironment)
 import qualified GitRoam.Git.Refs as Refs
+import qualified GitRoam.Git.Status as Working
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId
 import GitRoam.Protocol.Identity
 import GitRoam.Repository
 import System.Exit (ExitCode (..))
 
--- Working-tree file status is added separately from registered worktrees.
-data NodeProperty = TipProperty | CommitProperty | WorktreesProperty | RemoteProperty deriving (Eq, Ord, Show)
+data NodeProperty = TipProperty | CommitProperty | WorktreesProperty | StatusProperty | RemoteProperty deriving (Eq, Ord, Show)
 data NodeSelection = AllNodes | SelectedNodes (Set.Set NodeId) deriving (Eq, Show)
 data PropertySelection = DefaultProperties | SelectedProperties (Set.Set NodeProperty) deriving (Eq, Show)
 data StatusQuery = RepositoryStatus | NodeStatusQuery NodeSelection PropertySelection deriving (Eq, Show)
@@ -56,7 +59,13 @@ data NodeStatus = NodeStatus
     , statusTip :: PropertyResult ObjectId
     , statusCommit :: PropertyResult Commit.CommitMetadata
     , statusWorktrees :: PropertyResult [Worktrees.Worktree]
+    , statusWorkingTrees :: PropertyResult [WorktreeStatus]
     , statusRemote :: PropertyResult RemoteObservation
+    }
+    deriving (Eq, Show)
+data WorktreeStatus = WorktreeStatus
+    { statusWorktreePath :: BS.ByteString
+    , statusWorktreeSummary :: Maybe Working.WorkingTreeStatus
     }
     deriving (Eq, Show)
 data StatusDiagnostic = StatusDiagnostic
@@ -81,6 +90,7 @@ propertyName :: NodeProperty -> Text
 propertyName TipProperty = "tip"
 propertyName CommitProperty = "commit"
 propertyName WorktreesProperty = "worktrees"
+propertyName StatusProperty = "status"
 propertyName RemoteProperty = "remote"
 
 queryStatus :: Git IO -> FilePath -> StatusQuery -> IO (Either RepositoryError StatusReport)
@@ -105,16 +115,23 @@ queryStatus git directory request = do
         (before, upstreamBeforeErrors) <- observeRefs format scope
         let localRefs = Map.fromList [(Refs.observedNode ref, ref) | ref <- Refs.observationRefs before, Refs.observedRemotePrefix ref == Nothing]
             chosen = case selection of AllNodes -> Map.keys localRefs; SelectedNodes values -> Set.toAscList values
+            chosenSet = Set.fromList chosen
         commitObservation <-
             if wants CommitProperty
                 then Commit.readCommitMetadata safeGit directory format environment [Refs.observedTip ref | node <- chosen, Just ref <- [Map.lookup node localRefs], BS.null (Refs.observedSymbolic ref)]
                 else pure (Commit.CommitObservation Map.empty [])
-        trees <- if wants WorktreesProperty then Just <$> Worktrees.listWorktrees safeGit directory format else pure Nothing
+        trees <- if wants WorktreesProperty || wants StatusProperty then Just <$> Worktrees.listWorktrees safeGit directory format else pure Nothing
+        working <- case trees of
+            Just (Right records) | wants StatusProperty -> forM [(node, tree) | tree <- sortOn Worktrees.treePath records, Just node <- [Worktrees.worktreeNode tree], Set.member node chosenSet] $ \(node, tree) -> do
+                result <- Working.readWorkingTreeStatus safeGit repository tree
+                pure (node, Worktrees.treePath tree, result)
+            _ -> pure []
         configs <- if wants RemoteProperty then Just <$> Refs.readUpstreamConfig safeGit directory environment else pure Nothing
         (after, upstreamAfterErrors) <- observeRefs format scope
         let commits = Commit.observedCommits commitObservation
             commitSessions = [issue "commit_session_incomplete" Nothing (Just CommitProperty) ("Raw commit metadata session did not finish successfully: " ++ show (Commit.commitSessionProblems commitObservation)) | not (null (Commit.commitSessionProblems commitObservation))]
-            chosenSet = Set.fromList chosen
+            workingByNode = Map.map reverse (Map.fromListWith (++) [(node, [WorktreeStatus path (either (const Nothing) Just result)]) | (node, path, result) <- working])
+            workingIssues = [(issue "worktree_status_unavailable" (Just node) (Just StatusProperty) problem){diagnosticPath = Just path} | (node, path, Left problem) <- working]
             registered = case trees of
                 Just (Right records) -> Just (Map.map reverse (Map.fromListWith (++) [(node, [tree]) | tree <- records, Just node <- [Worktrees.worktreeNode tree]]))
                 _ -> Nothing
@@ -133,6 +150,7 @@ queryStatus git directory request = do
                             (if not (wants TipProperty) then NotRequested else case found of Just ref | BS.null (Refs.observedSymbolic ref) -> Available (Refs.observedTip ref); _ -> Unavailable)
                             (if not (wants CommitProperty) then NotRequested else case found of Just ref | BS.null (Refs.observedSymbolic ref), Just (Right value) <- Map.lookup (Refs.observedTip ref) commits -> Available value; _ -> Unavailable)
                             (if not (wants WorktreesProperty) then NotRequested else maybe Unavailable (Available . Map.findWithDefault [] node) registered)
+                            (if not (wants StatusProperty) then NotRequested else case registered of Just _ -> Available (Map.findWithDefault [] node workingByNode); Nothing -> Unavailable)
                             (if not (wants RemoteProperty) then NotRequested else Available (RemoteObservation upstream (remoteTips node)))
                     missing = case found of
                         Nothing -> [issue (if Refs.observationComplete before then "node_not_found" else "node_unavailable") (Just node) Nothing "No reliable local Node ref was observed"]
@@ -146,7 +164,9 @@ queryStatus git directory request = do
             upstreamChanged = null upstreamBeforeErrors && null upstreamAfterErrors && upstreamFingerprint before /= upstreamFingerprint after
             changed = [issue "observation_changed" Nothing Nothing "Refs changed during the query; results are not a consistent snapshot" | fingerprint before /= fingerprint after || upstreamChanged]
             refIssues = map refIssue (Refs.observationErrors before ++ Refs.observationErrors after)
-            treeIssues = case trees of Just (Left problem) -> [issue "worktrees_unavailable" Nothing (Just WorktreesProperty) problem]; _ -> []
+            treeIssues = case trees of
+                Just (Left problem) -> [issue code Nothing (Just property) problem | (property, code) <- [(WorktreesProperty, "worktrees_unavailable"), (StatusProperty, "worktree_status_unavailable")], wants property]
+                _ -> []
             configIssues = case configs of
                 Nothing -> []
                 Just observed ->
@@ -156,7 +176,7 @@ queryStatus git directory request = do
                     ]
             upstreamReadIssues = [issue "upstream_unavailable" Nothing (Just RemoteProperty) (Text.unpack (statusMessage (refIssue problem))) | problem <- upstreamBeforeErrors ++ upstreamAfterErrors]
             symbolicRemote = [issue "symbolic_remote_ref" (Just (Refs.observedNode ref)) (Just RemoteProperty) "A remote Node candidate is symbolic" | ref <- remoteCandidates, Set.member (Refs.observedNode ref) chosenSet, not (BS.null (Refs.observedSymbolic ref))]
-        pure (NodesReport (map fst rows) (deduplicate (refIssues ++ treeIssues ++ configIssues ++ upstreamReadIssues ++ symbolicRemote ++ concatMap snd rows ++ commitSessions ++ changed)))
+        pure (NodesReport (map fst rows) (deduplicate (refIssues ++ treeIssues ++ workingIssues ++ configIssues ++ upstreamReadIssues ++ symbolicRemote ++ concatMap snd rows ++ commitSessions ++ changed)))
     -- The optional atom can fail on branch configuration even when plain refs
     -- remain readable. Keep its failure separate, and never trust failed stdout.
     observeRefs format scope = do

@@ -30,6 +30,7 @@ import System.Environment (getEnvironment)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import TestSupport
+import WorkingTreeStatus (workingTreeTests)
 import WorktreeFixture
 
 main :: IO ()
@@ -46,6 +47,7 @@ main =
                 ++ [("Status CLI reports and argument errors " ++ backend ++ " " ++ show format, fixture backend format cliQueries) | backend <- ["files", "reftable"], format <- [Sha1, Sha256]]
                 ++ regressionTests
                 ++ commitTests
+                ++ workingTreeTests
 
 first :: [a] -> a
 first (value : _) = value
@@ -60,10 +62,11 @@ parser = do
         b = BSC.unpack (nodeIdBytes nodeB)
         expected = QueryStatus (NodeStatusQuery (SelectedNodes (Set.fromList [nodeA, nodeB])) (SelectedProperties (Set.fromList [TipProperty, RemoteProperty])))
     assertEqual (Right (QueryStatus (query [CommitProperty]))) (parseCommand ["status", "-t", "node", "-p", "commit"])
+    assertEqual (Right (QueryStatus (query [StatusProperty]))) (parseCommand ["status", "-t", "node", "-p", "status"])
     assertEqual (Right (QueryStatus RepositoryStatus)) (parseCommand ["status", "--type", "repo"])
     assertEqual (Right (QueryStatus (NodeStatusQuery AllNodes DefaultProperties))) (parseCommand ["status", "-t", "node"])
     assertEqual (Right expected) (parseCommand ["status", "--node", b, "-p", "remote", "-t", "node", "-n", a, "-n", a, "--property", "tip", "-p", "tip"])
-    forM_ [["status"], ["status", "--node", a], ["status", "-t", "node", "--type", "node"], ["status", "-t", "repo", "-t", "node"], ["status", "-t", "repo", "-n", a], ["status", "-t", "repo", "-p", "tip"], ["status", "-t", "unknown"], ["status", "-t", "node", "-p", "unknown"], ["status", "-t", "node", "-n", a, b], ["status", "-t", "node", "-n", "bad"], ["status", "-t", "node", "-p", "status"], ["status", "-t", "node", "--format", "json"], ["-f", "json", "status", "-t", "node"]] $ expectLeft . parseCommand
+    forM_ [["status"], ["status", "--node", a], ["status", "-t", "node", "--type", "node"], ["status", "-t", "repo", "-t", "node"], ["status", "-t", "repo", "-n", a], ["status", "-t", "repo", "-p", "tip"], ["status", "-t", "unknown"], ["status", "-t", "node", "-p", "unknown"], ["status", "-t", "node", "-n", a, b], ["status", "-t", "node", "-n", "bad"], ["status", "-t", "node", "--format", "json"], ["-f", "json", "status", "-t", "node"]] $ expectLeft . parseCommand
 
 partialRefs :: IO ()
 partialRefs = forM_ [Sha1, Sha256] $ \format -> do
@@ -114,7 +117,7 @@ encodings = do
     oid <- expectRight (parseObjectId Sha1 (BS.replicate 40 49))
     let raw = "/raw\n" <> BS.pack [255]
         tree = Worktree raw (Just oid) (Just ("refs/heads/" <> nodeIdBytes nodeA)) True False False (Just "locked\nreason") Nothing
-        report = NodesReport [NodeStatus nodeA NotRequested NotRequested (Available [tree]) NotRequested] []
+        report = NodesReport [NodeStatus nodeA NotRequested NotRequested (Available [tree]) NotRequested NotRequested] []
         value = statusValue report
     case value of
         Object [("nodes", Array [Object fields]), ("diagnostics", Array [])] -> assertEqual ["node", "worktrees"] (map fst fields)

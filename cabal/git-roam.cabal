@@ -23,6 +23,7 @@ library
     GitRoam.Git.Commit
     GitRoam.Git.Objects
     GitRoam.Git.Refs
+    GitRoam.Git.Status
     GitRoam.Git.Worktrees
     GitRoam.ObjectId
     GitRoam.Output
@@ -136,6 +137,7 @@ test-suite status-tests
     CommitProperty
     StatusRegression
     TestSupport
+    WorkingTreeStatus
     WorktreeFixture
 
   build-tool-depends: git-roam:git-roam

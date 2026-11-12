@@ -25,6 +25,7 @@ import qualified GitRoam.Application.Status as Status
 import GitRoam.Diagnostic (Evidence (..))
 import qualified GitRoam.Diagnostic as Diagnostic
 import qualified GitRoam.Git.Commit as Commit
+import qualified GitRoam.Git.Status as Working
 import qualified GitRoam.Git.Worktrees as Worktrees
 import GitRoam.ObjectId (ObjectId, objectIdBytes)
 import GitRoam.Protocol.History
@@ -198,6 +199,7 @@ statusValue report = case report of
                 ++ property "tip" oidValue (Status.statusTip node)
                 ++ property "commit" commit (Status.statusCommit node)
                 ++ property "worktrees" (Array . map tree) (Status.statusWorktrees node)
+                ++ property "status" (Array . map working) (Status.statusWorkingTrees node)
                 ++ property "remote" remote (Status.statusRemote node)
     commit value =
         Object
@@ -223,6 +225,15 @@ statusValue report = case report of
             , ("prunable", Boolean (Worktrees.treePrunable value /= Nothing))
             , ("prune_reason", maybe Null Bytes (Worktrees.treePrunable value))
             ]
+    working value =
+        Object
+            [ ("path", Bytes (Status.statusWorktreePath value))
+            , ("state", String (case Status.statusWorktreeSummary value of Nothing -> "unavailable"; Just summary -> if Working.workingTreeDirty summary then "dirty" else "clean"))
+            , ("staged", maybe Null (Boolean . Working.workingStaged) (Status.statusWorktreeSummary value))
+            , ("unstaged", maybe Null (Boolean . Working.workingUnstaged) (Status.statusWorktreeSummary value))
+            , ("untracked", maybe Null (Boolean . Working.workingUntracked) (Status.statusWorktreeSummary value))
+            , ("unmerged", maybe Null (Boolean . Working.workingUnmerged) (Status.statusWorktreeSummary value))
+            ]
     remote value = Object [("upstream", case Status.remoteUpstream value of Status.Available result -> maybe Null upstream result; _ -> Null), ("refs", maybe Null (Array . map (\(ref, tip) -> Object [("ref", Bytes ref), ("tip", oidValue tip)])) (Status.remoteRefs value))]
     upstream value = Object [("remote", maybe Null Bytes (Status.upstreamRemote value)), ("source", maybe Null Bytes (Status.upstreamSource value)), ("ref", maybe Null Bytes (Status.upstreamRef value))]
 
@@ -241,6 +252,7 @@ renderStatus report = case report of
                 ++ field "tip" (\name oid -> [name <> " " <> oidText oid]) (Status.statusTip value)
                 ++ field "commit" renderCommit (Status.statusCommit value)
                 ++ field "worktrees" renderTrees (Status.statusWorktrees value)
+                ++ field "status" renderWorking (Status.statusWorkingTrees value)
                 ++ field "remote" renderRemote (Status.statusRemote value)
     raw = maybe "unavailable" (Text.pack . show)
     renderCommit name value =
@@ -250,6 +262,15 @@ renderStatus report = case report of
     renderIdentity value = Text.pack (show (Commit.identityName value)) <> " <" <> Text.pack (show (Commit.identityEmail value)) <> "> " <> Text.pack (show (Commit.dateTimestamp (Commit.identityDate value))) <> " " <> Encoding.decodeUtf8 (Commit.dateOffset (Commit.identityDate value))
     flag True = "yes"
     flag False = "no"
+    renderWorking name [] = [name <> " none"]
+    renderWorking _ values =
+        concatMap
+            ( \value ->
+                ("status " <> Text.pack (show (Status.statusWorktreePath value))) : case Status.statusWorktreeSummary value of
+                    Nothing -> ["  unavailable"]
+                    Just summary -> ["  " <> (if Working.workingTreeDirty summary then "dirty" else "clean") <> " staged " <> flag (Working.workingStaged summary) <> " unstaged " <> flag (Working.workingUnstaged summary) <> " untracked " <> flag (Working.workingUntracked summary) <> " unmerged " <> flag (Working.workingUnmerged summary)]
+            )
+            values
     renderTrees name [] = [name <> " none"]
     renderTrees _ trees = concatMap renderTree trees
     renderTree tree =
