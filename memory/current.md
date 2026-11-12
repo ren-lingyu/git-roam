@@ -67,8 +67,12 @@ creation regressions continue to cover safety. No production behavior changed.
 The current project worktree is clean. The prior 18-suite/451-group check and
 build were run before this small test revision and were not rerun afterward; the
 68-file manifest likewise describes the pre-revision tree. This checkpoint is
-grounded in the exact committed project state inspected now. No new project test
-result is claimed. Stage A remains separate; await the user's next objective.
+grounded in the exact committed project state inspected now. The user then ran
+`nix flake check` at this HEAD; it evaluated the current derivations, reported
+all checks passed with zero checks executed in that invocation, and hit the Nix
+cache. Record this as successful cache-backed validation, not a fresh test-suite
+run. The output omitted aarch64-linux and aarch64-darwin; x86_64-linux is the
+only platform covered. Stage A remains separate; await the user's next objective.
 
 ## Commands and verification boundary
 

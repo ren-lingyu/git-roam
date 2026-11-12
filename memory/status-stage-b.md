@@ -741,7 +741,12 @@ creation safety tests remain. No production code changed. The project HEAD and
 worktree were inspected clean. Tests were not rerun after this small test edit;
 the 18/451 result and 68-file manifest refer to the preceding main B7 commit.
 The current memory checkpoint is associated with the exact committed project
-state inspected for this handoff; no new test pass is claimed.
+state inspected for this handoff. Afterward, the user ran `nix flake check` at
+that project HEAD. The command evaluated the current derivations, reported all
+checks passed with zero checks executed in that invocation, and used cached
+results. Treat this as successful cache-backed validation, not a fresh suite
+run. The output omitted aarch64-linux and aarch64-darwin; only x86_64-linux was
+covered.
 
 Stage A owns repeated full planning/ref/worktree observations, batch Deploy/
 Undeploy, collection of all unsafe Nodes/issues, and the current2n occupancy
